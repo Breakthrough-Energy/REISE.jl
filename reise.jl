@@ -182,8 +182,10 @@ function make_branch_map(case::Case)::SparseMatrixCSC
     branch_idx = 1:num_branch
     bus_idx = 1:num_bus
     bus_id2idx = Dict(case.busid .=> bus_idx)
-    branch_to_idx = [bus_id2idx[b] for b in case.branch_to]
-    branch_from_idx = [bus_id2idx[b] for b in case.branch_from]
+    all_branch_to = vcat(case.branch_to, case.dcline_to)
+    all_branch_from = vcat(case.branch_from, case.dcline_from)
+    branch_to_idx = [bus_id2idx[b] for b in all_branch_to]
+    branch_from_idx = [bus_id2idx[b] for b in all_branch_from]
     branches_to = sparse(branch_to_idx, branch_idx, 1, num_bus, num_branch)
     branches_from = sparse(branch_from_idx, branch_idx, -1, num_bus, num_branch)
     branch_map = branches_to + branches_from
@@ -204,6 +206,8 @@ function build_model(case::Case, start_index::Int=1, interval_length::Int=1)
     branch_rating[branch_rating .== 0] .= Inf
     num_branch = length(branch_name)
     branch_idx = 1:num_branch
+    num_branch_ac = length(case.branchid)
+    branch_ac_idx = 1:num_branch_ac
     gen_name = ["g" * string(g) for g in case.genid]
     num_gen = length(case.genid)
     gen_idx = 1:num_gen
@@ -229,6 +233,10 @@ function build_model(case::Case, start_index::Int=1, interval_length::Int=1)
     solar_map = sparse(1:num_solar, case.gen_bus[gen_solar_idx], 1)
     wind_map = sparse(1:num_wind, case.gen_bus[gen_wind_idx], 1)
     # Branch connectivity matrix
+    all_branch_to = vcat(case.branch_to, case.dcline_to)
+    all_branch_from = vcat(case.branch_from, case.dcline_from)
+    branch_to_idx = Int64[bus_id2idx[b] for b in all_branch_to]
+    branch_from_idx = Int64[bus_id2idx[b] for b in all_branch_from]
     branch_map = make_branch_map(case)
     # Demand by bus
     bus_df = DataFrames.DataFrame(
@@ -297,10 +305,10 @@ function build_model(case::Case, start_index::Int=1, interval_length::Int=1)
     JuMP.@constraint(m, branch_max[br = noninf_branch_idx, h = hour_idx], (
         pf[br, h] <= branch_rating[br]))
     println("branch_angle: ", Dates.now())
-    sparse_reactance = sparse(branch_idx, branch_idx, case.branch_reactance)
-    transposed_branch_map = convert(SparseMatrixCSC, transpose(branch_map))
-    JuMP.@constraint(m, branch_angle, (
-        sparse_reactance * pf .== transposed_branch_map * theta))
+    # Explicit numbering here so that we constrain AC branches but not DC
+    JuMP.@constraint(m, branch_angle[br = 1:num_branch_ac, h = 1:num_hour], (
+        case.branch_reactance[br] * pf[br,h]
+        == (theta[branch_to_idx[br],h] - theta[branch_from_idx[br],h])))
     println("hydro_fixed: ", Dates.now())
     JuMP.@constraint(m, hydro_fixed[i = 1:num_hydro, h = hour_idx], (
         pg[gen_hydro_idx[i], h] == simulation_hydro[h, i]))
