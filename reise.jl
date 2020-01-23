@@ -52,7 +52,6 @@ Base.@kwdef struct Case
 end
 
 
-
 function read_case()
     # Read files from current working directory, return a dict
 
@@ -203,7 +202,8 @@ function make_branch_map(case::Case)::SparseMatrixCSC
 end
 
 
-function build_model(case::Case, start_index::Int=1, interval_length::Int=1)
+function build_model(; case::Case, start_index::Int=1,
+                     interval_length::Int=1)::JuMP.Model
     # Build an optimization model from a Case struct
 
     println("building sets: ", Dates.now())
@@ -341,11 +341,42 @@ function build_model(case::Case, start_index::Int=1, interval_length::Int=1)
     return m
 end
 
-function solve_model(m::JuMP.Model)
-    # Solve a model
 
-    JuMP.optimize!(m)
+function build_and_solve(m_kwargs::Dict, s_kwargs::Dict, env::Gurobi.Env)
+    # Solve using a Gurobi Env
+    # Convert Dicts to NamedTuples
+    m_kwargs = (; (Symbol(k) => v for (k,v) in m_kwargs)...)
+    s_kwargs = (; (Symbol(k) => v for (k,v) in s_kwargs)...)
+    m = build_model(; m_kwargs...)
+    JuMP.optimize!(
+        m, JuMP.with_optimizer(Gurobi.Optimizer, env; s_kwargs...))
 end
+
+
+function build_and_solve(m_kwargs::Dict, s_kwargs::Dict)
+    # Solve using GLPK
+    # Convert Dicts to NamedTuples
+    m_kwargs = (; (Symbol(k) => v for (k,v) in m_kwargs)...)
+    s_kwargs = (; (Symbol(k) => v for (k,v) in s_kwargs)...)
+    m = build_model(; m_kwargs...)
+    JuMP.optimize!(m, JuMP.with_optimizer(GLPK.Optimizer; s_kwargs...))
+end
+
+
+function build_and_solve_and_cleanup(solver_name;
+                                     m_kwargs::Dict, s_kwargs::Dict)
+    if solver_name == "gurobi"
+        env = Gurobi.Env()
+        build_and_solve(m_kwargs, s_kwargs, env)
+        GC.gc()
+        Gurobi.free_env(env)
+    elseif solver_name == "glpk"
+        build_and_solve(m_kwargs, s_kwargs)
+    else
+        throw(ArgumentError)
+    end
+end
+
 
 # Module end
 end
