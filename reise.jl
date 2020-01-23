@@ -13,6 +13,9 @@ import SparseArrays: sparse, SparseMatrixCSC
 
 
 Base.@kwdef struct Case
+    # We create a struct to hold case data in a type-declared format
+    # `Base.@kwdef` allows us to instantiate this via keywords
+
     branchid::Array{Int64,1}
     branch_from::Array{Int64,1}
     branch_to::Array{Int64,1}
@@ -51,6 +54,8 @@ end
 
 
 function read_case()
+    # Read files from current working directory, return a dict
+
     print("reading")
     # Read case.mat
     case_mat_file = MAT.matopen("case.mat")
@@ -111,6 +116,8 @@ end
 
 
 function reise_data_mods(case::Dict)::Case
+    # Take in a dict from source data, tweak values and return a Case struct.
+
     # Modify PMINs
     case["gen_pmin"][case["genfuel"] .!= "coal"] .= 0
     nuclear_idx = case["genfuel"] .== "nuclear"
@@ -162,6 +169,8 @@ end
 
 
 function make_gen_map(case::Case)::SparseMatrixCSC
+    # Create generator topology matrix
+
     num_bus = length(case.busid)
     bus_idx = 1:num_bus
     bus_id2idx = Dict(case.busid .=> bus_idx)
@@ -174,6 +183,8 @@ end
 
 
 function make_branch_map(case::Case)::SparseMatrixCSC
+    # Create branch topology matrix
+
     branch_ac_name = ["l" * string(b) for b in case.branchid]
     branch_dc_name = ["d" * string(d) for d in case.dclineid]
     branch_name = vcat(branch_ac_name, branch_dc_name)
@@ -193,6 +204,8 @@ end
 
 
 function build_model(case::Case, start_index::Int=1, interval_length::Int=1)
+    # Build an optimization model from a Case struct
+
     println("building sets: ", Dates.now())
     # Sets
     bus_name = ["b" * string(b) for b in case.busid]
@@ -329,6 +342,8 @@ function build_model(case::Case, start_index::Int=1, interval_length::Int=1)
 end
 
 function solve_model(m::JuMP.Model)
+    # Solve a model
+
     JuMP.optimize!(m)
 end
 
