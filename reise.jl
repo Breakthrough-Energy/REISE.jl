@@ -202,8 +202,11 @@ function make_branch_map(case::Case)::SparseMatrixCSC
 end
 
 
-function build_model(; case::Case, start_index::Int=1,
-                     interval_length::Int=1)::JuMP.Model
+function build_model(; case::Case, start_index::Int, interval_length::Int,
+                     load_shed_enabled::Bool=false,
+                     load_shed_penalty::Number=9000,
+                     trans_viol_enabled::Bool=false,
+                     trans_viol_penalty::Number=100)::JuMP.Model
     # Build an optimization model from a Case struct
 
     println("building sets: ", Dates.now())
@@ -280,12 +283,23 @@ function build_model(; case::Case, start_index::Int=1,
     JuMP.@variable(m, pg[1:num_gen,1:num_hour] >= 0)
     JuMP.@variable(m, pf[1:num_branch,1:num_hour])
     JuMP.@variable(m, theta[1:num_bus,1:num_hour])
+    if load_shed_enabled
+        JuMP.@variable(m,
+            0 <= load_shed[i = 1:num_bus, j = 1:num_hour] <= bus_demand[i,j])
+    end
 
     println("constraints: ", Dates.now())
     # Constraints
+
     println("powerbalance: ", Dates.now())
-    JuMP.@constraint(m, powerbalance, (
-        gen_map * pg + branch_map * pf .== bus_demand))
+    if load_shed_enabled
+        JuMP.@constraint(m, powerbalance, (
+            gen_map * pg + branch_map * pf + load_shed .== bus_demand))
+    else
+        JuMP.@constraint(m, powerbalance, (
+            gen_map * pg + branch_map * pf .== bus_demand))
+    end
+
     if length(hour_idx) > 1
         println("rampup: ", Dates.now())
         noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
@@ -297,6 +311,7 @@ function build_model(; case::Case, start_index::Int=1,
             case.gen_ramp30[i] * -2 <= pg[i, h+1] - pg[i, h]
             )
     end
+
     println("gen_min: ", Dates.now())
     # Use this!
     #JuMP.@constraint(m, gen_min[i = 1:num_gen,h = 1:num_hour], (
@@ -305,37 +320,52 @@ function build_model(; case::Case, start_index::Int=1,
     JuMP.@constraint(m, gen_min, pg .>= case.gen_pmin)
     # Do NOT use this! (bad broadcasting, extremely slow)
     #JuMP.@constraint(m, gen_min[1:num_gen,1:num_hour], pg .>= case.gen_pmin)
+
     println("gen_max: ", Dates.now())
     noninf_pmax = findall(case.gen_pmax .!= Inf)
     JuMP.@constraint(m, gen_max[i = noninf_pmax, h = hour_idx], (
         pg[i, h] <= case.gen_pmax[i]))
+
     println("branch_min: ", Dates.now())
     noninf_branch_idx = findall(branch_rating .!= Inf)
     JuMP.@constraint(m, branch_min[br = noninf_branch_idx, h = hour_idx], (
         -branch_rating[br] <= pf[br, h]))
+
     println("branch_max: ", Dates.now())
     JuMP.@constraint(m, branch_max[br = noninf_branch_idx, h = hour_idx], (
         pf[br, h] <= branch_rating[br]))
+
     println("branch_angle: ", Dates.now())
     # Explicit numbering here so that we constrain AC branches but not DC
     JuMP.@constraint(m, branch_angle[br = 1:num_branch_ac, h = 1:num_hour], (
         case.branch_reactance[br] * pf[br,h]
         == (theta[branch_to_idx[br],h] - theta[branch_from_idx[br],h])))
+
     println("hydro_fixed: ", Dates.now())
     JuMP.@constraint(m, hydro_fixed[i = 1:num_hydro, h = hour_idx], (
         pg[gen_hydro_idx[i], h] == simulation_hydro[h, i]))
+
     println("solar_max: ", Dates.now())
     JuMP.@constraint(m, solar_max[i = 1:num_solar, h = hour_idx], (
         pg[gen_solar_idx[i], h] <= simulation_solar[h, i]))
+
     println("wind_max: ", Dates.now())
     JuMP.@constraint(m, wind_max[i = 1:num_wind, h = hour_idx], (
         pg[gen_wind_idx[i], h] <= simulation_wind[h, i]))
+
     println("objective: ", Dates.now())
     reshaped_case_gen_a_new = reshape(
         case.gen_a_new, (1, num_gen))::Array{Float64,2}
-    JuMP.@objective(m, Min, (0
-        + num_hour * sum(case.gen_b_new)
-        + sum(reshaped_case_gen_a_new * pg)))
+    if load_shed_enabled
+        JuMP.@objective(m, Min, (0
+            + num_hour * sum(case.gen_b_new)
+            + sum(reshaped_case_gen_a_new * pg))
+            + load_shed_penalty * sum(load_shed))
+    else
+        JuMP.@objective(m, Min, (0
+            + num_hour * sum(case.gen_b_new)
+            + sum(reshaped_case_gen_a_new * pg)))
+    end
 
     println(Dates.now())
     return m
