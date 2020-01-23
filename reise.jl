@@ -259,8 +259,7 @@ function build_model(case::Case, start_index::Int=1, interval_length::Int=1)
     simulation_wind = Matrix(case.wind[start_index:end_index, 2:end])
 
     # Model
-    #m = JuMP.direct_model(Gurobi.Optimizer(Method=2, Crossover=0))
-    m = JuMP.direct_model(GLPK.Optimizer())
+    m = JuMP.Model()
 
     println("variables: ", Dates.now())
     # Variables
@@ -329,7 +328,7 @@ function build_model(case::Case, start_index::Int=1, interval_length::Int=1)
     return m
 end
 
-function solve_model(m)
+function solve_model(m::JuMP.Model)
     JuMP.optimize!(m)
 end
 
