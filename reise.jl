@@ -50,10 +50,12 @@ end
 
 
 
-function read_case()
-    print("reading")
+function read_case(filepath)
+    println("Reading from folder: " * filepath)
     # Read case.mat
-    case_mat_file = MAT.matopen("case.mat")
+    
+    println("...loading case.mat")
+    case_mat_file = MAT.matopen(filepath * "case.mat")
     mpc = read(case_mat_file, "mpc")
 
     # New case.mat analog
@@ -101,10 +103,20 @@ function read_case()
     case["gen_c0"] = mpc["gencost"][:,7]
 
     # Load all relevant profile data from CSV files
-    case["demand"] = CSV.File("demand.csv") |> DataFrames.DataFrame
-    case["hydro"] = CSV.File("hydro.csv") |> DataFrames.DataFrame
-    case["wind"] = CSV.File("wind.csv") |> DataFrames.DataFrame
-    case["solar"] = CSV.File("solar.csv") |> DataFrames.DataFrame
+    println("...loading demand.csv")
+    case["demand"] = CSV.File(filepath * "demand.csv") |> DataFrames.DataFrame
+    
+    println("...loading hydro.csv")
+    case["hydro"] = CSV.File(filepath * "hydro.csv") |> DataFrames.DataFrame
+    
+    println("...loading wind.csv")
+    case["wind"] = CSV.File(filepath * "wind.csv") |> DataFrames.DataFrame
+    
+    println("...loading solar.csv")
+    case["solar"] = CSV.File(filepath * "solar.csv") |> DataFrames.DataFrame
+    
+    println()
+    println("All scenario files loaded!")
 
     return case
 end
