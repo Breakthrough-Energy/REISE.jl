@@ -287,6 +287,10 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
         JuMP.@variable(m,
             0 <= load_shed[i = 1:num_bus, j = 1:num_hour] <= bus_demand[i,j])
     end
+    if trans_viol_enabled
+        JuMP.@variable(m,
+            0 <= trans_viol[i = 1:num_branch, j = 1:num_hour])
+    end
 
     println("constraints: ", Dates.now())
     # Constraints
@@ -326,14 +330,25 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
     JuMP.@constraint(m, gen_max[i = noninf_pmax, h = hour_idx], (
         pg[i, h] <= case.gen_pmax[i]))
 
-    println("branch_min: ", Dates.now())
-    noninf_branch_idx = findall(branch_rating .!= Inf)
-    JuMP.@constraint(m, branch_min[br = noninf_branch_idx, h = hour_idx], (
-        -branch_rating[br] <= pf[br, h]))
+    if trans_viol_enabled
+        println("branch_min: ", Dates.now())
+        noninf_branch_idx = findall(branch_rating .!= Inf)
+        JuMP.@constraint(m, branch_min[br = noninf_branch_idx, h = hour_idx], (
+            -1 * (branch_rating[br] + trans_viol[br, h]) <= pf[br, h]))
 
-    println("branch_max: ", Dates.now())
-    JuMP.@constraint(m, branch_max[br = noninf_branch_idx, h = hour_idx], (
-        pf[br, h] <= branch_rating[br]))
+        println("branch_max: ", Dates.now())
+        JuMP.@constraint(m, branch_max[br = noninf_branch_idx, h = hour_idx], (
+            pf[br, h] <= branch_rating[br] + trans_viol[br, h]))
+    else
+        println("branch_min: ", Dates.now())
+        noninf_branch_idx = findall(branch_rating .!= Inf)
+        JuMP.@constraint(m, branch_min[br = noninf_branch_idx, h = hour_idx], (
+            -branch_rating[br] <= pf[br, h]))
+
+        println("branch_max: ", Dates.now())
+        JuMP.@constraint(m, branch_max[br = noninf_branch_idx, h = hour_idx], (
+            pf[br, h] <= branch_rating[br]))
+    end
 
     println("branch_angle: ", Dates.now())
     # Explicit numbering here so that we constrain AC branches but not DC
@@ -356,16 +371,23 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
     println("objective: ", Dates.now())
     reshaped_case_gen_a_new = reshape(
         case.gen_a_new, (1, num_gen))::Array{Float64,2}
+    # Start with generator variable O & M
+    obj = JuMP.@expression(m, sum(reshaped_case_gen_a_new * pg))
+    # Add no-load costs
+    JuMP.add_to_expression!(
+        obj, JuMP.@expression(m, num_hour * sum(case.gen_b_new)))
+    # Add load shed penalty (if necessary)
     if load_shed_enabled
-        JuMP.@objective(m, Min, (0
-            + num_hour * sum(case.gen_b_new)
-            + sum(reshaped_case_gen_a_new * pg))
-            + load_shed_penalty * sum(load_shed))
-    else
-        JuMP.@objective(m, Min, (0
-            + num_hour * sum(case.gen_b_new)
-            + sum(reshaped_case_gen_a_new * pg)))
+        JuMP.add_to_expression!(
+            obj, JuMP.@expression(m, load_shed_penalty * sum(load_shed)))
     end
+    # Add transmission violation penalty (if necessary)
+    if trans_viol_enabled
+        JuMP.add_to_expression!(
+            obj, JuMP.@expression(m, trans_viol_penalty * sum(trans_viol)))
+    end
+    # Finally, set as objective of model
+    JuMP.@objective(m, Min, obj)
 
     println(Dates.now())
     return m
