@@ -509,9 +509,21 @@ function get_2d_variable_values(m::JuMP.Model, s::String)::Array{Float64,2}
     match_idxs = stringmatch.(s, vars)::BitArray{1}
     match_vars = vars[match_idxs]::Array{JuMP.VariableRef,1}
     dim_strs = match(r"\[(\d+),(\d+)\]", JuMP.name(match_vars[end])).captures
-    dims = tuple([parse(Int,s) for s in dim_strs]...)::Tuple{Int64,Int64}
-    match_vars = reshape(match_vars, dims)
+    # What do the indices of the first, second, and last look like?
+    regex_str = r"\[(\d+),(\d+)\]"
+    first_dim_strs = match(regex_str, JuMP.name(match_vars[1])).captures
+    first_dims = Int64[parse(Int,s) for s in first_dim_strs]
+    second_dim_strs = match(regex_str, JuMP.name(match_vars[2])).captures
+    second_dims = Int64[parse(Int,s) for s in second_dim_strs]
+    end_dim_strs = match(regex_str, JuMP.name(match_vars[end])).captures
+    end_dims = Int64[parse(Int,s) for s in end_dim_strs]
+    # Use our knowledge of the dims to appropriately reshape the outputs
     match_vars = JuMP.value.(match_vars)
+    if (second_dims - first_dims) == [0, 1]
+        match_vars = transpose(reshape(match_vars, (end_dims[2], end_dims[1])))
+    else
+        match_vars = reshape(match_vars, tuple(end_dims...))
+    end
     return match_vars
 end
 
@@ -534,9 +546,21 @@ function get_2d_constraint_duals(m::JuMP.Model, s::String)::Array{Float64,2}
     match_cons = cons[match_idxs]::Array{
         JuMP.ConstraintRef{JuMP.Model,_A,JuMP.ScalarShape} where _A,1}
     dim_strs = match(r"\[(\d+),(\d+)\]", JuMP.name(match_cons[end])).captures
-    dims = tuple([parse(Int,s) for s in dim_strs]...)::Tuple{Int64,Int64}
-    match_cons = reshape(match_cons, (:, dims[2]))
+    # What do the indices of the first, second, and last look like?
+    regex_str = r"\[(\d+),(\d+)\]"
+    first_dim_strs = match(regex_str, JuMP.name(match_cons[1])).captures
+    first_dims = Int64[parse(Int,s) for s in first_dim_strs]
+    second_dim_strs = match(regex_str, JuMP.name(match_cons[2])).captures
+    second_dims = Int64[parse(Int,s) for s in second_dim_strs]
+    end_dim_strs = match(regex_str, JuMP.name(match_cons[end])).captures
+    end_dims = Int64[parse(Int,s) for s in end_dim_strs]
+    # Use our knowledge of the dims to appropriately reshape the outputs
     match_cons = JuMP.shadow_price.(match_cons)
+    if (second_dims - first_dims) == [0, 1]
+        match_cons = transpose(reshape(match_cons, (end_dims[2], :)))
+    else
+        match_cons = reshape(match_cons, (:, end_dims[2]))
+    end
     return match_cons
 end
 
