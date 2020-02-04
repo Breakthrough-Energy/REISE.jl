@@ -205,6 +205,25 @@ end
 
 
 """
+    save_input_mat(case)
+
+Read the original case.mat file, replace relevant parameters from Case struct,
+save a new input.mat file with parameters as they're passed to solver.
+"""
+function save_input_mat(case::Case)
+    case_mat_file = MAT.matopen("case.mat")
+    mpc = read(case_mat_file, "mpc")
+    mpc["gen"][:,10] = case.gen_pmin
+    mpc["gen"][:,19] = case.gen_ramp30
+    mpc["gen_a_new"] = case.gen_a_new
+    mpc["gen_b_new"] = case.gen_b_new
+    mdi = Dict("mpc" => mpc)
+    MAT.matwrite("input.mat", Dict("mdi" => mdi); compress=true)
+    return nothing
+end
+
+
+"""
     make_gen_map(case)
 
 Given a Case object, build a sparse matrix representing generator topology.
