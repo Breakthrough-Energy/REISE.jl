@@ -79,7 +79,7 @@ function save_results(results::Results, filename::String)
                 ),
             )),
         )
-    MAT.matwrite(filename, Dict("mdo_save" => mdo_save))
+    MAT.matwrite(filename, Dict("mdo_save" => mdo_save); compress=true)
 end
 
 
