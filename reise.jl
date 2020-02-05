@@ -278,7 +278,9 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
                      load_shed_enabled::Bool=false,
                      load_shed_penalty::Number=9000,
                      trans_viol_enabled::Bool=false,
-                     trans_viol_penalty::Number=100)::JuMP.Model
+                     trans_viol_penalty::Number=100,
+                     initial_ramp_enabled::Bool=false,
+                     initial_ramp_g0::Array{Float64,1}=Float64[])::JuMP.Model
     # Build an optimization model from a Case struct
 
     println("building sets: ", Dates.now())
@@ -381,16 +383,24 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
                       "powerbalance[" * string(i) * "," * string(j) * "]")
     end
 
+    if initial_ramp_enabled
+        println("initial rampup: ", Dates.now())
+        noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
+        JuMP.@constraint(m, initial_rampup[i = noninf_ramp_idx],
+            pg[i,1] - initial_ramp_g0[i] <= case.gen_ramp30[i] * 2)
+        println("initial rampdown: ", Dates.now())
+        JuMP.@constraint(m, initial_rampdown[i = noninf_ramp_idx],
+            case.gen_ramp30[i] * -2 <= pg[i,1] - initial_ramp_g0[i])
+    end
+
     if length(hour_idx) > 1
         println("rampup: ", Dates.now())
         noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
-        JuMP.@constraint(m, rampup[i = noninf_ramp_idx, h = 1:(num_hour-1)], (
+        JuMP.@constraint(m, rampup[i = noninf_ramp_idx, h = 1:(num_hour-1)],
             pg[i,h+1] - pg[i,h] <= case.gen_ramp30[i] * 2)
-            )
         println("rampdown: ", Dates.now())
         JuMP.@constraint(m, rampdown[i = noninf_ramp_idx, h = 1:(num_hour-1)],
-            case.gen_ramp30[i] * -2 <= pg[i, h+1] - pg[i, h]
-            )
+            case.gen_ramp30[i] * -2 <= pg[i, h+1] - pg[i, h])
     end
 
     println("gen_min: ", Dates.now())
