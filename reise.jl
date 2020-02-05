@@ -613,6 +613,8 @@ end
 function run_scenario(;
         interval::Int, n_interval::Int, start_index::Int, outputfolder::String)
     # Setup things that build once
+    # If outputfolder doesn't exist (isdir evaluates false) create it (mkdir)
+    isdir(outputfolder) || mkdir(outputfolder)
     env = Gurobi.Env()
     case = read_case()
     case = reise_data_mods(case)
