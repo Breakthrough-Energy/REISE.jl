@@ -87,7 +87,7 @@ end
 function read_case()
     # Read files from current working directory, return a dict
 
-    print("reading")
+    println("reading")
     # Read case.mat
     case_mat_file = MAT.matopen("case.mat")
     mpc = read(case_mat_file, "mpc")
@@ -491,6 +491,8 @@ function build_and_solve(
     m = build_model(; m_kwargs...)
     JuMP.optimize!(
         m, JuMP.with_optimizer(Gurobi.Optimizer, env; s_kwargs...))
+    results = get_results(m)
+    return results
 end
 
 
@@ -537,7 +539,6 @@ function get_2d_variable_values(m::JuMP.Model, s::String)::Array{Float64,2}
     vars = JuMP.all_variables(m)
     match_idxs = stringmatch.(s, vars)::BitArray{1}
     match_vars = vars[match_idxs]::Array{JuMP.VariableRef,1}
-    dim_strs = match(r"\[(\d+),(\d+)\]", JuMP.name(match_vars[end])).captures
     # What do the indices of the first, second, and last look like?
     regex_str = r"\[(\d+),(\d+)\]"
     first_dim_strs = match(regex_str, JuMP.name(match_vars[1])).captures
@@ -574,7 +575,6 @@ function get_2d_constraint_duals(m::JuMP.Model, s::String)::Array{Float64,2}
     match_idxs = stringmatch.(s, cons)::BitArray{1}
     match_cons = cons[match_idxs]::Array{
         JuMP.ConstraintRef{JuMP.Model,_A,JuMP.ScalarShape} where _A,1}
-    dim_strs = match(r"\[(\d+),(\d+)\]", JuMP.name(match_cons[end])).captures
     # What do the indices of the first, second, and last look like?
     regex_str = r"\[(\d+),(\d+)\]"
     first_dim_strs = match(regex_str, JuMP.name(match_cons[1])).captures
@@ -607,6 +607,44 @@ function build_and_solve_and_cleanup(solver_name;
     else
         throw(ArgumentError)
     end
+end
+
+
+function run_scenario(;
+        interval::Int, n_interval::Int, start_index::Int, outputfolder::String)
+    # Setup things that build once
+    # If outputfolder doesn't exist (isdir evaluates false) create it (mkdir)
+    isdir(outputfolder) || mkdir(outputfolder)
+    env = Gurobi.Env()
+    case = read_case()
+    case = reise_data_mods(case)
+    pg0 = Array{Float64}(undef, length(case.genid))
+    solver_kwargs = Dict("Method" => 2, "Crossover" => 0)
+    s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
+    # Then loop through intervals
+    for i in 1:n_interval
+        # Define appropriate settings
+        interval_start = start_index + (i - 1) * interval
+        model_kwargs = Dict(
+                "case" => case,
+                "start_index" => interval_start,
+                "interval_length" => interval)
+        if i > 1
+            model_kwargs["initial_ramp_enabled"] = true
+            model_kwargs["initial_ramp_g0"] = pg0
+        end
+        m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
+        # Actually build the model, solve it, get results
+        results = build_and_solve(model_kwargs, solver_kwargs, env)
+        # Then save them
+        results_filename = "result_" * string(i-1) * ".mat"
+        results_filepath = joinpath(outputfolder, results_filename)
+        save_results(results, results_filepath)
+        pg0 = results.pg[:,end]
+    end
+    GC.gc()
+    Gurobi.free_env(env)
+    println("Connection closed successfully!")
 end
 
 
