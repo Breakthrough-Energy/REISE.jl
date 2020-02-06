@@ -644,6 +644,7 @@ function run_scenario(;
     end
     GC.gc()
     Gurobi.free_env(env)
+    println("Connection closed successfully!")
 end
 
 
