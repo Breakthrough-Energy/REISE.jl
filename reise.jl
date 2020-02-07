@@ -621,12 +621,12 @@ end
 
 
 function run_scenario(;
-        interval::Int, n_interval::Int, start_index::Int, outputfolder::String)
+        interval::Int, n_interval::Int, start_index::Int, inputfolder::String, outputfolder::String)
     # Setup things that build once
     # If outputfolder doesn't exist (isdir evaluates false) create it (mkdir)
     isdir(outputfolder) || mkdir(outputfolder)
     env = Gurobi.Env()
-    case = read_case()
+    case = read_case(inputfolder)
     case = reise_data_mods(case)
     pg0 = Array{Float64}(undef, length(case.genid))
     solver_kwargs = Dict("Method" => 2, "Crossover" => 0)
