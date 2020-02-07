@@ -87,13 +87,9 @@ end
 """Read REISE input matfiles, return parsed relevant data in a Dict."""
 function read_case(filepath)
     println("Reading from folder: " * filepath)
-
-function read_case(filepath)
-    println("Reading from folder: " * filepath)
-    # Read case.mat
     
     println("...loading case.mat")
-    case_mat_file = MAT.matopen(filepath * "case.mat")
+    case_mat_file = MAT.matopen(joinpath(filepath, "case.mat"))
     mpc = read(case_mat_file, "mpc")
 
     # New case.mat analog
