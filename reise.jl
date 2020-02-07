@@ -10,6 +10,7 @@ import Gurobi
 import LinearAlgebra: transpose
 import MAT
 import SparseArrays: sparse, SparseMatrixCSC
+using Base import joinpath
 
 
 Base.@kwdef struct Case
@@ -89,7 +90,7 @@ function read_case(filepath)
 
     # Read case.mat
     println("...loading case.mat")
-    case_mat_file = MAT.matopen(filepath * "case.mat")
+    case_mat_file = MAT.matopen(joinpath(filepath, "case.mat"))
     mpc = read(case_mat_file, "mpc")
 
     # New case.mat analog
@@ -138,16 +139,16 @@ function read_case(filepath)
 
     # Load all relevant profile data from CSV files
     println("...loading demand.csv")
-    case["demand"] = CSV.File(filepath * "demand.csv") |> DataFrames.DataFrame
+    case["demand"] = CSV.File(joinpath(filepath, "demand.csv")) |> DataFrames.DataFrame
     
     println("...loading hydro.csv")
-    case["hydro"] = CSV.File(filepath * "hydro.csv") |> DataFrames.DataFrame
+    case["hydro"] = CSV.File(joinpath(filepath, "hydro.csv")) |> DataFrames.DataFrame
     
     println("...loading wind.csv")
-    case["wind"] = CSV.File(filepath * "wind.csv") |> DataFrames.DataFrame
+    case["wind"] = CSV.File(joinpath(filepath, "wind.csv")) |> DataFrames.DataFrame
     
     println("...loading solar.csv")
-    case["solar"] = CSV.File(filepath * "solar.csv") |> DataFrames.DataFrame
+    case["solar"] = CSV.File(joinpath(filepath, "solar.csv")) |> DataFrames.DataFrame
     
     println()
     println("All scenario files loaded!")
