@@ -3,14 +3,11 @@ module reise
 import CSV
 import DataFrames
 import Dates
-import JLD
 import JuMP
-import GLPK
 import Gurobi
 import LinearAlgebra: transpose
 import MAT
 import SparseArrays: sparse, SparseMatrixCSC
-using Base: joinpath
 
 
 Base.@kwdef struct Case
@@ -503,18 +500,6 @@ function build_and_solve(
         m, JuMP.with_optimizer(Gurobi.Optimizer, env; s_kwargs...))
     results = get_results(m)
     return results
-end
-
-
-"""Build and solve a model using GLPK."""
-function build_and_solve(
-        m_kwargs::Dict, s_kwargs::Dict)::Results
-    # Solve using GLPK
-    # Convert Dicts to NamedTuples
-    m_kwargs = (; (Symbol(k) => v for (k,v) in m_kwargs)...)
-    s_kwargs = (; (Symbol(k) => v for (k,v) in s_kwargs)...)
-    m = build_model(; m_kwargs...)
-    JuMP.optimize!(m, JuMP.with_optimizer(GLPK.Optimizer; s_kwargs...))
 end
 
 
