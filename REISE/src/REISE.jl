@@ -3,9 +3,7 @@ module REISE
 import CSV
 import DataFrames
 import Dates
-import JLD
 import JuMP
-import GLPK
 import Gurobi
 import LinearAlgebra: transpose
 import MAT
@@ -52,12 +50,43 @@ Base.@kwdef struct Case
 end
 
 
-function read_case()
-    # Read files from current working directory, return a dict
+Base.@kwdef struct Results
+    # We create a struct to hold case results in a type-declared format
+    pg::Array{Float64,2}
+    pf::Array{Float64,2}
+    lmp::Array{Float64,2}
+    congu::Array{Float64,2}
+    congl::Array{Float64,2}
+    f::Float64
+end
 
-    print("reading")
-    # Read case.mat
-    case_mat_file = MAT.matopen("case.mat")
+
+"""Given a Results object and a filename, save a matfile with results data."""
+function save_results(results::Results, filename::String)
+    mdo_save = Dict(
+        "results" => Dict("f" => results.f),
+        "demand_scaling" => 1.,
+        "flow" => Dict("mpc" => Dict(
+            "bus" => Dict("LAM_P" => results.lmp),
+            "gen" => Dict("PG" => results.pg),
+            "branch" => Dict(
+                "PF" => results.pf,
+                # Note: check that these aren't swapped
+                "MU_SF" => results.congu,
+                "MU_ST" => results.congl,
+                ),
+            )),
+        )
+    MAT.matwrite(filename, Dict("mdo_save" => mdo_save); compress=true)
+end
+
+
+"""Read REISE input matfiles, return parsed relevant data in a Dict."""
+function read_case(filepath)
+    println("Reading from folder: " * filepath)
+    
+    println("...loading case.mat")
+    case_mat_file = MAT.matopen(joinpath(filepath, "case.mat"))
     mpc = read(case_mat_file, "mpc")
 
     # New case.mat analog
@@ -105,15 +134,29 @@ function read_case()
     case["gen_c0"] = mpc["gencost"][:,7]
 
     # Load all relevant profile data from CSV files
-    case["demand"] = CSV.File("demand.csv") |> DataFrames.DataFrame
-    case["hydro"] = CSV.File("hydro.csv") |> DataFrames.DataFrame
-    case["wind"] = CSV.File("wind.csv") |> DataFrames.DataFrame
-    case["solar"] = CSV.File("solar.csv") |> DataFrames.DataFrame
+    println("...loading demand.csv")
+    case["demand"] = CSV.File(joinpath(filepath, "demand.csv")) |> DataFrames.DataFrame
+    
+    println("...loading hydro.csv")
+    case["hydro"] = CSV.File(joinpath(filepath, "hydro.csv")) |> DataFrames.DataFrame
+    
+    println("...loading wind.csv")
+    case["wind"] = CSV.File(joinpath(filepath, "wind.csv")) |> DataFrames.DataFrame
+    
+    println("...loading solar.csv")
+    case["solar"] = CSV.File(joinpath(filepath, "solar.csv")) |> DataFrames.DataFrame
+    
+    println()
+    println("All scenario files loaded!")
 
     return case
 end
 
 
+"""
+    reise_data_mods(case)
+Given a dictionary of input data, modify accordingly and return a Case object.
+"""
 function reise_data_mods(case::Dict)::Case
     # Take in a dict from source data, tweak values and return a Case struct.
 
@@ -167,6 +210,28 @@ function reise_data_mods(case::Dict)::Case
 end
 
 
+"""
+    save_input_mat(case)
+Read the original case.mat file, replace relevant parameters from Case struct,
+save a new input.mat file with parameters as they're passed to solver.
+"""
+function save_input_mat(case::Case)
+    case_mat_file = MAT.matopen("case.mat")
+    mpc = read(case_mat_file, "mpc")
+    mpc["gen"][:,10] = case.gen_pmin
+    mpc["gen"][:,19] = case.gen_ramp30
+    mpc["gen_a_new"] = case.gen_a_new
+    mpc["gen_b_new"] = case.gen_b_new
+    mdi = Dict("mpc" => mpc)
+    MAT.matwrite("input.mat", Dict("mdi" => mdi); compress=true)
+    return nothing
+end
+
+
+"""
+    make_gen_map(case)
+Given a Case object, build a sparse matrix representing generator topology.
+"""
 function make_gen_map(case::Case)::SparseMatrixCSC
     # Create generator topology matrix
 
@@ -176,11 +241,15 @@ function make_gen_map(case::Case)::SparseMatrixCSC
     num_gen = length(case.genid)
     gen_idx = 1:num_gen
     gen_bus_idx = [bus_id2idx[b] for b in case.gen_bus]
-    gen_map = sparse(gen_bus_idx, gen_idx, 1)
+    gen_map = sparse(gen_bus_idx, gen_idx, 1, num_bus, num_gen)
     return gen_map
 end
 
 
+"""
+    make_branch_map(case)
+Given a Case object, build a sparse matrix representing branch topology.
+"""
 function make_branch_map(case::Case)::SparseMatrixCSC
     # Create branch topology matrix
 
@@ -202,11 +271,18 @@ function make_branch_map(case::Case)::SparseMatrixCSC
 end
 
 
+"""
+    build_model(case=case, start_index=x, interval_length=y[, kwargs...])
+Given a Case object and a set of options, build an optimization model.
+Returns a JuMP.Model instance.
+"""
 function build_model(; case::Case, start_index::Int, interval_length::Int,
                      load_shed_enabled::Bool=false,
                      load_shed_penalty::Number=9000,
                      trans_viol_enabled::Bool=false,
-                     trans_viol_penalty::Number=100)::JuMP.Model
+                     trans_viol_penalty::Number=100,
+                     initial_ramp_enabled::Bool=false,
+                     initial_ramp_g0::Array{Float64,1}=Float64[])::JuMP.Model
     # Build an optimization model from a Case struct
 
     println("building sets: ", Dates.now())
@@ -303,17 +379,30 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
         JuMP.@constraint(m, powerbalance, (
             gen_map * pg + branch_map * pf .== bus_demand))
     end
+    println("powerbalance, setting names: ", Dates.now())
+    for i in 1:num_bus, j in 1:num_hour
+        JuMP.set_name(powerbalance[i,j],
+                      "powerbalance[" * string(i) * "," * string(j) * "]")
+    end
+
+    if initial_ramp_enabled
+        println("initial rampup: ", Dates.now())
+        noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
+        JuMP.@constraint(m, initial_rampup[i = noninf_ramp_idx],
+            pg[i,1] - initial_ramp_g0[i] <= case.gen_ramp30[i] * 2)
+        println("initial rampdown: ", Dates.now())
+        JuMP.@constraint(m, initial_rampdown[i = noninf_ramp_idx],
+            case.gen_ramp30[i] * -2 <= pg[i,1] - initial_ramp_g0[i])
+    end
 
     if length(hour_idx) > 1
         println("rampup: ", Dates.now())
         noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
-        JuMP.@constraint(m, rampup[i = noninf_ramp_idx, h = 1:(num_hour-1)], (
+        JuMP.@constraint(m, rampup[i = noninf_ramp_idx, h = 1:(num_hour-1)],
             pg[i,h+1] - pg[i,h] <= case.gen_ramp30[i] * 2)
-            )
         println("rampdown: ", Dates.now())
         JuMP.@constraint(m, rampdown[i = noninf_ramp_idx, h = 1:(num_hour-1)],
-            case.gen_ramp30[i] * -2 <= pg[i, h+1] - pg[i, h]
-            )
+            case.gen_ramp30[i] * -2 <= pg[i, h+1] - pg[i, h])
     end
 
     println("gen_min: ", Dates.now())
@@ -394,7 +483,9 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
 end
 
 
-function build_and_solve(m_kwargs::Dict, s_kwargs::Dict, env::Gurobi.Env)
+"""Build and solve a model using a given Gurobi env."""
+function build_and_solve(
+        m_kwargs::Dict, s_kwargs::Dict, env::Gurobi.Env)::Results
     # Solve using a Gurobi Env
     # Convert Dicts to NamedTuples
     m_kwargs = (; (Symbol(k) => v for (k,v) in m_kwargs)...)
@@ -402,19 +493,95 @@ function build_and_solve(m_kwargs::Dict, s_kwargs::Dict, env::Gurobi.Env)
     m = build_model(; m_kwargs...)
     JuMP.optimize!(
         m, JuMP.with_optimizer(Gurobi.Optimizer, env; s_kwargs...))
+    results = get_results(m)
+    return results
 end
 
 
-function build_and_solve(m_kwargs::Dict, s_kwargs::Dict)
-    # Solve using GLPK
-    # Convert Dicts to NamedTuples
-    m_kwargs = (; (Symbol(k) => v for (k,v) in m_kwargs)...)
-    s_kwargs = (; (Symbol(k) => v for (k,v) in s_kwargs)...)
-    m = build_model(; m_kwargs...)
-    JuMP.optimize!(m, JuMP.with_optimizer(GLPK.Optimizer; s_kwargs...))
+"""
+    get_results(model)
+Extract the results of a simulation, store in a struct.
+"""
+function get_results(m::JuMP.Model)::Results
+    pg = get_2d_variable_values(m, "pg")
+    pf = get_2d_variable_values(m, "pf")
+    lmp = -1 * get_2d_constraint_duals(m, "powerbalance")
+    congl = -1 * get_2d_constraint_duals(m, "branch_min")
+    congu = -1 * get_2d_constraint_duals(m, "branch_max")
+    f = JuMP.objective_value(m)
+
+    results = Results(; pg=pg, pf=pf, lmp=lmp, congl=congl, congu=congu, f=f)
+    return results
 end
 
 
+"""
+    get_2d_variable_values(m, "pg")
+Get the values of the variables whose names begin with a given string.
+Returns a 2d array of values, shape inferred from the last variable's name.
+"""
+function get_2d_variable_values(m::JuMP.Model, s::String)::Array{Float64,2}
+    function stringmatch(s::String, v::JuMP.VariableRef)
+        occursin(s, JuMP.name(v))
+    end
+    vars = JuMP.all_variables(m)
+    match_idxs = stringmatch.(s, vars)::BitArray{1}
+    match_vars = vars[match_idxs]::Array{JuMP.VariableRef,1}
+    # What do the indices of the first, second, and last look like?
+    regex_str = r"\[(\d+),(\d+)\]"
+    first_dim_strs = match(regex_str, JuMP.name(match_vars[1])).captures
+    first_dims = Int64[parse(Int,s) for s in first_dim_strs]
+    second_dim_strs = match(regex_str, JuMP.name(match_vars[2])).captures
+    second_dims = Int64[parse(Int,s) for s in second_dim_strs]
+    end_dim_strs = match(regex_str, JuMP.name(match_vars[end])).captures
+    end_dims = Int64[parse(Int,s) for s in end_dim_strs]
+    # Use our knowledge of the dims to appropriately reshape the outputs
+    match_vars = JuMP.value.(match_vars)
+    if (second_dims - first_dims) == [0, 1]
+        match_vars = transpose(reshape(match_vars, (end_dims[2], end_dims[1])))
+    else
+        match_vars = reshape(match_vars, tuple(end_dims...))
+    end
+    return match_vars
+end
+
+
+"""
+    get_2d_constraint_duals(m, "powerbalance")
+Get the duals of the constraints whose names begin with a given string.
+Returns a 2d array of values, shape inferred from the last constraints's name.
+"""
+function get_2d_constraint_duals(m::JuMP.Model, s::String)::Array{Float64,2}
+    function stringmatch(s::String, v::JuMP.ConstraintRef)
+        occursin(s, JuMP.name(v))
+    end
+    lt = JuMP.all_constraints(m, JuMP.AffExpr, JuMP.MOI.LessThan{Float64})
+    eq = JuMP.all_constraints(m, JuMP.AffExpr, JuMP.MOI.EqualTo{Float64})
+    gt = JuMP.all_constraints(m, JuMP.AffExpr, JuMP.MOI.GreaterThan{Float64})
+    cons = [lt; eq; gt]
+    match_idxs = stringmatch.(s, cons)::BitArray{1}
+    match_cons = cons[match_idxs]::Array{
+        JuMP.ConstraintRef{JuMP.Model,_A,JuMP.ScalarShape} where _A,1}
+    # What do the indices of the first, second, and last look like?
+    regex_str = r"\[(\d+),(\d+)\]"
+    first_dim_strs = match(regex_str, JuMP.name(match_cons[1])).captures
+    first_dims = Int64[parse(Int,s) for s in first_dim_strs]
+    second_dim_strs = match(regex_str, JuMP.name(match_cons[2])).captures
+    second_dims = Int64[parse(Int,s) for s in second_dim_strs]
+    end_dim_strs = match(regex_str, JuMP.name(match_cons[end])).captures
+    end_dims = Int64[parse(Int,s) for s in end_dim_strs]
+    # Use our knowledge of the dims to appropriately reshape the outputs
+    match_cons = JuMP.shadow_price.(match_cons)
+    if (second_dims - first_dims) == [0, 1]
+        match_cons = transpose(reshape(match_cons, (end_dims[2], :)))
+    else
+        match_cons = reshape(match_cons, (:, end_dims[2]))
+    end
+    return match_cons
+end
+
+
+"""Run a single simulation, setting up & shutting down as necessary."""
 function build_and_solve_and_cleanup(solver_name;
                                      m_kwargs::Dict, s_kwargs::Dict)
     if solver_name == "gurobi"
@@ -430,4 +597,42 @@ function build_and_solve_and_cleanup(solver_name;
 end
 
 
-end # module
+function run_scenario(;
+        interval::Int, n_interval::Int, start_index::Int, inputfolder::String, outputfolder::String)
+    # Setup things that build once
+    # If outputfolder doesn't exist (isdir evaluates false) create it (mkdir)
+    isdir(outputfolder) || mkdir(outputfolder)
+    env = Gurobi.Env()
+    case = read_case(inputfolder)
+    case = reise_data_mods(case)
+    pg0 = Array{Float64}(undef, length(case.genid))
+    solver_kwargs = Dict("Method" => 2, "Crossover" => 0)
+    s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
+    # Then loop through intervals
+    for i in 1:n_interval
+        # Define appropriate settings
+        interval_start = start_index + (i - 1) * interval
+        model_kwargs = Dict(
+                "case" => case,
+                "start_index" => interval_start,
+                "interval_length" => interval)
+        if i > 1
+            model_kwargs["initial_ramp_enabled"] = true
+            model_kwargs["initial_ramp_g0"] = pg0
+        end
+        m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
+        # Actually build the model, solve it, get results
+        results = build_and_solve(model_kwargs, solver_kwargs, env)
+        # Then save them
+        results_filename = "result_" * string(i-1) * ".mat"
+        results_filepath = joinpath(outputfolder, results_filename)
+        save_results(results, results_filepath)
+        pg0 = results.pg[:,end]
+    end
+    GC.gc()
+    Gurobi.free_env(env)
+    println("Connection closed successfully!")
+end
+
+# Module end
+end
