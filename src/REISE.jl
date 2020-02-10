@@ -36,12 +36,8 @@ Base.@kwdef struct Case
     gen_pmin::Array{Float64,1}
     gen_ramp30::Array{Float64,1}
 
-    gen_c2::Array{Float64,1}
-    gen_c1::Array{Float64,1}
-    gen_c0::Array{Float64,1}
-
-    gen_a_new::Array{Float64,1}
-    gen_b_new::Array{Float64,1}
+    gencost::Array{Float64,2}
+    gencost_orig::Array{Float64,2}
 
     demand::DataFrames.DataFrame
     hydro::DataFrames.DataFrame
@@ -129,9 +125,7 @@ function read_case(filepath)
     case["gen_ramp30"] = mpc["gen"][:,19]
 
     # Generator costs
-    case["gen_c2"] = mpc["gencost"][:,5]
-    case["gen_c1"] = mpc["gencost"][:,6]
-    case["gen_c0"] = mpc["gencost"][:,7]
+    case["gencost"] = mpc["gencost"]
 
     # Load all relevant profile data from CSV files
     println("...loading demand.csv")
@@ -158,7 +152,7 @@ end
 
 Given a dictionary of input data, modify accordingly and return a Case object.
 """
-function reise_data_mods(case::Dict)::Case
+function reise_data_mods(case::Dict; num_segments::Int=1)::Case
     # Take in a dict from source data, tweak values and return a Case struct.
 
     # Modify PMINs
@@ -168,13 +162,10 @@ function reise_data_mods(case::Dict)::Case
     geo_idx = case["genfuel"] .== "geothermal"
     case["gen_pmin"][geo_idx] = 0.95 * (case["gen_pmax"][geo_idx])
 
-    # convert 'ax^2 + bx + c' to single-segment 'ax + b'
-    case["gen_a_new"] = (
-        case["gen_c2"] .* (case["gen_pmax"] .+ case["gen_pmin"])
-        .+ case["gen_c1"])
-    case["gen_b_new"] = (
-        case["gen_c0"]
-        .- case["gen_c2"] .* case["gen_pmax"] .* case["gen_pmin"])
+    # Save original gencost to gencost_orig
+    case["gencost_orig"] = copy(case["gencost"])
+    # Modify gencost based on desired linearization structure
+    case["gencost"] = linearize_gencost(case; num_segments=num_segments)
 
     # Relax ramp constraints
     case["gen_ramp30"] .= Inf
@@ -212,6 +203,62 @@ end
 
 
 """
+    linearize_gencost(case)
+    linearize_gencost(case; num_segments=2)
+
+Using case dict data, linearize cost curves with a give number of segments.
+"""
+function linearize_gencost(case::Dict; num_segments::Int=1)::Array{Float64,2}
+    num_gens = size(case["gencost"], 1)
+    non_polynomial = (case["gencost"][:,1] .!= 2)::BitArray{1}
+    if sum(non_polynomial) > 0
+        throw(ArgumentError("gencost currently limited to polynomial"))
+    end
+    non_quadratic = (case["gencost"][:,4] .!= 3)::BitArray{1}
+    if sum(non_quadratic) > 0
+        throw(ArgumentError("gencost currently limited to quadratic"))
+    end
+    old_a = case["gencost"][:,5]
+    old_b = case["gencost"][:,6]
+    old_c = case["gencost"][:,7]
+    diffP_mask = (case["gen_pmin"] .!= case["gen_pmax"])::BitArray{1}
+    # Convert non-fixed generators to piecewise segments
+    if sum(diffP_mask) > 0
+        # If we are linearizing at least one generator, need to expand gencost
+        gencost_width = 6 + 2 * num_segments
+        new_gencost = zeros(num_gens, gencost_width)
+        new_gencost[diffP_mask,1] .= 1
+        new_gencost[:,2:3] = case["gencost"][:,2:3]
+        new_gencost[diffP_mask,4] .= num_segments + 1
+        power_step = (case["gen_pmax"] - case["gen_pmin"]) / num_segments
+        for i = 0:num_segments
+            x_index = 5 + 2 * i
+            y_index = 6 + 2 * i
+            x_data = (case["gen_pmin"] + power_step * i)
+            y_data = old_a .* x_data .^ 2 + old_b .* x_data + old_c
+            new_gencost[diffP_mask,x_index] = x_data[diffP_mask]
+            new_gencost[diffP_mask,y_index] = y_data[diffP_mask]
+        end
+    else
+        # If we are not linearizing any segments, gencost can stay as is
+        new_gencost = copy(case["gencost"])
+    end
+    # Convert fixed gens to fixed values
+    sameP_mask = .!diffP_mask
+    if sum(sameP_mask) > 0
+        new_gencost[sameP_mask, 1] = case["gencost"][sameP_mask, 1]
+        new_gencost[sameP_mask, 4] = case["gencost"][sameP_mask, 4]
+        power = case["gen_pmax"]
+        y_data = old_a .* power .^ 2 + old_b .* power + old_c
+        new_gencost[sameP_mask, 5:6] .= 0
+        new_gencost[sameP_mask, 7] = y_data[sameP_mask]
+    end
+
+    return new_gencost
+end
+
+
+"""
     save_input_mat(case)
 
 Read the original case.mat file, replace relevant parameters from Case struct,
@@ -222,8 +269,8 @@ function save_input_mat(case::Case, inputfolder::String, outputfolder::String)
     mpc = read(case_mat_file, "mpc")
     mpc["gen"][:,10] = case.gen_pmin
     mpc["gen"][:,19] = case.gen_ramp30
-    mpc["gen_a_new"] = case.gen_a_new
-    mpc["gen_b_new"] = case.gen_b_new
+    mpc["gencost"] = case.gencost
+    mpc["gencost_orig"] = case.gencost_orig
     mdi = Dict("mpc" => mpc)
     output_path = joinpath(outputfolder, "input.mat")
     MAT.matwrite(output_path, Dict("mdi" => mdi); compress=true)
