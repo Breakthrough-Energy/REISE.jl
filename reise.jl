@@ -10,6 +10,7 @@ import Gurobi
 import LinearAlgebra: transpose
 import MAT
 import SparseArrays: sparse, SparseMatrixCSC
+using Base: joinpath
 
 
 Base.@kwdef struct Case
@@ -84,12 +85,11 @@ end
 
 
 """Read REISE input matfiles, return parsed relevant data in a Dict."""
-function read_case()
-    # Read files from current working directory, return a dict
-
-    println("reading")
-    # Read case.mat
-    case_mat_file = MAT.matopen("case.mat")
+function read_case(filepath)
+    println("Reading from folder: " * filepath)
+    
+    println("...loading case.mat")
+    case_mat_file = MAT.matopen(joinpath(filepath, "case.mat"))
     mpc = read(case_mat_file, "mpc")
 
     # New case.mat analog
@@ -137,10 +137,20 @@ function read_case()
     case["gen_c0"] = mpc["gencost"][:,7]
 
     # Load all relevant profile data from CSV files
-    case["demand"] = CSV.File("demand.csv") |> DataFrames.DataFrame
-    case["hydro"] = CSV.File("hydro.csv") |> DataFrames.DataFrame
-    case["wind"] = CSV.File("wind.csv") |> DataFrames.DataFrame
-    case["solar"] = CSV.File("solar.csv") |> DataFrames.DataFrame
+    println("...loading demand.csv")
+    case["demand"] = CSV.File(joinpath(filepath, "demand.csv")) |> DataFrames.DataFrame
+    
+    println("...loading hydro.csv")
+    case["hydro"] = CSV.File(joinpath(filepath, "hydro.csv")) |> DataFrames.DataFrame
+    
+    println("...loading wind.csv")
+    case["wind"] = CSV.File(joinpath(filepath, "wind.csv")) |> DataFrames.DataFrame
+    
+    println("...loading solar.csv")
+    case["solar"] = CSV.File(joinpath(filepath, "solar.csv")) |> DataFrames.DataFrame
+    
+    println()
+    println("All scenario files loaded!")
 
     return case
 end
@@ -611,12 +621,12 @@ end
 
 
 function run_scenario(;
-        interval::Int, n_interval::Int, start_index::Int, outputfolder::String)
+        interval::Int, n_interval::Int, start_index::Int, inputfolder::String, outputfolder::String)
     # Setup things that build once
     # If outputfolder doesn't exist (isdir evaluates false) create it (mkdir)
     isdir(outputfolder) || mkdir(outputfolder)
     env = Gurobi.Env()
-    case = read_case()
+    case = read_case(inputfolder)
     case = reise_data_mods(case)
     pg0 = Array{Float64}(undef, length(case.genid))
     solver_kwargs = Dict("Method" => 2, "Crossover" => 0)
