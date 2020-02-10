@@ -237,7 +237,7 @@ function make_gen_map(case::Case)::SparseMatrixCSC
     num_gen = length(case.genid)
     gen_idx = 1:num_gen
     gen_bus_idx = [bus_id2idx[b] for b in case.gen_bus]
-    gen_map = sparse(gen_bus_idx, gen_idx, 1)
+    gen_map = sparse(gen_bus_idx, gen_idx, 1, num_bus, num_gen)
     return gen_map
 end
 
