@@ -217,15 +217,16 @@ end
 Read the original case.mat file, replace relevant parameters from Case struct,
 save a new input.mat file with parameters as they're passed to solver.
 """
-function save_input_mat(case::Case)
-    case_mat_file = MAT.matopen("case.mat")
+function save_input_mat(case::Case, inputfolder::String, outputfolder::String)
+    case_mat_file = MAT.matopen(joinpath(inputfolder, "case.mat"))
     mpc = read(case_mat_file, "mpc")
     mpc["gen"][:,10] = case.gen_pmin
     mpc["gen"][:,19] = case.gen_ramp30
     mpc["gen_a_new"] = case.gen_a_new
     mpc["gen_b_new"] = case.gen_b_new
     mdi = Dict("mpc" => mpc)
-    MAT.matwrite("input.mat", Dict("mdi" => mdi); compress=true)
+    output_path = joinpath(outputfolder, "input.mat")
+    MAT.matwrite(output_path, Dict("mdi" => mdi); compress=true)
     return nothing
 end
 
@@ -613,6 +614,7 @@ function run_scenario(;
     env = Gurobi.Env()
     case = read_case(inputfolder)
     case = reise_data_mods(case)
+    save_input_mat(case, inputfolder, outputfolder)
     pg0 = Array{Float64}(undef, length(case.genid))
     solver_kwargs = Dict("Method" => 2, "Crossover" => 0)
     s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
