@@ -209,6 +209,7 @@ end
 Using case dict data, linearize cost curves with a give number of segments.
 """
 function linearize_gencost(case::Dict; num_segments::Int=1)::Array{Float64,2}
+    println("linearizing")
     num_gens = size(case["gencost"], 1)
     non_polynomial = (case["gencost"][:,1] .!= 2)::BitArray{1}
     if sum(non_polynomial) > 0
@@ -366,9 +367,30 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
     gen_hydro_idx = gen_idx[findall(case.genfuel .== "hydro")]
     renewable_idx = sort(vcat(gen_wind_idx, gen_solar_idx, gen_hydro_idx))
     case.gen_pmax[renewable_idx] .= Inf
+    noninf_pmax = findall(case.gen_pmax .!= Inf)
     num_wind = length(gen_wind_idx)
     num_solar = length(gen_solar_idx)
     num_hydro = length(gen_hydro_idx)
+    # Piecewise
+    xy_gencost_mask = (case.gencost[:,1] .== 1)
+    piecewise_enabled = (sum(xy_gencost_mask) > 0)
+    if piecewise_enabled
+        # For now, assume all gens are represented with same number of segments
+        num_segments = convert(Int, maximum(case.gencost[:,4])) - 1
+        segment_width = (
+            (case.gen_pmax - case.gen_pmin) ./ num_segments)
+        segment_idx = 1:num_segments
+        fixed_cost = case.gencost[:, 6]
+        # Note: this formulation still assumes quadratic cost curves only!
+        segment_slope = zeros(num_gen, num_segments)
+        for i in segment_idx
+            segment_slope[:, i] = (
+                (2 * case.gencost_orig[:, 5] .* case.gen_pmin)
+                + case.gencost_orig[:, 6]
+                + (2*i - 1) * case.gencost_orig[:, 5] .* segment_width
+                )
+        end
+    end
 
     println("parameters: ", Dates.now())
     # Parameters
@@ -420,6 +442,9 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
         JuMP.@variable(m,
             0 <= trans_viol[i = 1:num_branch, j = 1:num_hour])
     end
+    if piecewise_enabled
+        JuMP.@variable(m, pg_seg[1:num_gen, 1:num_segments, 1:num_hour] >= 0)
+    end
 
     println("constraints: ", Dates.now())
     # Constraints
@@ -458,19 +483,39 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
             case.gen_ramp30[i] * -2 <= pg[i, h+1] - pg[i, h])
     end
 
-    println("gen_min: ", Dates.now())
-    # Use this!
-    #JuMP.@constraint(m, gen_min[i = 1:num_gen,h = 1:num_hour], (
-    #    pg[i, h] >= case.gen_pmin[i]))
-    # Or this!
-    JuMP.@constraint(m, gen_min, pg .>= case.gen_pmin)
-    # Do NOT use this! (bad broadcasting, extremely slow)
-    #JuMP.@constraint(m, gen_min[1:num_gen,1:num_hour], pg .>= case.gen_pmin)
+    if piecewise_enabled
+        println("segment_max: ", Dates.now())
+        JuMP.@constraint(
+            m,
+            segment_max[i = noninf_pmax, s = segment_idx, h = hour_idx],
+            pg_seg[i,s,h] <= segment_width[i])
+        println("segment_add: ", Dates.now())
+        JuMP.@constraint(
+            m, segment_add[i = noninf_pmax, h = hour_idx],
+            pg[i,h] == case.gen_pmin[i] + sum(pg_seg[i,:,h]))
+    else
+        gen_a_new = zeros(num_gen)
+        gen_b_new = zeros(num_gen)
+        gen_a_new[noninf_pmax] = (
+            case.gencost_orig[:, 5] .* (case.gen_pmax + case.gen_pmin)
+            + case.gencost_orig[:, 6])[noninf_pmax]
+        gen_b_new[noninf_pmax] = (
+            (case.gencost_orig[:, 7])
+            - case.gencost_orig[:, 5] .* case.gen_pmax .* case.gen_pmin
+            )[noninf_pmax]
+        println("gen_min: ", Dates.now())
+        # Use this!
+        #JuMP.@constraint(m, gen_min[i = 1:num_gen,h = 1:num_hour], (
+        #    pg[i, h] >= case.gen_pmin[i]))
+        # Or this!
+        JuMP.@constraint(m, gen_min, pg .>= case.gen_pmin)
+        # Do NOT use this! (bad broadcasting, extremely slow)
+        #JuMP.@constraint(m, gen_min[1:num_gen,1:num_hour], pg .>= case.gen_pmin)
 
-    println("gen_max: ", Dates.now())
-    noninf_pmax = findall(case.gen_pmax .!= Inf)
-    JuMP.@constraint(m, gen_max[i = noninf_pmax, h = hour_idx], (
-        pg[i, h] <= case.gen_pmax[i]))
+        println("gen_max: ", Dates.now())
+        JuMP.@constraint(m, gen_max[i = noninf_pmax, h = hour_idx], (
+            pg[i, h] <= case.gen_pmax[i]))
+    end
 
     if trans_viol_enabled
         println("branch_min: ", Dates.now())
@@ -511,13 +556,21 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
         pg[gen_wind_idx[i], h] <= simulation_wind[h, i]))
 
     println("objective: ", Dates.now())
-    reshaped_case_gen_a_new = reshape(
-        case.gen_a_new, (1, num_gen))::Array{Float64,2}
-    # Start with generator variable O & M
-    obj = JuMP.@expression(m, sum(reshaped_case_gen_a_new * pg))
-    # Add no-load costs
-    JuMP.add_to_expression!(
-        obj, JuMP.@expression(m, num_hour * sum(case.gen_b_new)))
+    if piecewise_enabled
+        # Start with generator variable O & M, piecewise
+        obj = JuMP.@expression(m,
+            sum(segment_slope[noninf_pmax,:] .* pg_seg[noninf_pmax,:,:]))
+        JuMP.add_to_expression!(
+            obj, JuMP.@expression(m, num_hour * sum(fixed_cost)))
+    else
+        # Start with generator variable O & M
+        reshaped_case_gen_a_new = reshape(
+            gen_a_new, (1, num_gen))::Array{Float64,2}
+        obj = JuMP.@expression(m, sum(reshaped_case_gen_a_new * pg))
+        # Add no-load costs
+        JuMP.add_to_expression!(
+            obj, JuMP.@expression(m, num_hour * sum(gen_b_new)))
+    end
     # Add load shed penalty (if necessary)
     if load_shed_enabled
         JuMP.add_to_expression!(
@@ -577,7 +630,7 @@ Returns a 2d array of values, shape inferred from the last variable's name.
 """
 function get_2d_variable_values(m::JuMP.Model, s::String)::Array{Float64,2}
     function stringmatch(s::String, v::JuMP.VariableRef)
-        occursin(s, JuMP.name(v))
+        occursin(s * "[", JuMP.name(v))
     end
     vars = JuMP.all_variables(m)
     match_idxs = stringmatch.(s, vars)::BitArray{1}
