@@ -46,6 +46,12 @@ Base.@kwdef struct Case
 end
 
 
+Base.@kwdef struct Storage
+    gen::Array{Float64,2}
+    sd_table::DataFrames.DataFrame
+end
+
+
 Base.@kwdef struct Results
     # We create a struct to hold case results in a type-declared format
     pg::Array{Float64,2}
@@ -74,6 +80,32 @@ function save_results(results::Results, filename::String)
             )),
         )
     MAT.matwrite(filename, Dict("mdo_save" => mdo_save); compress=true)
+end
+
+
+function read_storage(filepath)::Storage
+    try
+        case_storage_file = MAT.matopen(joinpath(filepath, "case_storage.mat"))
+        storage_mat_data = read(case_storage_file, "storage")
+        println("...loading case_storage.mat")
+
+        storage = Dict(
+            "gen" => storage_mat_data["gen"],
+            "sd_table" => DataFrames.DataFrame(
+                storage_mat_data["sd_table"]["data"],
+                Symbol.(vec(storage_mat_data["sd_table"]["colnames"]))
+                )
+            )
+    catch e
+        println("no storage file loaded: " * e.msg)
+        storage = Dict(
+            "gen" => zeros(0, 21), "sd_table" => DataFrames.DataFrame())
+    end
+
+    # Convert Dict to NamedTuple
+    storage = (; (Symbol(k) => v for (k,v) in storage)...)
+    # Convert NamedTuple to Storage
+    storage = Storage(; storage...)
 end
 
 
