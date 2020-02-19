@@ -209,32 +209,39 @@ end
 Using case dict data, linearize cost curves with a give number of segments.
 """
 function linearize_gencost(case::Dict; num_segments::Int=1)::Array{Float64,2}
+    # Positional indices from mpc.gencost
+    MODEL = 1
+    STARTUP = 2
+    SHUTDOWN = 3
+    NCOST = 4
+    COST = 5
+
     println("linearizing")
     num_gens = size(case["gencost"], 1)
-    non_polynomial = (case["gencost"][:,1] .!= 2)::BitArray{1}
+    non_polynomial = (case["gencost"][:,MODEL] .!= 2)::BitArray{1}
     if sum(non_polynomial) > 0
         throw(ArgumentError("gencost currently limited to polynomial"))
     end
-    non_quadratic = (case["gencost"][:,4] .!= 3)::BitArray{1}
+    non_quadratic = (case["gencost"][:,NCOST] .!= 3)::BitArray{1}
     if sum(non_quadratic) > 0
         throw(ArgumentError("gencost currently limited to quadratic"))
     end
-    old_a = case["gencost"][:,5]
-    old_b = case["gencost"][:,6]
-    old_c = case["gencost"][:,7]
+    old_a = case["gencost"][:,COST]
+    old_b = case["gencost"][:,COST+1]
+    old_c = case["gencost"][:,COST+2]
     diffP_mask = (case["gen_pmin"] .!= case["gen_pmax"])::BitArray{1}
     # Convert non-fixed generators to piecewise segments
     if sum(diffP_mask) > 0
         # If we are linearizing at least one generator, need to expand gencost
         gencost_width = 6 + 2 * num_segments
         new_gencost = zeros(num_gens, gencost_width)
-        new_gencost[diffP_mask,1] .= 1
-        new_gencost[:,2:3] = case["gencost"][:,2:3]
-        new_gencost[diffP_mask,4] .= num_segments + 1
+        new_gencost[diffP_mask,MODEL] .= 1
+        new_gencost[:,STARTUP:SHUTDOWN] = case["gencost"][:,STARTUP:SHUTDOWN]
+        new_gencost[diffP_mask,NCOST] .= num_segments + 1
         power_step = (case["gen_pmax"] - case["gen_pmin"]) / num_segments
         for i = 0:num_segments
-            x_index = 5 + 2 * i
-            y_index = 6 + 2 * i
+            x_index = COST + 2 * i
+            y_index = COST + 1 + (2 * i)
             x_data = (case["gen_pmin"] + power_step * i)
             y_data = old_a .* x_data .^ 2 + old_b .* x_data + old_c
             new_gencost[diffP_mask,x_index] = x_data[diffP_mask]
@@ -247,12 +254,12 @@ function linearize_gencost(case::Dict; num_segments::Int=1)::Array{Float64,2}
     # Convert fixed gens to fixed values
     sameP_mask = .!diffP_mask
     if sum(sameP_mask) > 0
-        new_gencost[sameP_mask, 1] = case["gencost"][sameP_mask, 1]
-        new_gencost[sameP_mask, 4] = case["gencost"][sameP_mask, 4]
+        new_gencost[sameP_mask, MODEL] = case["gencost"][sameP_mask, MODEL]
+        new_gencost[sameP_mask, NCOST] = case["gencost"][sameP_mask, NCOST]
         power = case["gen_pmax"]
         y_data = old_a .* power .^ 2 + old_b .* power + old_c
-        new_gencost[sameP_mask, 5:6] .= 0
-        new_gencost[sameP_mask, 7] = y_data[sameP_mask]
+        new_gencost[sameP_mask, COST:(COST+1)] .= 0
+        new_gencost[sameP_mask, COST+2] = y_data[sameP_mask]
     end
 
     return new_gencost
@@ -337,7 +344,12 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
                      trans_viol_penalty::Number=100,
                      initial_ramp_enabled::Bool=false,
                      initial_ramp_g0::Array{Float64,1}=Float64[])::JuMP.Model
-    # Build an optimization model from a Case struct
+    # Positional indices from mpc.gencost
+    MODEL = 1
+    STARTUP = 2
+    SHUTDOWN = 3
+    NCOST = 4
+    COST = 5
 
     println("building sets: ", Dates.now())
     # Sets
@@ -372,22 +384,22 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
     num_solar = length(gen_solar_idx)
     num_hydro = length(gen_hydro_idx)
     # Piecewise
-    xy_gencost_mask = (case.gencost[:,1] .== 1)
+    xy_gencost_mask = (case.gencost[:,MODEL] .== 1)
     piecewise_enabled = (sum(xy_gencost_mask) > 0)
     if piecewise_enabled
         # For now, assume all gens are represented with same number of segments
-        num_segments = convert(Int, maximum(case.gencost[:,4])) - 1
+        num_segments = convert(Int, maximum(case.gencost[:,NCOST])) - 1
         segment_width = (
             (case.gen_pmax - case.gen_pmin) ./ num_segments)
         segment_idx = 1:num_segments
-        fixed_cost = case.gencost[:, 6]
+        fixed_cost = case.gencost[:, COST+1]
         # Note: this formulation still assumes quadratic cost curves only!
         segment_slope = zeros(num_gen, num_segments)
         for i in segment_idx
             segment_slope[:, i] = (
-                (2 * case.gencost_orig[:, 5] .* case.gen_pmin)
-                + case.gencost_orig[:, 6]
-                + (2*i - 1) * case.gencost_orig[:, 5] .* segment_width
+                (2 * case.gencost_orig[:, COST] .* case.gen_pmin)
+                + case.gencost_orig[:, COST+1]
+                + (2*i - 1) * case.gencost_orig[:, COST] .* segment_width
                 )
         end
     end
@@ -497,11 +509,11 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
         gen_a_new = zeros(num_gen)
         gen_b_new = zeros(num_gen)
         gen_a_new[noninf_pmax] = (
-            case.gencost_orig[:, 5] .* (case.gen_pmax + case.gen_pmin)
-            + case.gencost_orig[:, 6])[noninf_pmax]
+            case.gencost_orig[:, COST] .* (case.gen_pmax + case.gen_pmin)
+            + case.gencost_orig[:, COST+1])[noninf_pmax]
         gen_b_new[noninf_pmax] = (
-            (case.gencost_orig[:, 7])
-            - case.gencost_orig[:, 5] .* case.gen_pmax .* case.gen_pmin
+            (case.gencost_orig[:, COST+2])
+            - case.gencost_orig[:, COST] .* case.gen_pmax .* case.gen_pmin
             )[noninf_pmax]
         println("gen_min: ", Dates.now())
         # Use this!
