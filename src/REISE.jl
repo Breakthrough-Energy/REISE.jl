@@ -59,6 +59,8 @@ Base.@kwdef struct Results
     lmp::Array{Float64,2}
     congu::Array{Float64,2}
     congl::Array{Float64,2}
+    storage_pg::Array{Float64,2}
+    storage_e::Array{Float64,2}
     f::Float64
 end
 
@@ -79,6 +81,13 @@ function save_results(results::Results, filename::String)
                 ),
             )),
         )
+    if size(results.storage_pg) != (0, 0)
+        # Add storage results only if they're meaningful
+        mdo_save["flow"]["mpc"]["storage"] = Dict(
+            "PG" => results.storage_pg,
+            "Energy" => results.storage_e,
+            )
+    end
     MAT.matwrite(filename, Dict("mdo_save" => mdo_save); compress=true)
 end
 
@@ -703,6 +712,7 @@ end
 Extract the results of a simulation, store in a struct.
 """
 function get_results(m::JuMP.Model)::Results
+    # These variables will always be in the results
     pg = get_2d_variable_values(m, "pg")
     pf = get_2d_variable_values(m, "pf")
     lmp = -1 * get_2d_constraint_duals(m, "powerbalance")
@@ -710,7 +720,27 @@ function get_results(m::JuMP.Model)::Results
     congu = -1 * get_2d_constraint_duals(m, "branch_max")
     f = JuMP.objective_value(m)
 
-    results = Results(; pg=pg, pf=pf, lmp=lmp, congl=congl, congu=congu, f=f)
+    # These variables will only be in the results if the model has storage
+    # Initialize with empty arrays, to be discarded later if they stay empty
+    storage_pg = zeros(0, 0)
+    storage_e = zeros(0, 0)
+    try
+        storage_dis = get_2d_variable_values(m, "storage_dis")
+        storage_chg = get_2d_variable_values(m, "storage_chg")
+        storage_pg = storage_dis - storage_chg
+        storage_e = get_2d_variable_values(m, "storage_soc")
+    catch e
+        if isa(e, BoundsError)
+            # Thrown by get_2d_variable_values, variable does not exist
+        else
+            # Unknown error, rethrow it
+            rethrow(e)
+        end
+    end
+
+    results = Results(;
+        pg=pg, pf=pf, lmp=lmp, congl=congl, congu=congu, f=f,
+        storage_pg=storage_pg, storage_e=storage_e)
     return results
 end
 
