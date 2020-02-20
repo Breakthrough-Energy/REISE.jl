@@ -369,7 +369,8 @@ end
 Given a Case object and a set of options, build an optimization model.
 Returns a JuMP.Model instance.
 """
-function build_model(; case::Case, start_index::Int, interval_length::Int,
+function build_model(; case::Case, storage::Storage,
+                     start_index::Int, interval_length::Int,
                      load_shed_enabled::Bool=false,
                      load_shed_penalty::Number=9000,
                      trans_viol_enabled::Bool=false,
@@ -405,6 +406,20 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
     hour_name = ["h" * string(h) for h in range(start_index, stop=end_index)]
     num_hour = length(hour_name)
     hour_idx = 1:num_hour
+    if size(storage.gen, 1) > 0
+        storage_enabled = true
+        num_storage = size(storage.gen, 1)
+        storage_idx = 1:num_storage
+        storage_max_dis = storage.gen[:, 9]
+        storage_max_chg = -1 * storage.gen[:, 10]
+        storage_min_energy = storage.sd_table.MinStorageLevel
+        storage_max_energy = storage.sd_table.MaxStorageLevel
+        storage_bus_idx = [bus_id2idx[b] for b in storage.gen[:, 1]]
+        storage_map = sparse(storage_bus_idx, storage_idx, 1, num_bus,
+                             num_storage)::SparseMatrixCSC
+    else
+        storage_enabled = false
+    end
     # Subsets
     gen_wind_idx = gen_idx[findall(case.genfuel .== "wind")]
     gen_solar_idx = gen_idx[findall(case.genfuel .== "solar")]
@@ -489,22 +504,56 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
     if piecewise_enabled
         JuMP.@variable(m, pg_seg[1:num_gen, 1:num_segments, 1:num_hour] >= 0)
     end
+    if storage_enabled
+        JuMP.@variable(m,
+            0 <= storage_chg[i = 1:num_storage, j = 1:num_hour]
+            <= storage_max_chg[i])
+        JuMP.@variable(m,
+            0 <= storage_dis[i = 1:num_storage, j = 1:num_hour]
+            <= storage_max_dis[i])
+        JuMP.@variable(m,
+            storage_min_energy[i]
+            <= storage_soc[i = 1:num_storage, j = 1:num_hour]
+            <= storage_max_energy[i])
+    end
 
     println("constraints: ", Dates.now())
     # Constraints
 
     println("powerbalance: ", Dates.now())
+    gen_injections = JuMP.@expression(m, gen_map * pg)
+    line_injections = JuMP.@expression(m, branch_map * pf)
+    injections = JuMP.@expression(m, gen_injections + line_injections)
     if load_shed_enabled
-        JuMP.@constraint(m, powerbalance, (
-            gen_map * pg + branch_map * pf + load_shed .== bus_demand))
-    else
-        JuMP.@constraint(m, powerbalance, (
-            gen_map * pg + branch_map * pf .== bus_demand))
+        injections = JuMP.@expression(m, injections + load_shed)
     end
+    withdrawls = JuMP.@expression(m, bus_demand)
+    if storage_enabled
+        injections = JuMP.@expression(m, injections + storage_map * storage_dis)
+        withdrawls = JuMP.@expression(m, withdrawls + storage_map * storage_chg)
+    end
+    JuMP.@constraint(m, powerbalance, (injections .== withdrawls))
     println("powerbalance, setting names: ", Dates.now())
     for i in 1:num_bus, j in 1:num_hour
         JuMP.set_name(powerbalance[i,j],
                       "powerbalance[" * string(i) * "," * string(j) * "]")
+    end
+
+    if storage_enabled
+        println("storage soc_tracking: ", Dates.now())
+        JuMP.@constraint(m, soc_tracking[i=1:num_storage, h=1:(num_hour-1)],
+            storage_soc[i, h+1] == (
+                storage_soc[i, h]
+                + storage.sd_table.InEff[i] * storage_chg[i, h+1]
+                - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, h+1])
+            )
+        println("storage initial_soc: ", Dates.now())
+        JuMP.@constraint(m, initial_soc[i=1:num_storage],
+            storage_soc[i, 1] == (
+                storage.sd_table.InitialStorage[i]
+                + storage.sd_table.InEff[i] * storage_chg[i, 1]
+                - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, 1])
+            )
     end
 
     if initial_ramp_enabled
@@ -758,6 +807,7 @@ function run_scenario(;
     isdir(outputfolder) || mkdir(outputfolder)
     env = Gurobi.Env()
     case = read_case(inputfolder)
+    storage = read_storage(inputfolder)
     case = reise_data_mods(case, num_segments=num_segments)
     save_input_mat(case, inputfolder, outputfolder)
     pg0 = Array{Float64}(undef, length(case.genid))
@@ -769,6 +819,7 @@ function run_scenario(;
         interval_start = start_index + (i - 1) * interval
         model_kwargs = Dict(
                 "case" => case,
+                "storage" => storage,
                 "start_index" => interval_start,
                 "interval_length" => interval)
         if i > 1
