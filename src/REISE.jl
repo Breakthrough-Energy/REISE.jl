@@ -313,14 +313,56 @@ end
 Read the original case.mat file, replace relevant parameters from Case struct,
 save a new input.mat file with parameters as they're passed to solver.
 """
-function save_input_mat(case::Case, inputfolder::String, outputfolder::String)
+function save_input_mat(case::Case, storage::Storage, inputfolder::String,
+                        outputfolder::String)
+    # MATPOWER column indices
+    gen_PMAX = 9
+    gen_PMIN = 10
+    gen_RAMP_30 = 19
+    gencost_MODEL = 1
+    gencost_NCOST = 4
+    gencost_COST = 5
+
+    # Read original
     case_mat_file = MAT.matopen(joinpath(inputfolder, "case.mat"))
     mpc = read(case_mat_file, "mpc")
-    mpc["gen"][:,10] = case.gen_pmin
-    mpc["gen"][:,19] = case.gen_ramp30
+    mdi = Dict("mpc" => mpc)
+
+    # Save modifications to gen
+    mpc["gen"][:,gen_PMIN] = case.gen_pmin
+    mpc["gen"][:,gen_RAMP_30] = case.gen_ramp30
+    # Save modifications to gencost table
     mpc["gencost"] = case.gencost
     mpc["gencost_orig"] = case.gencost_orig
-    mdi = Dict("mpc" => mpc)
+
+    # Save storage details in mpc.[gencost, genfuel, gencost] and in 'Storage'
+    if size(storage.gen, 1) > 0
+        num_storage = size(storage.gen, 1)
+        #Save storage modifications to genfuel table
+        mpc["genfuel"] = [mpc["genfuel"] ; repeat(["ess"], num_storage)]
+        # Save storage modifications to gen table (with extra zeros for MUs)
+        mpc["gen"] = [mpc["gen"] ; hcat(storage.gen, zeros(num_storage, 4))]
+        # Save storage modifications to gencost
+        num_segments = convert(Int, maximum(case.gencost[:,gencost_NCOST])) - 1
+        storage_gencost = zeros(num_storage, (6 + 2 * num_segments))
+        # Storage is specified by two points, PMIN and PMAX, both with cost 0
+        storage_gencost[:,gencost_MODEL] .= 1
+        storage_gencost[:,gencost_NCOST] .= 2
+        storage_gencost[:,gencost_COST] = storage.gen[:, gen_PMIN]
+        storage_gencost[:,gencost_COST+2] = storage.gen[:, gen_PMAX]
+        mpc["gencost"] = [mpc["gencost"] ; storage_gencost]
+        # Save storage addition of 'iess' (storage index) field
+        num_gen = length(case.genid)
+        # Minic the array that MATLAB would create
+        iess = collect((num_gen+1):(num_gen+num_storage))
+        mpc["iess"] = iess
+        # Build new struct for data in 'Storage'
+        input_mat_storage = Dict(
+            String(s) => storage.sd_table[!, s]
+            for s in DataFrames.names(storage.sd_table))
+        mdi["Storage"] = input_mat_storage
+    end
+
     output_path = joinpath(outputfolder, "input.mat")
     MAT.matwrite(output_path, Dict("mdi" => mdi); compress=true)
     return nothing
@@ -839,7 +881,7 @@ function run_scenario(;
     case = read_case(inputfolder)
     storage = read_storage(inputfolder)
     case = reise_data_mods(case, num_segments=num_segments)
-    save_input_mat(case, inputfolder, outputfolder)
+    save_input_mat(case, storage, inputfolder, outputfolder)
     pg0 = Array{Float64}(undef, length(case.genid))
     solver_kwargs = Dict("Method" => 2, "Crossover" => 0)
     s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
