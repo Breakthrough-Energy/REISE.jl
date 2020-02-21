@@ -726,6 +726,12 @@ function build_model(; case::Case, storage::Storage,
         JuMP.add_to_expression!(
             obj, JuMP.@expression(m, trans_viol_penalty * sum(trans_viol)))
     end
+    # Pay for ending with less storage energy than initial
+    if storage_enabled
+        JuMP.add_to_expression!(obj, JuMP.@expression(m, sum(
+            (storage_e0 - storage_soc[:,end])
+            .* storage.sd_table.TerminalStoragePrice)))
+    end
     # Finally, set as objective of model
     JuMP.@objective(m, Min, obj)
 
