@@ -427,7 +427,8 @@ function build_model(; case::Case, storage::Storage,
                      trans_viol_enabled::Bool=false,
                      trans_viol_penalty::Number=100,
                      initial_ramp_enabled::Bool=false,
-                     initial_ramp_g0::Array{Float64,1}=Float64[])::JuMP.Model
+                     initial_ramp_g0::Array{Float64,1}=Float64[],
+                     storage_e0::Array{Float64,1})::JuMP.Model
     # Positional indices from mpc.gencost
     MODEL = 1
     STARTUP = 2
@@ -601,7 +602,7 @@ function build_model(; case::Case, storage::Storage,
         println("storage initial_soc: ", Dates.now())
         JuMP.@constraint(m, initial_soc[i=1:num_storage],
             storage_soc[i, 1] == (
-                storage.sd_table.InitialStorage[i]
+                storage_e0[i]
                 + storage.sd_table.InEff[i] * storage_chg[i, 1]
                 - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, 1])
             )
@@ -883,6 +884,7 @@ function run_scenario(;
     case = reise_data_mods(case, num_segments=num_segments)
     save_input_mat(case, storage, inputfolder, outputfolder)
     pg0 = Array{Float64}(undef, length(case.genid))
+    storage_e0 = storage.sd_table.InitialStorage
     solver_kwargs = Dict("Method" => 2, "Crossover" => 0)
     s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
     # Then loop through intervals
@@ -893,7 +895,9 @@ function run_scenario(;
                 "case" => case,
                 "storage" => storage,
                 "start_index" => interval_start,
-                "interval_length" => interval)
+                "interval_length" => interval,
+                "storage_e0" => storage_e0,
+                )
         if i > 1
             model_kwargs["initial_ramp_enabled"] = true
             model_kwargs["initial_ramp_g0"] = pg0
@@ -906,6 +910,7 @@ function run_scenario(;
         results_filepath = joinpath(outputfolder, results_filename)
         save_results(results, results_filepath)
         pg0 = results.pg[:,end]
+        storage_e0 = results.storage_e[:,end]
     end
     GC.gc()
     Gurobi.free_env(env)
