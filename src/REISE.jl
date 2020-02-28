@@ -1,4 +1,4 @@
-module reise
+module REISE
 
 import CSV
 import DataFrames
