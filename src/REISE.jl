@@ -92,23 +92,24 @@ function save_results(results::Results, filename::String)
 end
 
 
+"""Read input matfile (if present), return parsed data in a Storage struct."""
 function read_storage(filepath)::Storage
+    # Fallback dataframe, in case there's no case_storage.mat file
+    storage = Dict("gen" => zeros(0, 21), "sd_table" => DataFrames.DataFrame())
     try
         case_storage_file = MAT.matopen(joinpath(filepath, "case_storage.mat"))
         storage_mat_data = read(case_storage_file, "storage")
         println("...loading case_storage.mat")
-
+        # Convert N x 1 array of strings into 1D array of Symbols (length N)
+        column_symbols = Symbol.(vec(storage_mat_data["sd_table"]["colnames"]))
         storage = Dict(
             "gen" => storage_mat_data["gen"],
             "sd_table" => DataFrames.DataFrame(
-                storage_mat_data["sd_table"]["data"],
-                Symbol.(vec(storage_mat_data["sd_table"]["colnames"]))
+                storage_mat_data["sd_table"]["data"], column_symbols
                 )
             )
     catch e
-        println("no storage file loaded: " * e.msg)
-        storage = Dict(
-            "gen" => zeros(0, 21), "sd_table" => DataFrames.DataFrame())
+        println("File case_storage.mat not found in " * filepath)
     end
 
     # Convert Dict to NamedTuple
@@ -180,9 +181,6 @@ function read_case(filepath)
     
     println("...loading solar.csv")
     case["solar"] = CSV.File(joinpath(filepath, "solar.csv")) |> DataFrames.DataFrame
-    
-    println()
-    println("All scenario files loaded!")
 
     return case
 end
@@ -338,7 +336,7 @@ function save_input_mat(case::Case, storage::Storage, inputfolder::String,
     # Save storage details in mpc.[gencost, genfuel, gencost] and in 'Storage'
     if size(storage.gen, 1) > 0
         num_storage = size(storage.gen, 1)
-        #Save storage modifications to genfuel table
+        # Add fuel types for storage 'generators'. ESS = energy storage system
         mpc["genfuel"] = [mpc["genfuel"] ; repeat(["ess"], num_storage)]
         # Save storage modifications to gen table (with extra zeros for MUs)
         mpc["gen"] = [mpc["gen"] ; hcat(storage.gen, zeros(num_storage, 4))]
@@ -351,9 +349,9 @@ function save_input_mat(case::Case, storage::Storage, inputfolder::String,
         storage_gencost[:,gencost_COST] = storage.gen[:, gen_PMIN]
         storage_gencost[:,gencost_COST+2] = storage.gen[:, gen_PMAX]
         mpc["gencost"] = [mpc["gencost"] ; storage_gencost]
-        # Save storage addition of 'iess' (storage index) field
+        # Save addition of 'iess' field (index, energy storage systems) to mpc
         num_gen = length(case.genid)
-        # Minic the array that MATLAB would create
+        # Mimic the array that MATPOWER/MOST would create
         iess = collect((num_gen+1):(num_gen+num_storage))
         mpc["iess"] = iess
         # Build new struct for data in 'Storage'
@@ -887,6 +885,7 @@ function run_scenario(;
     env = Gurobi.Env()
     case = read_case(inputfolder)
     storage = read_storage(inputfolder)
+    println("All scenario files loaded!")
     storage_enabled = (size(storage.gen, 1) > 0)
     case = reise_data_mods(case, num_segments=num_segments)
     save_input_mat(case, storage, inputfolder, outputfolder)
