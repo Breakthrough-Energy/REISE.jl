@@ -766,7 +766,11 @@ function build_and_solve(
             break
         elseif status in bad_statuses
             model_kwargs["demand_scaling"] -= 0.05
-            println("Optimization failed, Reducing demand: " * string(model_kwargs["demand_scaling"]))
+            if model_kwargs["demand_scaling"] < 0
+                error("Too many demand reductions, scaling cannot go negative")
+            end
+            println("Optimization failed, Reducing demand: "
+                    * string(model_kwargs["demand_scaling"]))
         else
             @show status
             error("Unknown status code!")
