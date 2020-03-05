@@ -46,6 +46,12 @@ Base.@kwdef struct Case
 end
 
 
+Base.@kwdef struct Storage
+    gen::Array{Float64,2}
+    sd_table::DataFrames.DataFrame
+end
+
+
 Base.@kwdef struct Results
     # We create a struct to hold case results in a type-declared format
     pg::Array{Float64,2}
@@ -53,6 +59,8 @@ Base.@kwdef struct Results
     lmp::Array{Float64,2}
     congu::Array{Float64,2}
     congl::Array{Float64,2}
+    storage_pg::Array{Float64,2}
+    storage_e::Array{Float64,2}
     f::Float64
 end
 
@@ -73,7 +81,41 @@ function save_results(results::Results, filename::String)
                 ),
             )),
         )
+    if size(results.storage_pg) != (0, 0)
+        # Add storage results only if they're meaningful
+        mdo_save["flow"]["mpc"]["storage"] = Dict(
+            "PG" => results.storage_pg,
+            "Energy" => results.storage_e,
+            )
+    end
     MAT.matwrite(filename, Dict("mdo_save" => mdo_save); compress=true)
+end
+
+
+"""Read input matfile (if present), return parsed data in a Storage struct."""
+function read_storage(filepath)::Storage
+    # Fallback dataframe, in case there's no case_storage.mat file
+    storage = Dict("gen" => zeros(0, 21), "sd_table" => DataFrames.DataFrame())
+    try
+        case_storage_file = MAT.matopen(joinpath(filepath, "case_storage.mat"))
+        storage_mat_data = read(case_storage_file, "storage")
+        println("...loading case_storage.mat")
+        # Convert N x 1 array of strings into 1D array of Symbols (length N)
+        column_symbols = Symbol.(vec(storage_mat_data["sd_table"]["colnames"]))
+        storage = Dict(
+            "gen" => storage_mat_data["gen"],
+            "sd_table" => DataFrames.DataFrame(
+                storage_mat_data["sd_table"]["data"], column_symbols
+                )
+            )
+    catch e
+        println("File case_storage.mat not found in " * filepath)
+    end
+
+    # Convert Dict to NamedTuple
+    storage = (; (Symbol(k) => v for (k,v) in storage)...)
+    # Convert NamedTuple to Storage
+    storage = Storage(; storage...)
 end
 
 
@@ -139,9 +181,6 @@ function read_case(filepath)
     
     println("...loading solar.csv")
     case["solar"] = CSV.File(joinpath(filepath, "solar.csv")) |> DataFrames.DataFrame
-    
-    println()
-    println("All scenario files loaded!")
 
     return case
 end
@@ -272,14 +311,56 @@ end
 Read the original case.mat file, replace relevant parameters from Case struct,
 save a new input.mat file with parameters as they're passed to solver.
 """
-function save_input_mat(case::Case, inputfolder::String, outputfolder::String)
+function save_input_mat(case::Case, storage::Storage, inputfolder::String,
+                        outputfolder::String)
+    # MATPOWER column indices
+    gen_PMAX = 9
+    gen_PMIN = 10
+    gen_RAMP_30 = 19
+    gencost_MODEL = 1
+    gencost_NCOST = 4
+    gencost_COST = 5
+
+    # Read original
     case_mat_file = MAT.matopen(joinpath(inputfolder, "case.mat"))
     mpc = read(case_mat_file, "mpc")
-    mpc["gen"][:,10] = case.gen_pmin
-    mpc["gen"][:,19] = case.gen_ramp30
+    mdi = Dict("mpc" => mpc)
+
+    # Save modifications to gen
+    mpc["gen"][:,gen_PMIN] = case.gen_pmin
+    mpc["gen"][:,gen_RAMP_30] = case.gen_ramp30
+    # Save modifications to gencost table
     mpc["gencost"] = case.gencost
     mpc["gencost_orig"] = case.gencost_orig
-    mdi = Dict("mpc" => mpc)
+
+    # Save storage details in mpc.[gencost, genfuel, gencost] and in 'Storage'
+    if size(storage.gen, 1) > 0
+        num_storage = size(storage.gen, 1)
+        # Add fuel types for storage 'generators'. ESS = energy storage system
+        mpc["genfuel"] = [mpc["genfuel"] ; repeat(["ess"], num_storage)]
+        # Save storage modifications to gen table (with extra zeros for MUs)
+        mpc["gen"] = [mpc["gen"] ; hcat(storage.gen, zeros(num_storage, 4))]
+        # Save storage modifications to gencost
+        num_segments = convert(Int, maximum(case.gencost[:,gencost_NCOST])) - 1
+        storage_gencost = zeros(num_storage, (6 + 2 * num_segments))
+        # Storage is specified by two points, PMIN and PMAX, both with cost 0
+        storage_gencost[:,gencost_MODEL] .= 1
+        storage_gencost[:,gencost_NCOST] .= 2
+        storage_gencost[:,gencost_COST] = storage.gen[:, gen_PMIN]
+        storage_gencost[:,gencost_COST+2] = storage.gen[:, gen_PMAX]
+        mpc["gencost"] = [mpc["gencost"] ; storage_gencost]
+        # Save addition of 'iess' field (index, energy storage systems) to mpc
+        num_gen = length(case.genid)
+        # Mimic the array that MATPOWER/MOST would create
+        iess = collect((num_gen+1):(num_gen+num_storage))
+        mpc["iess"] = iess
+        # Build new struct for data in 'Storage'
+        input_mat_storage = Dict(
+            String(s) => storage.sd_table[!, s]
+            for s in DataFrames.names(storage.sd_table))
+        mdi["Storage"] = input_mat_storage
+    end
+
     output_path = joinpath(outputfolder, "input.mat")
     MAT.matwrite(output_path, Dict("mdi" => mdi); compress=true)
     return nothing
@@ -337,13 +418,15 @@ end
 Given a Case object and a set of options, build an optimization model.
 Returns a JuMP.Model instance.
 """
-function build_model(; case::Case, start_index::Int, interval_length::Int,
+function build_model(; case::Case, storage::Storage,
+                     start_index::Int, interval_length::Int,
                      load_shed_enabled::Bool=false,
                      load_shed_penalty::Number=9000,
                      trans_viol_enabled::Bool=false,
                      trans_viol_penalty::Number=100,
                      initial_ramp_enabled::Bool=false,
-                     initial_ramp_g0::Array{Float64,1}=Float64[])::JuMP.Model
+                     initial_ramp_g0::Array{Float64,1}=Float64[],
+                     storage_e0::Array{Float64,1}=Float64[])::JuMP.Model
     # Positional indices from mpc.gencost
     MODEL = 1
     STARTUP = 2
@@ -373,6 +456,20 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
     hour_name = ["h" * string(h) for h in range(start_index, stop=end_index)]
     num_hour = length(hour_name)
     hour_idx = 1:num_hour
+    if size(storage.gen, 1) > 0
+        storage_enabled = true
+        num_storage = size(storage.gen, 1)
+        storage_idx = 1:num_storage
+        storage_max_dis = storage.gen[:, 9]
+        storage_max_chg = -1 * storage.gen[:, 10]
+        storage_min_energy = storage.sd_table.MinStorageLevel
+        storage_max_energy = storage.sd_table.MaxStorageLevel
+        storage_bus_idx = [bus_id2idx[b] for b in storage.gen[:, 1]]
+        storage_map = sparse(storage_bus_idx, storage_idx, 1, num_bus,
+                             num_storage)::SparseMatrixCSC
+    else
+        storage_enabled = false
+    end
     # Subsets
     gen_wind_idx = gen_idx[findall(case.genfuel .== "wind")]
     gen_solar_idx = gen_idx[findall(case.genfuel .== "solar")]
@@ -457,22 +554,56 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
     if piecewise_enabled
         JuMP.@variable(m, pg_seg[1:num_gen, 1:num_segments, 1:num_hour] >= 0)
     end
+    if storage_enabled
+        JuMP.@variable(m,
+            0 <= storage_chg[i = 1:num_storage, j = 1:num_hour]
+            <= storage_max_chg[i])
+        JuMP.@variable(m,
+            0 <= storage_dis[i = 1:num_storage, j = 1:num_hour]
+            <= storage_max_dis[i])
+        JuMP.@variable(m,
+            storage_min_energy[i]
+            <= storage_soc[i = 1:num_storage, j = 1:num_hour]
+            <= storage_max_energy[i])
+    end
 
     println("constraints: ", Dates.now())
     # Constraints
 
     println("powerbalance: ", Dates.now())
+    gen_injections = JuMP.@expression(m, gen_map * pg)
+    line_injections = JuMP.@expression(m, branch_map * pf)
+    injections = JuMP.@expression(m, gen_injections + line_injections)
     if load_shed_enabled
-        JuMP.@constraint(m, powerbalance, (
-            gen_map * pg + branch_map * pf + load_shed .== bus_demand))
-    else
-        JuMP.@constraint(m, powerbalance, (
-            gen_map * pg + branch_map * pf .== bus_demand))
+        injections = JuMP.@expression(m, injections + load_shed)
     end
+    withdrawls = JuMP.@expression(m, bus_demand)
+    if storage_enabled
+        injections = JuMP.@expression(m, injections + storage_map * storage_dis)
+        withdrawls = JuMP.@expression(m, withdrawls + storage_map * storage_chg)
+    end
+    JuMP.@constraint(m, powerbalance, (injections .== withdrawls))
     println("powerbalance, setting names: ", Dates.now())
     for i in 1:num_bus, j in 1:num_hour
         JuMP.set_name(powerbalance[i,j],
                       "powerbalance[" * string(i) * "," * string(j) * "]")
+    end
+
+    if storage_enabled
+        println("storage soc_tracking: ", Dates.now())
+        JuMP.@constraint(m, soc_tracking[i=1:num_storage, h=1:(num_hour-1)],
+            storage_soc[i, h+1] == (
+                storage_soc[i, h]
+                + storage.sd_table.InEff[i] * storage_chg[i, h+1]
+                - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, h+1])
+            )
+        println("storage initial_soc: ", Dates.now())
+        JuMP.@constraint(m, initial_soc[i=1:num_storage],
+            storage_soc[i, 1] == (
+                storage_e0[i]
+                + storage.sd_table.InEff[i] * storage_chg[i, 1]
+                - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, 1])
+            )
     end
 
     if initial_ramp_enabled
@@ -593,6 +724,12 @@ function build_model(; case::Case, start_index::Int, interval_length::Int,
         JuMP.add_to_expression!(
             obj, JuMP.@expression(m, trans_viol_penalty * sum(trans_viol)))
     end
+    # Pay for ending with less storage energy than initial
+    if storage_enabled
+        JuMP.add_to_expression!(obj, JuMP.@expression(m, sum(
+            (storage_e0 - storage_soc[:,end])
+            .* storage.sd_table.TerminalStoragePrice)))
+    end
     # Finally, set as objective of model
     JuMP.@objective(m, Min, obj)
 
@@ -622,6 +759,7 @@ end
 Extract the results of a simulation, store in a struct.
 """
 function get_results(m::JuMP.Model)::Results
+    # These variables will always be in the results
     pg = get_2d_variable_values(m, "pg")
     pf = get_2d_variable_values(m, "pf")
     lmp = -1 * get_2d_constraint_duals(m, "powerbalance")
@@ -629,7 +767,27 @@ function get_results(m::JuMP.Model)::Results
     congu = -1 * get_2d_constraint_duals(m, "branch_max")
     f = JuMP.objective_value(m)
 
-    results = Results(; pg=pg, pf=pf, lmp=lmp, congl=congl, congu=congu, f=f)
+    # These variables will only be in the results if the model has storage
+    # Initialize with empty arrays, to be discarded later if they stay empty
+    storage_pg = zeros(0, 0)
+    storage_e = zeros(0, 0)
+    try
+        storage_dis = get_2d_variable_values(m, "storage_dis")
+        storage_chg = get_2d_variable_values(m, "storage_chg")
+        storage_pg = storage_dis - storage_chg
+        storage_e = get_2d_variable_values(m, "storage_soc")
+    catch e
+        if isa(e, BoundsError)
+            # Thrown by get_2d_variable_values, variable does not exist
+        else
+            # Unknown error, rethrow it
+            rethrow(e)
+        end
+    end
+
+    results = Results(;
+        pg=pg, pf=pf, lmp=lmp, congl=congl, congu=congu, f=f,
+        storage_pg=storage_pg, storage_e=storage_e)
     return results
 end
 
@@ -726,19 +884,26 @@ function run_scenario(;
     isdir(outputfolder) || mkdir(outputfolder)
     env = Gurobi.Env()
     case = read_case(inputfolder)
+    storage = read_storage(inputfolder)
+    println("All scenario files loaded!")
+    storage_enabled = (size(storage.gen, 1) > 0)
     case = reise_data_mods(case, num_segments=num_segments)
-    save_input_mat(case, inputfolder, outputfolder)
+    save_input_mat(case, storage, inputfolder, outputfolder)
+    model_kwargs = Dict(
+        "case" => case,
+        "storage" => storage,
+        "interval_length" => interval,
+        )
     pg0 = Array{Float64}(undef, length(case.genid))
     solver_kwargs = Dict("Method" => 2, "Crossover" => 0)
     s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
     # Then loop through intervals
     for i in 1:n_interval
-        # Define appropriate settings
-        interval_start = start_index + (i - 1) * interval
-        model_kwargs = Dict(
-                "case" => case,
-                "start_index" => interval_start,
-                "interval_length" => interval)
+        # Define appropriate settings for this interval
+        model_kwargs["start_index"] = start_index + (i - 1) * interval
+        if storage_enabled & i == 1
+            model_kwargs["storage_e0"] = storage.sd_table.InitialStorage
+        end
         if i > 1
             model_kwargs["initial_ramp_enabled"] = true
             model_kwargs["initial_ramp_g0"] = pg0
@@ -751,6 +916,9 @@ function run_scenario(;
         results_filepath = joinpath(outputfolder, results_filename)
         save_results(results, results_filepath)
         pg0 = results.pg[:,end]
+        if storage_enabled
+            storage_e0 = results.storage_e[:,end]
+        end
     end
     GC.gc()
     Gurobi.free_env(env)
