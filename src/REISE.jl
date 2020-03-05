@@ -62,14 +62,16 @@ Base.@kwdef struct Results
     storage_pg::Array{Float64,2}
     storage_e::Array{Float64,2}
     f::Float64
+    status::JuMP.MOI.TerminationStatusCode
 end
 
 
 """Given a Results object and a filename, save a matfile with results data."""
-function save_results(results::Results, filename::String)
+function save_results(results::Results, filename::String;
+                      demand_scaling::Number=1.0)
     mdo_save = Dict(
         "results" => Dict("f" => results.f),
-        "demand_scaling" => 1.,
+        "demand_scaling" => demand_scaling,
         "flow" => Dict("mpc" => Dict(
             "bus" => Dict("LAM_P" => results.lmp),
             "gen" => Dict("PG" => results.pg),
@@ -420,6 +422,7 @@ Returns a JuMP.Model instance.
 """
 function build_model(; case::Case, storage::Storage,
                      start_index::Int, interval_length::Int,
+                     demand_scaling::Number=1.0,
                      load_shed_enabled::Bool=false,
                      load_shed_penalty::Number=9000,
                      trans_viol_enabled::Bool=false,
@@ -530,6 +533,7 @@ function build_model(; case::Case, storage::Storage,
     simulation_demand = Matrix(case.demand[start_index:end_index, 2:end])
     bus_demand = convert(
         Matrix, transpose(simulation_demand * zone_to_bus_shares))::Matrix
+    bus_demand *= demand_scaling
     simulation_hydro = Matrix(case.hydro[start_index:end_index, 2:end])
     simulation_solar = Matrix(case.solar[start_index:end_index, 2:end])
     simulation_wind = Matrix(case.wind[start_index:end_index, 2:end])
@@ -740,15 +744,38 @@ end
 
 """Build and solve a model using a given Gurobi env."""
 function build_and_solve(
-        m_kwargs::Dict, s_kwargs::Dict, env::Gurobi.Env)::Results
-    # Solve using a Gurobi Env
-    # Convert Dicts to NamedTuples
-    m_kwargs = (; (Symbol(k) => v for (k,v) in m_kwargs)...)
-    s_kwargs = (; (Symbol(k) => v for (k,v) in s_kwargs)...)
-    m = build_model(; m_kwargs...)
-    JuMP.optimize!(
-        m, JuMP.with_optimizer(Gurobi.Optimizer, env; s_kwargs...))
-    results = get_results(m)
+        model_kwargs::Dict, solver_kwargs::Dict, env::Gurobi.Env)::Results
+    # Bad (but known) statuses to match against
+    bad_statuses = (
+        JuMP.MOI.INFEASIBLE, JuMP.MOI.INFEASIBLE_OR_UNBOUNDED,
+        JuMP.MOI.NUMERICAL_ERROR, JuMP.MOI.OTHER_LIMIT,
+        )
+    # Start with no demand downscaling
+    model_kwargs["demand_scaling"] = 1.0
+    while true
+        global results
+        # Convert Dicts to NamedTuples
+        m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
+        s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
+        m = build_model(; m_kwargs...)
+        JuMP.optimize!(
+            m, JuMP.with_optimizer(Gurobi.Optimizer, env; s_kwargs...))
+        status = JuMP.termination_status(m)
+        if status == JuMP.MOI.OPTIMAL
+            results = get_results(m)
+            break
+        elseif status in bad_statuses
+            model_kwargs["demand_scaling"] -= 0.05
+            if model_kwargs["demand_scaling"] < 0
+                error("Too many demand reductions, scaling cannot go negative")
+            end
+            println("Optimization failed, Reducing demand: "
+                    * string(model_kwargs["demand_scaling"]))
+        else
+            @show status
+            error("Unknown status code!")
+        end
+    end
     return results
 end
 
@@ -759,6 +786,7 @@ end
 Extract the results of a simulation, store in a struct.
 """
 function get_results(m::JuMP.Model)::Results
+    status = JuMP.termination_status(m)
     # These variables will always be in the results
     pg = get_2d_variable_values(m, "pg")
     pf = get_2d_variable_values(m, "pf")
@@ -766,7 +794,6 @@ function get_results(m::JuMP.Model)::Results
     congl = -1 * get_2d_constraint_duals(m, "branch_min")
     congu = -1 * get_2d_constraint_duals(m, "branch_max")
     f = JuMP.objective_value(m)
-
     # These variables will only be in the results if the model has storage
     # Initialize with empty arrays, to be discarded later if they stay empty
     storage_pg = zeros(0, 0)
@@ -784,10 +811,10 @@ function get_results(m::JuMP.Model)::Results
             rethrow(e)
         end
     end
-
+    
     results = Results(;
         pg=pg, pf=pf, lmp=lmp, congl=congl, congu=congu, f=f,
-        storage_pg=storage_pg, storage_e=storage_e)
+        storage_pg=storage_pg, storage_e=storage_e, status=status)
     return results
 end
 
@@ -900,6 +927,7 @@ function run_scenario(;
     # Then loop through intervals
     for i in 1:n_interval
         # Define appropriate settings for this interval
+        model_kwargs["demand_scaling"] = 1.0
         model_kwargs["start_index"] = start_index + (i - 1) * interval
         if storage_enabled & i == 1
             model_kwargs["storage_e0"] = storage.sd_table.InitialStorage
@@ -914,7 +942,8 @@ function run_scenario(;
         # Then save them
         results_filename = "result_" * string(i-1) * ".mat"
         results_filepath = joinpath(outputfolder, results_filename)
-        save_results(results, results_filepath)
+        save_results(results, results_filepath;
+                     demand_scaling=model_kwargs["demand_scaling"])
         pg0 = results.pg[:,end]
         if storage_enabled
             storage_e0 = results.storage_e[:,end]
