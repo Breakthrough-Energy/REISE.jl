@@ -4,8 +4,6 @@
 Given a Case object, build a sparse matrix representing generator topology.
 """
 function make_gen_map(case::Case)::SparseMatrixCSC
-    # Create generator topology matrix
-
     num_bus = length(case.busid)
     bus_idx = 1:num_bus
     bus_id2idx = Dict(case.busid .=> bus_idx)
@@ -23,12 +21,8 @@ end
 Given a Case object, build a sparse matrix representing branch topology.
 """
 function make_branch_map(case::Case)::SparseMatrixCSC
-    # Create branch topology matrix
-
-    branch_ac_name = ["l" * string(b) for b in case.branchid]
-    branch_dc_name = ["d" * string(d) for d in case.dclineid]
-    branch_name = vcat(branch_ac_name, branch_dc_name)
-    num_branch = length(branch_name)
+    num_branch_ac = length(case.branchid)
+    num_branch = num_branch_ac + length(case.dclineid)
     num_bus = length(case.busid)
     branch_idx = 1:num_branch
     bus_idx = 1:num_bus
@@ -68,26 +62,19 @@ function build_model(; case::Case, storage::Storage,
 
     println("building sets: ", Dates.now())
     # Sets
-    bus_name = ["b" * string(b) for b in case.busid]
     num_bus = length(case.busid)
     bus_idx = 1:num_bus
     bus_id2idx = Dict(case.busid .=> bus_idx)
-    branch_ac_name = ["l" * string(b) for b in case.branchid]
-    branch_dc_name = ["d" * string(d) for d in case.dclineid]
-    branch_name = vcat(branch_ac_name, branch_dc_name)
     branch_rating = vcat(case.branch_rating, case.dcline_rating)
     branch_rating[branch_rating .== 0] .= Inf
-    num_branch = length(branch_name)
-    branch_idx = 1:num_branch
     num_branch_ac = length(case.branchid)
-    branch_ac_idx = 1:num_branch_ac
-    gen_name = ["g" * string(g) for g in case.genid]
+    num_branch = num_branch_ac + length(case.dclineid)
+    branch_idx = 1:num_branch
     num_gen = length(case.genid)
     gen_idx = 1:num_gen
-    end_index = start_index+interval_length-1
-    hour_name = ["h" * string(h) for h in range(start_index, stop=end_index)]
-    num_hour = length(hour_name)
-    hour_idx = 1:num_hour
+    end_index = start_index + interval_length - 1
+    num_hour = interval_length
+    hour_idx = 1:interval_length
     if size(storage.gen, 1) > 0
         storage_enabled = true
         num_storage = size(storage.gen, 1)
@@ -112,34 +99,30 @@ function build_model(; case::Case, storage::Storage,
     num_wind = length(gen_wind_idx)
     num_solar = length(gen_solar_idx)
     num_hydro = length(gen_hydro_idx)
-    # Piecewise
-    xy_gencost_mask = (case.gencost[:,MODEL] .== 1)
-    piecewise_enabled = (sum(xy_gencost_mask) > 0)
-    if piecewise_enabled
-        # For now, assume all gens are represented with same number of segments
-        num_segments = convert(Int, maximum(case.gencost[:,NCOST])) - 1
-        segment_width = (
-            (case.gen_pmax - case.gen_pmin) ./ num_segments)
-        segment_idx = 1:num_segments
-        fixed_cost = case.gencost[:, COST+1]
-        # Note: this formulation still assumes quadratic cost curves only!
-        segment_slope = zeros(num_gen, num_segments)
-        for i in segment_idx
-            segment_slope[:, i] = (
-                (2 * case.gencost_orig[:, COST] .* case.gen_pmin)
-                + case.gencost_orig[:, COST+1]
-                + (2*i - 1) * case.gencost_orig[:, COST] .* segment_width
-                )
-        end
+    # Ensure that the model has been piecewise linearized; sum should be > 0
+    piecewise_enabled = (sum(case.gencost[:,MODEL] .== 1) > 0)
+    err_msg = ("No piecewise segments detected. "
+               * "Did you forget to linearize_gencost?")
+    @assert(piecewise_enabled, err_msg)
+    # For now, assume all gens are represented with same number of segments
+    num_segments = convert(Int, maximum(case.gencost[:,NCOST])) - 1
+    segment_width = (case.gen_pmax - case.gen_pmin) ./ num_segments
+    segment_idx = 1:num_segments
+    fixed_cost = case.gencost[:, COST+1]
+    # Note: this formulation still assumes quadratic cost curves only!
+    segment_slope = zeros(num_gen, num_segments)
+    for i in segment_idx
+        segment_slope[:, i] = (
+            (2 * case.gencost_orig[:, COST] .* case.gen_pmin)
+            + case.gencost_orig[:, COST+1]
+            + (2*i - 1) * case.gencost_orig[:, COST] .* segment_width
+            )
     end
 
     println("parameters: ", Dates.now())
     # Parameters
     # Generator topology matrix
     gen_map = make_gen_map(case)
-    hydro_map = sparse(1:num_hydro, case.gen_bus[gen_hydro_idx], 1)
-    solar_map = sparse(1:num_solar, case.gen_bus[gen_solar_idx], 1)
-    wind_map = sparse(1:num_wind, case.gen_bus[gen_wind_idx], 1)
     # Branch connectivity matrix
     all_branch_to = vcat(case.branch_to, case.dcline_to)
     all_branch_from = vcat(case.branch_from, case.dcline_from)
@@ -174,6 +157,7 @@ function build_model(; case::Case, storage::Storage,
     # Variables
     # Explicitly defined as 1:x so that JuMP Array, not DenseArrayAxis
     JuMP.@variable(m, pg[1:num_gen,1:num_hour] >= 0)
+    JuMP.@variable(m, pg_seg[1:num_gen, 1:num_segments, 1:num_hour] >= 0)
     JuMP.@variable(m, pf[1:num_branch,1:num_hour])
     JuMP.@variable(m, theta[1:num_bus,1:num_hour])
     if load_shed_enabled
@@ -183,9 +167,6 @@ function build_model(; case::Case, storage::Storage,
     if trans_viol_enabled
         JuMP.@variable(m,
             0 <= trans_viol[i = 1:num_branch, j = 1:num_hour])
-    end
-    if piecewise_enabled
-        JuMP.@variable(m, pg_seg[1:num_gen, 1:num_segments, 1:num_hour] >= 0)
     end
     if storage_enabled
         JuMP.@variable(m,
@@ -259,39 +240,15 @@ function build_model(; case::Case, storage::Storage,
             case.gen_ramp30[i] * -2 <= pg[i, h+1] - pg[i, h])
     end
 
-    if piecewise_enabled
-        println("segment_max: ", Dates.now())
-        JuMP.@constraint(
-            m,
-            segment_max[i = noninf_pmax, s = segment_idx, h = hour_idx],
-            pg_seg[i,s,h] <= segment_width[i])
-        println("segment_add: ", Dates.now())
-        JuMP.@constraint(
-            m, segment_add[i = noninf_pmax, h = hour_idx],
-            pg[i,h] == case.gen_pmin[i] + sum(pg_seg[i,:,h]))
-    else
-        gen_a_new = zeros(num_gen)
-        gen_b_new = zeros(num_gen)
-        gen_a_new[noninf_pmax] = (
-            case.gencost_orig[:, COST] .* (case.gen_pmax + case.gen_pmin)
-            + case.gencost_orig[:, COST+1])[noninf_pmax]
-        gen_b_new[noninf_pmax] = (
-            (case.gencost_orig[:, COST+2])
-            - case.gencost_orig[:, COST] .* case.gen_pmax .* case.gen_pmin
-            )[noninf_pmax]
-        println("gen_min: ", Dates.now())
-        # Use this!
-        #JuMP.@constraint(m, gen_min[i = 1:num_gen,h = 1:num_hour], (
-        #    pg[i, h] >= case.gen_pmin[i]))
-        # Or this!
-        JuMP.@constraint(m, gen_min, pg .>= case.gen_pmin)
-        # Do NOT use this! (bad broadcasting, extremely slow)
-        #JuMP.@constraint(m, gen_min[1:num_gen,1:num_hour], pg .>= case.gen_pmin)
-
-        println("gen_max: ", Dates.now())
-        JuMP.@constraint(m, gen_max[i = noninf_pmax, h = hour_idx], (
-            pg[i, h] <= case.gen_pmax[i]))
-    end
+    println("segment_max: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        segment_max[i = noninf_pmax, s = segment_idx, h = hour_idx],
+        pg_seg[i,s,h] <= segment_width[i])
+    println("segment_add: ", Dates.now())
+    JuMP.@constraint(
+        m, segment_add[i = noninf_pmax, h = hour_idx],
+        pg[i,h] == case.gen_pmin[i] + sum(pg_seg[i,:,h]))
 
     if trans_viol_enabled
         println("branch_min: ", Dates.now())
@@ -332,21 +289,12 @@ function build_model(; case::Case, storage::Storage,
         pg[gen_wind_idx[i], h] <= simulation_wind[h, i]))
 
     println("objective: ", Dates.now())
-    if piecewise_enabled
-        # Start with generator variable O & M, piecewise
-        obj = JuMP.@expression(m,
-            sum(segment_slope[noninf_pmax,:] .* pg_seg[noninf_pmax,:,:]))
-        JuMP.add_to_expression!(
-            obj, JuMP.@expression(m, num_hour * sum(fixed_cost)))
-    else
-        # Start with generator variable O & M
-        reshaped_case_gen_a_new = reshape(
-            gen_a_new, (1, num_gen))::Array{Float64,2}
-        obj = JuMP.@expression(m, sum(reshaped_case_gen_a_new * pg))
-        # Add no-load costs
-        JuMP.add_to_expression!(
-            obj, JuMP.@expression(m, num_hour * sum(gen_b_new)))
-    end
+    # Start with generator variable O & M, piecewise
+    obj = JuMP.@expression(m,
+        sum(segment_slope[noninf_pmax,:] .* pg_seg[noninf_pmax,:,:]))
+    # Add fixed costs
+    JuMP.add_to_expression!(
+        obj, JuMP.@expression(m, num_hour * sum(fixed_cost)))
     # Add load shed penalty (if necessary)
     if load_shed_enabled
         JuMP.add_to_expression!(
