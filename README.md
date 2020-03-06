@@ -1,7 +1,7 @@
 ## Usage
 
-Currently, all core code functionality is located in `src/REISE.jl`. This code
-defines the module `REISE`, which can be added to a Julia environment via
+This code defines the package `REISE`, which can be added to a Julia
+environment via
 ```
 pkg> add https://github.com/intvenlab/REISE.jl#develop
 ```
@@ -23,3 +23,8 @@ REISE.run_scenario(;
     interval=24, n_interval=3, start_index=1, outputfolder="output",
     inputfolder=pwd(), num_segments=3)
 ```
+
+## Package Structure
+
+`REISE.jl` contains only imports and includes. Individual type and function
+definitions are all in the other files in the `src` folder.
