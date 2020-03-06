@@ -1,10 +1,13 @@
 ## Usage
 
 Currently, all core code functionality is located in `src/REISE.jl`. This code
-defines the module `REISE`, which can be added via
+defines the module `REISE`, which can be added to a Julia environment via
 ```
-pkg> add add https://github.com/intvenlab/REISE.jl#develop
+pkg> add https://github.com/intvenlab/REISE.jl#develop
 ```
+
+Then, import the package: `import REISE`.
+
 To run a scenario which starts at the `1`st hour of the year, runs in `3`
 intervals of `24` hours each, loading input data from your present working
 directory (`pwd()`) and depositing results in the folder `output`, call:
