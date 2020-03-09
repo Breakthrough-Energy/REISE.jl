@@ -18,6 +18,21 @@ include("query.jl")
 include("save.jl")
 
 
+"""
+    REISE.run_scenario(;
+        interval=24, n_interval=3, start_index=1, outputfolder="output",
+        inputfolder=pwd())
+
+Run a scenario consisting of several intervals.
+'interval' specifies the length of each interval in hours.
+'n_interval' specifies the number of intervals in a scenario.
+'start_index' specifies the starting hour of the first interval, to determine
+    which time-series data should be loaded into each intervals.
+'outputfolder' specifies where to store the results. This folder will be
+    created if it does not exist at runtime.
+'inputfolder' specifies where to load the relevant data from. Required files
+    are 'case.mat', 'demand.csv', 'hydro.csv', 'solar.csv', and 'wind.csv'.
+"""
 function run_scenario(;
         num_segments::Int=1, interval::Int, n_interval::Int, start_index::Int,
         inputfolder::String, outputfolder::String)
