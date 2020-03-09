@@ -38,6 +38,32 @@ end
 
 
 """
+    _make_bus_demand(case)
+
+Given a Case object, build a matrix of demand by (bus, hour) for this interval.
+"""
+function _make_bus_demand(case::Case, start_index::Int, end_index::Int)::Matrix
+    bus_idx = 1:length(case.busid)
+    bus_df = DataFrames.DataFrame(
+        name=case.busid, load=case.bus_demand, zone=case.bus_zone)
+    zone_demand = DataFrames.by(bus_df, :zone, :load => sum)
+    zone_list = sort(collect(Set(case.bus_zone)))
+    num_zones = length(zone_list)
+    zone_idx = 1:num_zones
+    zone_id2idx = Dict(zone_list .=> zone_idx)
+    bus_df_with_zone_load = join(bus_df, zone_demand, on = :zone)
+    bus_share = bus_df[:, :load] ./ bus_df_with_zone_load[:, :load_sum]
+    bus_zone_idx = Int64[zone_id2idx[z] for z in case.bus_zone]
+    zone_to_bus_shares = sparse(bus_zone_idx, bus_idx, bus_share)::SparseMatrixCSC
+    # Profiles
+    simulation_demand = Matrix(case.demand[start_index:end_index, 2:end])
+    bus_demand = convert(
+        Matrix, transpose(simulation_demand * zone_to_bus_shares))
+    return bus_demand
+end
+
+
+"""
     _build_model(case=case, start_index=x, interval_length=y[, kwargs...])
 
 Given a Case object and a set of options, build an optimization model.
@@ -130,21 +156,7 @@ function _build_model(; case::Case, storage::Storage,
     branch_from_idx = Int64[bus_id2idx[b] for b in all_branch_from]
     branch_map = _make_branch_map(case)
     # Demand by bus
-    bus_df = DataFrames.DataFrame(
-        name=case.busid, load=case.bus_demand, zone=case.bus_zone)
-    zone_demand = DataFrames.by(bus_df, :zone, :load => sum)
-    zone_list = sort(collect(Set(case.bus_zone)))
-    num_zones = length(zone_list)
-    zone_idx = 1:num_zones
-    zone_id2idx = Dict(zone_list .=> zone_idx)
-    bus_df_with_zone_load = join(bus_df, zone_demand, on = :zone)
-    bus_share = bus_df[:, :load] ./ bus_df_with_zone_load[:, :load_sum]
-    bus_zone_idx = Int64[zone_id2idx[z] for z in case.bus_zone]
-    zone_to_bus_shares = sparse(bus_zone_idx, bus_idx, bus_share)::SparseMatrixCSC
-    # Profiles
-    simulation_demand = Matrix(case.demand[start_index:end_index, 2:end])
-    bus_demand = convert(
-        Matrix, transpose(simulation_demand * zone_to_bus_shares))::Matrix
+    bus_demand = _make_bus_demand(case, start_index, end_index)
     bus_demand *= demand_scaling
     simulation_hydro = Matrix(case.hydro[start_index:end_index, 2:end])
     simulation_solar = Matrix(case.solar[start_index:end_index, 2:end])
