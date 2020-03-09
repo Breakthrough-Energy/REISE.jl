@@ -168,29 +168,29 @@ function _build_model(; case::Case, storage::Storage,
     println("variables: ", Dates.now())
     # Variables
     # Explicitly defined as 1:x so that JuMP Array, not DenseArrayAxis
-    JuMP.@variable(m, pg[1:num_gen,1:num_hour] >= 0)
-    JuMP.@variable(m, pg_seg[1:num_gen, 1:num_segments, 1:num_hour] >= 0)
-    JuMP.@variable(m, pf[1:num_branch,1:num_hour])
-    JuMP.@variable(m, theta[1:num_bus,1:num_hour])
+    JuMP.@variables(m, begin
+        pg[1:num_gen,1:num_hour] >= 0
+        pg_seg[1:num_gen, 1:num_segments, 1:num_hour] >= 0
+        pf[1:num_branch,1:num_hour]
+        theta[1:num_bus,1:num_hour]
+    end)
     if load_shed_enabled
         JuMP.@variable(m,
             0 <= load_shed[i = 1:num_bus, j = 1:num_hour] <= bus_demand[i,j])
     end
     if trans_viol_enabled
-        JuMP.@variable(m,
-            0 <= trans_viol[i = 1:num_branch, j = 1:num_hour])
+        JuMP.@variable(m, 0 <= trans_viol[i = 1:num_branch, j = 1:num_hour])
     end
     if storage_enabled
-        JuMP.@variable(m,
-            0 <= storage_chg[i = 1:num_storage, j = 1:num_hour]
-            <= storage_max_chg[i])
-        JuMP.@variable(m,
-            0 <= storage_dis[i = 1:num_storage, j = 1:num_hour]
-            <= storage_max_dis[i])
-        JuMP.@variable(m,
-            storage_min_energy[i]
-            <= storage_soc[i = 1:num_storage, j = 1:num_hour]
-            <= storage_max_energy[i])
+        JuMP.@variables(m, begin
+            (0 <= storage_chg[i = 1:num_storage, j = 1:num_hour]
+                <= storage_max_chg[i])
+            (0 <= storage_dis[i = 1:num_storage, j = 1:num_hour]
+                <= storage_max_dis[i])
+            (storage_min_energy[i]
+                <= storage_soc[i = 1:num_storage, j = 1:num_hour]
+                <= storage_max_energy[i])
+        end)
     end
 
     println("constraints: ", Dates.now())
