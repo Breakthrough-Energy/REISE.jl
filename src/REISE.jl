@@ -10,12 +10,12 @@ import MAT
 import SparseArrays: sparse, SparseMatrixCSC
 
 
-include("types.jl")
-include("read.jl")
-include("prepare.jl")
-include("model.jl")
-include("query.jl")
-include("save.jl")
+include("types.jl")         # Defines Case, Results, Storage
+include("read.jl")          # Defines read_case, read_storage
+include("prepare.jl")       # Defines reise_data_mods
+include("model.jl")         # Defines build_and_solve
+include("query.jl")         # Defines get_results (used in build_and_solve)
+include("save.jl")          # Defines save_input_mat, save_results
 
 
 """

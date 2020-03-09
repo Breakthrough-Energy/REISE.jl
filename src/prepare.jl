@@ -16,7 +16,7 @@ function reise_data_mods(case::Dict; num_segments::Int=1)::Case
     # Save original gencost to gencost_orig
     case["gencost_orig"] = copy(case["gencost"])
     # Modify gencost based on desired linearization structure
-    case["gencost"] = linearize_gencost(case; num_segments=num_segments)
+    case["gencost"] = _linearize_gencost(case; num_segments=num_segments)
 
     # Relax ramp constraints
     case["gen_ramp30"] .= Inf
@@ -54,12 +54,12 @@ end
 
 
 """
-    linearize_gencost(case)
-    linearize_gencost(case; num_segments=2)
+    _linearize_gencost(case)
+    _linearize_gencost(case; num_segments=2)
 
 Using case dict data, linearize cost curves with a give number of segments.
 """
-function linearize_gencost(case::Dict; num_segments::Int=1)::Array{Float64,2}
+function _linearize_gencost(case::Dict; num_segments::Int=1)::Array{Float64,2}
     # Positional indices from mpc.gencost
     MODEL = 1
     STARTUP = 2

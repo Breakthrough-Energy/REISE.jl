@@ -1,9 +1,9 @@
 """
-    make_gen_map(case)
+    _make_gen_map(case)
 
 Given a Case object, build a sparse matrix representing generator topology.
 """
-function make_gen_map(case::Case)::SparseMatrixCSC
+function _make_gen_map(case::Case)::SparseMatrixCSC
     num_bus = length(case.busid)
     bus_idx = 1:num_bus
     bus_id2idx = Dict(case.busid .=> bus_idx)
@@ -16,11 +16,11 @@ end
 
 
 """
-    make_branch_map(case)
+    _make_branch_map(case)
 
 Given a Case object, build a sparse matrix representing branch topology.
 """
-function make_branch_map(case::Case)::SparseMatrixCSC
+function _make_branch_map(case::Case)::SparseMatrixCSC
     num_branch_ac = length(case.branchid)
     num_branch = num_branch_ac + length(case.dclineid)
     num_bus = length(case.busid)
@@ -38,12 +38,12 @@ end
 
 
 """
-    build_model(case=case, start_index=x, interval_length=y[, kwargs...])
+    _build_model(case=case, start_index=x, interval_length=y[, kwargs...])
 
 Given a Case object and a set of options, build an optimization model.
 Returns a JuMP.Model instance.
 """
-function build_model(; case::Case, storage::Storage,
+function _build_model(; case::Case, storage::Storage,
                      start_index::Int, interval_length::Int,
                      demand_scaling::Number=1.0,
                      load_shed_enabled::Bool=false,
@@ -122,13 +122,13 @@ function build_model(; case::Case, storage::Storage,
     println("parameters: ", Dates.now())
     # Parameters
     # Generator topology matrix
-    gen_map = make_gen_map(case)
+    gen_map = _make_gen_map(case)
     # Branch connectivity matrix
     all_branch_to = vcat(case.branch_to, case.dcline_to)
     all_branch_from = vcat(case.branch_from, case.dcline_from)
     branch_to_idx = Int64[bus_id2idx[b] for b in all_branch_to]
     branch_from_idx = Int64[bus_id2idx[b] for b in all_branch_from]
-    branch_map = make_branch_map(case)
+    branch_map = _make_branch_map(case)
     # Demand by bus
     bus_df = DataFrames.DataFrame(
         name=case.busid, load=case.bus_demand, zone=case.bus_zone)
@@ -334,7 +334,7 @@ function build_and_solve(
         # Convert Dicts to NamedTuples
         m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
         s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
-        m = build_model(; m_kwargs...)
+        m = _build_model(; m_kwargs...)
         JuMP.optimize!(
             m, JuMP.with_optimizer(Gurobi.Optimizer, env; s_kwargs...))
         status = JuMP.termination_status(m)

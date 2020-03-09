@@ -6,24 +6,24 @@ Extract the results of a simulation, store in a struct.
 function get_results(m::JuMP.Model)::Results
     status = JuMP.termination_status(m)
     # These variables will always be in the results
-    pg = get_2d_variable_values(m, "pg")
-    pf = get_2d_variable_values(m, "pf")
-    lmp = -1 * get_2d_constraint_duals(m, "powerbalance")
-    congl = -1 * get_2d_constraint_duals(m, "branch_min")
-    congu = -1 * get_2d_constraint_duals(m, "branch_max")
+    pg = _get_2d_variable_values(m, "pg")
+    pf = _get_2d_variable_values(m, "pf")
+    lmp = -1 * _get_2d_constraint_duals(m, "powerbalance")
+    congl = -1 * _get_2d_constraint_duals(m, "branch_min")
+    congu = -1 * _get_2d_constraint_duals(m, "branch_max")
     f = JuMP.objective_value(m)
     # These variables will only be in the results if the model has storage
     # Initialize with empty arrays, to be discarded later if they stay empty
     storage_pg = zeros(0, 0)
     storage_e = zeros(0, 0)
     try
-        storage_dis = get_2d_variable_values(m, "storage_dis")
-        storage_chg = get_2d_variable_values(m, "storage_chg")
+        storage_dis = _get_2d_variable_values(m, "storage_dis")
+        storage_chg = _get_2d_variable_values(m, "storage_chg")
         storage_pg = storage_dis - storage_chg
-        storage_e = get_2d_variable_values(m, "storage_soc")
+        storage_e = _get_2d_variable_values(m, "storage_soc")
     catch e
         if isa(e, BoundsError)
-            # Thrown by get_2d_variable_values, variable does not exist
+            # Thrown by _get_2d_variable_values, variable does not exist
         else
             # Unknown error, rethrow it
             rethrow(e)
@@ -38,12 +38,12 @@ end
 
 
 """
-    get_2d_variable_values(m, "pg")
+    _get_2d_variable_values(m, "pg")
 
 Get the values of the variables whose names begin with a given string.
 Returns a 2d array of values, shape inferred from the last variable's name.
 """
-function get_2d_variable_values(m::JuMP.Model, s::String)::Array{Float64,2}
+function _get_2d_variable_values(m::JuMP.Model, s::String)::Array{Float64,2}
     function stringmatch(s::String, v::JuMP.VariableRef)
         occursin(s * "[", JuMP.name(v))
     end
@@ -70,12 +70,12 @@ end
 
 
 """
-    get_2d_constraint_duals(m, "powerbalance")
+    _get_2d_constraint_duals(m, "powerbalance")
 
 Get the duals of the constraints whose names begin with a given string.
 Returns a 2d array of values, shape inferred from the last constraints's name.
 """
-function get_2d_constraint_duals(m::JuMP.Model, s::String)::Array{Float64,2}
+function _get_2d_constraint_duals(m::JuMP.Model, s::String)::Array{Float64,2}
     function stringmatch(s::String, v::JuMP.ConstraintRef)
         occursin(s, JuMP.name(v))
     end
