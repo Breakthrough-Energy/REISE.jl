@@ -54,7 +54,8 @@ function _make_bus_demand(case::Case, start_index::Int, end_index::Int)::Matrix
     bus_df_with_zone_load = join(bus_df, zone_demand, on = :zone)
     bus_share = bus_df[:, :load] ./ bus_df_with_zone_load[:, :load_sum]
     bus_zone_idx = Int64[zone_id2idx[z] for z in case.bus_zone]
-    zone_to_bus_shares = sparse(bus_zone_idx, bus_idx, bus_share)::SparseMatrixCSC
+    zone_to_bus_shares = sparse(
+        bus_zone_idx, bus_idx, bus_share)::SparseMatrixCSC
     # Profiles
     simulation_demand = Matrix(case.demand[start_index:end_index, 2:end])
     bus_demand = convert(
@@ -85,6 +86,9 @@ function _build_model(; case::Case, storage::Storage,
     SHUTDOWN = 3
     NCOST = 4
     COST = 5
+    # Positional indices from mpc.gen
+    PMAX = 9
+    PMIN = 10
 
     println("building sets: ", Dates.now())
     # Sets
@@ -101,19 +105,18 @@ function _build_model(; case::Case, storage::Storage,
     end_index = start_index + interval_length - 1
     num_hour = interval_length
     hour_idx = 1:interval_length
-    if size(storage.gen, 1) > 0
-        storage_enabled = true
+    # If storage is present, build required sets & parameters
+    storage_enabled = (size(storage.gen, 1) > 0)
+    if storage_enabled
         num_storage = size(storage.gen, 1)
         storage_idx = 1:num_storage
-        storage_max_dis = storage.gen[:, 9]
-        storage_max_chg = -1 * storage.gen[:, 10]
+        storage_max_dis = storage.gen[:, PMAX]
+        storage_max_chg = -1 * storage.gen[:, PMIN]
         storage_min_energy = storage.sd_table.MinStorageLevel
         storage_max_energy = storage.sd_table.MaxStorageLevel
         storage_bus_idx = [bus_id2idx[b] for b in storage.gen[:, 1]]
         storage_map = sparse(storage_bus_idx, storage_idx, 1, num_bus,
                              num_storage)::SparseMatrixCSC
-    else
-        storage_enabled = false
     end
     # Subsets
     gen_wind_idx = gen_idx[findall(case.genfuel .== "wind")]
@@ -126,12 +129,12 @@ function _build_model(; case::Case, storage::Storage,
     num_solar = length(gen_solar_idx)
     num_hydro = length(gen_hydro_idx)
     # Ensure that the model has been piecewise linearized; sum should be > 0
-    piecewise_enabled = (sum(case.gencost[:,MODEL] .== 1) > 0)
+    piecewise_enabled = (sum(case.gencost[:, MODEL] .== 1) > 0)
     err_msg = ("No piecewise segments detected. "
                * "Did you forget to linearize_gencost?")
     @assert(piecewise_enabled, err_msg)
     # For now, assume all gens are represented with same number of segments
-    num_segments = convert(Int, maximum(case.gencost[:,NCOST])) - 1
+    num_segments = convert(Int, maximum(case.gencost[:, NCOST])) - 1
     segment_width = (case.gen_pmax - case.gen_pmin) ./ num_segments
     segment_idx = 1:num_segments
     fixed_cost = case.gencost[:, COST+1]
@@ -141,7 +144,7 @@ function _build_model(; case::Case, storage::Storage,
         segment_slope[:, i] = (
             (2 * case.gencost_orig[:, COST] .* case.gen_pmin)
             + case.gencost_orig[:, COST+1]
-            + (2*i - 1) * case.gencost_orig[:, COST] .* segment_width
+            + (2 * i - 1) * case.gencost_orig[:, COST] .* segment_width
             )
     end
 
@@ -167,29 +170,31 @@ function _build_model(; case::Case, storage::Storage,
 
     println("variables: ", Dates.now())
     # Variables
-    # Explicitly defined as 1:x so that JuMP Array, not DenseArrayAxis
+    # Explicitly declare containers as Array of VariableRefs, not DenseArrayAxis
     JuMP.@variables(m, begin
-        pg[1:num_gen,1:num_hour] >= 0
-        pg_seg[1:num_gen, 1:num_segments, 1:num_hour] >= 0
-        pf[1:num_branch,1:num_hour]
-        theta[1:num_bus,1:num_hour]
+        pg[gen_idx, hour_idx] >= 0, (container=Array)
+        pg_seg[gen_idx, segment_idx, hour_idx] >= 0, (container=Array)
+        pf[branch_idx, hour_idx], (container=Array)
+        theta[bus_idx, hour_idx], (container=Array)
     end)
     if load_shed_enabled
         JuMP.@variable(m,
-            0 <= load_shed[i = 1:num_bus, j = 1:num_hour] <= bus_demand[i,j])
+            0 <= load_shed[i in bus_idx, j in hour_idx] <= bus_demand[i, j],
+            container=Array)
     end
     if trans_viol_enabled
-        JuMP.@variable(m, 0 <= trans_viol[i = 1:num_branch, j = 1:num_hour])
+        JuMP.@variable(m,
+            0 <= trans_viol[i in branch_idx, j in hour_idx], container=Array)
     end
     if storage_enabled
         JuMP.@variables(m, begin
-            (0 <= storage_chg[i = 1:num_storage, j = 1:num_hour]
-                <= storage_max_chg[i])
-            (0 <= storage_dis[i = 1:num_storage, j = 1:num_hour]
-                <= storage_max_dis[i])
+            (0 <= storage_chg[i in storage_idx, j in hour_idx]
+                <= storage_max_chg[i]), (container=Array)
+            (0 <= storage_dis[i in storage_idx, j in hour_idx]
+                <= storage_max_dis[i]), (container=Array)
             (storage_min_energy[i]
-                <= storage_soc[i = 1:num_storage, j = 1:num_hour]
-                <= storage_max_energy[i])
+                <= storage_soc[i in storage_idx, j in hour_idx]
+                <= storage_max_energy[i]), (container=Array)
         end)
     end
 
@@ -210,100 +215,108 @@ function _build_model(; case::Case, storage::Storage,
     end
     JuMP.@constraint(m, powerbalance, (injections .== withdrawls))
     println("powerbalance, setting names: ", Dates.now())
-    for i in 1:num_bus, j in 1:num_hour
-        JuMP.set_name(powerbalance[i,j],
+    for i in bus_idx, j in hour_idx
+        JuMP.set_name(powerbalance[i, j],
                       "powerbalance[" * string(i) * "," * string(j) * "]")
     end
 
     if storage_enabled
         println("storage soc_tracking: ", Dates.now())
-        JuMP.@constraint(m, soc_tracking[i=1:num_storage, h=1:(num_hour-1)],
+        JuMP.@constraint(m,
+            soc_tracking[i in storage_idx, h in 1:(num_hour-1)],
             storage_soc[i, h+1] == (
                 storage_soc[i, h]
                 + storage.sd_table.InEff[i] * storage_chg[i, h+1]
-                - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, h+1])
-            )
+                - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, h+1]),
+            container=Array)
         println("storage initial_soc: ", Dates.now())
-        JuMP.@constraint(m, initial_soc[i=1:num_storage],
+        JuMP.@constraint(m,
+            initial_soc[i in storage_idx],
             storage_soc[i, 1] == (
                 storage_e0[i]
                 + storage.sd_table.InEff[i] * storage_chg[i, 1]
-                - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, 1])
-            )
+                - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, 1]),
+            container=Array)
     end
 
+    noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
     if initial_ramp_enabled
         println("initial rampup: ", Dates.now())
-        noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
-        JuMP.@constraint(m, initial_rampup[i = noninf_ramp_idx],
-            pg[i,1] - initial_ramp_g0[i] <= case.gen_ramp30[i] * 2)
+        JuMP.@constraint(m,
+            initial_rampup[i in noninf_ramp_idx],
+            pg[i, 1] - initial_ramp_g0[i] <= case.gen_ramp30[i] * 2)
         println("initial rampdown: ", Dates.now())
-        JuMP.@constraint(m, initial_rampdown[i = noninf_ramp_idx],
-            case.gen_ramp30[i] * -2 <= pg[i,1] - initial_ramp_g0[i])
+        JuMP.@constraint(m,
+            initial_rampdown[i in noninf_ramp_idx],
+            case.gen_ramp30[i] * -2 <= pg[i, 1] - initial_ramp_g0[i])
     end
-
     if length(hour_idx) > 1
         println("rampup: ", Dates.now())
-        noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
-        JuMP.@constraint(m, rampup[i = noninf_ramp_idx, h = 1:(num_hour-1)],
-            pg[i,h+1] - pg[i,h] <= case.gen_ramp30[i] * 2)
+        JuMP.@constraint(m,
+            rampup[i in noninf_ramp_idx, h in 1:(num_hour-1)],
+            pg[i, h+1] - pg[i, h] <= case.gen_ramp30[i] * 2)
         println("rampdown: ", Dates.now())
-        JuMP.@constraint(m, rampdown[i = noninf_ramp_idx, h = 1:(num_hour-1)],
+        JuMP.@constraint(m,
+            rampdown[i in noninf_ramp_idx, h in 1:(num_hour-1)],
             case.gen_ramp30[i] * -2 <= pg[i, h+1] - pg[i, h])
     end
 
     println("segment_max: ", Dates.now())
-    JuMP.@constraint(
-        m,
-        segment_max[i = noninf_pmax, s = segment_idx, h = hour_idx],
-        pg_seg[i,s,h] <= segment_width[i])
+    JuMP.@constraint(m,
+        segment_max[i in noninf_pmax, s in segment_idx, h in hour_idx],
+        pg_seg[i, s, h] <= segment_width[i])
     println("segment_add: ", Dates.now())
-    JuMP.@constraint(
-        m, segment_add[i = noninf_pmax, h = hour_idx],
-        pg[i,h] == case.gen_pmin[i] + sum(pg_seg[i,:,h]))
+    JuMP.@constraint(m,
+        segment_add[i in noninf_pmax, h in hour_idx],
+        pg[i, h] == case.gen_pmin[i] + sum(pg_seg[i, :, h]))
 
     if trans_viol_enabled
         println("branch_min: ", Dates.now())
         noninf_branch_idx = findall(branch_rating .!= Inf)
-        JuMP.@constraint(m, branch_min[br = noninf_branch_idx, h = hour_idx], (
-            -1 * (branch_rating[br] + trans_viol[br, h]) <= pf[br, h]))
-
+        JuMP.@constraint(m,
+            branch_min[br in noninf_branch_idx, h in hour_idx],
+            -1 * (branch_rating[br] + trans_viol[br, h]) <= pf[br, h])
         println("branch_max: ", Dates.now())
-        JuMP.@constraint(m, branch_max[br = noninf_branch_idx, h = hour_idx], (
-            pf[br, h] <= branch_rating[br] + trans_viol[br, h]))
+        JuMP.@constraint(m,
+            branch_max[br in noninf_branch_idx, h in hour_idx],
+            pf[br, h] <= branch_rating[br] + trans_viol[br, h])
     else
         println("branch_min: ", Dates.now())
         noninf_branch_idx = findall(branch_rating .!= Inf)
-        JuMP.@constraint(m, branch_min[br = noninf_branch_idx, h = hour_idx], (
-            -branch_rating[br] <= pf[br, h]))
-
+        JuMP.@constraint(m,
+            branch_min[br in noninf_branch_idx, h in hour_idx],
+            -1 * branch_rating[br] <= pf[br, h])
         println("branch_max: ", Dates.now())
-        JuMP.@constraint(m, branch_max[br = noninf_branch_idx, h = hour_idx], (
-            pf[br, h] <= branch_rating[br]))
+        JuMP.@constraint(m,
+            branch_max[br in noninf_branch_idx, h in hour_idx],
+            pf[br, h] <= branch_rating[br])
     end
 
     println("branch_angle: ", Dates.now())
     # Explicit numbering here so that we constrain AC branches but not DC
-    JuMP.@constraint(m, branch_angle[br = 1:num_branch_ac, h = 1:num_hour], (
-        case.branch_reactance[br] * pf[br,h]
-        == (theta[branch_to_idx[br],h] - theta[branch_from_idx[br],h])))
+    JuMP.@constraint(m,
+        branch_angle[br in 1:num_branch_ac, h in hour_idx],
+        (case.branch_reactance[br] * pf[br, h]
+            == (theta[branch_to_idx[br], h] - theta[branch_from_idx[br], h])))
 
+    # Constrain variable generators based on profiles
     println("hydro_fixed: ", Dates.now())
-    JuMP.@constraint(m, hydro_fixed[i = 1:num_hydro, h = hour_idx], (
-        pg[gen_hydro_idx[i], h] == simulation_hydro[h, i]))
-
+    JuMP.@constraint(m,
+        hydro_fixed[i in 1:num_hydro, h in hour_idx],
+        pg[gen_hydro_idx[i], h] == simulation_hydro[h, i])
     println("solar_max: ", Dates.now())
-    JuMP.@constraint(m, solar_max[i = 1:num_solar, h = hour_idx], (
-        pg[gen_solar_idx[i], h] <= simulation_solar[h, i]))
-
+    JuMP.@constraint(m,
+        solar_max[i in 1:num_solar, h in hour_idx],
+        pg[gen_solar_idx[i], h] <= simulation_solar[h, i])
     println("wind_max: ", Dates.now())
-    JuMP.@constraint(m, wind_max[i = 1:num_wind, h = hour_idx], (
-        pg[gen_wind_idx[i], h] <= simulation_wind[h, i]))
+    JuMP.@constraint(m,
+        wind_max[i in 1:num_wind, h in hour_idx],
+        pg[gen_wind_idx[i], h] <= simulation_wind[h, i])
 
     println("objective: ", Dates.now())
     # Start with generator variable O & M, piecewise
     obj = JuMP.@expression(m,
-        sum(segment_slope[noninf_pmax,:] .* pg_seg[noninf_pmax,:,:]))
+        sum(segment_slope[noninf_pmax, :] .* pg_seg[noninf_pmax, :, :]))
     # Add fixed costs
     JuMP.add_to_expression!(
         obj, JuMP.@expression(m, num_hour * sum(fixed_cost)))
@@ -319,9 +332,10 @@ function _build_model(; case::Case, storage::Storage,
     end
     # Pay for ending with less storage energy than initial
     if storage_enabled
-        JuMP.add_to_expression!(obj, JuMP.@expression(m, sum(
-            (storage_e0 - storage_soc[:,end])
-            .* storage.sd_table.TerminalStoragePrice)))
+        storage_penalty = JuMP.@expression(m,
+            sum((storage_e0 - storage_soc[:, end])
+                .* storage.sd_table.TerminalStoragePrice))
+        JuMP.add_to_expression!(obj, storage_penalty)
     end
     # Finally, set as objective of model
     JuMP.@objective(m, Min, obj)
