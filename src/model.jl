@@ -65,6 +65,26 @@ end
 
 
 """
+    _make_bus_demand(case)
+
+Given a Case object, build a matrix of segment slopes by (gen, segment_idx).
+"""
+function _build_segment_slope(case::Case, segment_idx, segment_width)::Matrix
+    # Note: this formulation still assumes quadratic cost curves only!
+    COST = 5        # Positional index from mpc.gencost
+    segment_slope = zeros(length(case.genid), length(segment_idx))
+    for i in segment_idx
+        segment_slope[:, i] = (
+            (2 * case.gencost_orig[:, COST] .* case.gen_pmin)
+            + case.gencost_orig[:, COST+1]
+            + (2 * i - 1) * case.gencost_orig[:, COST] .* segment_width
+            )
+    end
+    return segment_slope
+end
+
+
+"""
     _build_model(case=case, start_index=x, interval_length=y[, kwargs...])
 
 Given a Case object and a set of options, build an optimization model.
@@ -139,15 +159,7 @@ function _build_model(; case::Case, storage::Storage,
     segment_width = (case.gen_pmax - case.gen_pmin) ./ num_segments
     segment_idx = 1:num_segments
     fixed_cost = case.gencost[:, COST+1]
-    # Note: this formulation still assumes quadratic cost curves only!
-    segment_slope = zeros(num_gen, num_segments)
-    for i in segment_idx
-        segment_slope[:, i] = (
-            (2 * case.gencost_orig[:, COST] .* case.gen_pmin)
-            + case.gencost_orig[:, COST+1]
-            + (2 * i - 1) * case.gencost_orig[:, COST] .* segment_width
-            )
-    end
+    segment_slope = _build_segment_slope(case, segment_idx, segment_width)
 
     println("parameters: ", Dates.now())
     # Parameters
