@@ -100,6 +100,7 @@ function _build_model(; case::Case, storage::Storage,
     num_branch_ac = length(case.branchid)
     num_branch = num_branch_ac + length(case.dclineid)
     branch_idx = 1:num_branch
+    noninf_branch_idx = findall(branch_rating .!= Inf)
     num_gen = length(case.genid)
     gen_idx = 1:num_gen
     end_index = start_index + interval_length - 1
@@ -271,26 +272,20 @@ function _build_model(; case::Case, storage::Storage,
         pg[i, h] == case.gen_pmin[i] + sum(pg_seg[i, :, h]))
 
     if trans_viol_enabled
-        println("branch_min: ", Dates.now())
-        noninf_branch_idx = findall(branch_rating .!= Inf)
-        JuMP.@constraint(m,
-            branch_min[br in noninf_branch_idx, h in hour_idx],
-            -1 * (branch_rating[br] + trans_viol[br, h]) <= pf[br, h])
-        println("branch_max: ", Dates.now())
-        JuMP.@constraint(m,
-            branch_max[br in noninf_branch_idx, h in hour_idx],
-            pf[br, h] <= branch_rating[br] + trans_viol[br, h])
+        JuMP.@expression(m,
+            branch_limit, branch_rating + trans_viol)
     else
-        println("branch_min: ", Dates.now())
-        noninf_branch_idx = findall(branch_rating .!= Inf)
-        JuMP.@constraint(m,
-            branch_min[br in noninf_branch_idx, h in hour_idx],
-            -1 * branch_rating[br] <= pf[br, h])
-        println("branch_max: ", Dates.now())
-        JuMP.@constraint(m,
-            branch_max[br in noninf_branch_idx, h in hour_idx],
-            pf[br, h] <= branch_rating[br])
+        JuMP.@expression(m,
+            branch_limit[br in branch_idx, h in hour_idx], branch_rating[br])
     end
+    println("branch_min, branch_max: ", Dates.now())
+    JuMP.@constraint(m,
+        branch_min[br in noninf_branch_idx, h in hour_idx],
+        -1 * branch_limit[br, h] <= pf[br, h])
+    println("branch_max: ", Dates.now())
+    JuMP.@constraint(m,
+        branch_max[br in noninf_branch_idx, h in hour_idx],
+        pf[br, h] <= branch_limit[br, h])
 
     println("branch_angle: ", Dates.now())
     # Explicit numbering here so that we constrain AC branches but not DC
