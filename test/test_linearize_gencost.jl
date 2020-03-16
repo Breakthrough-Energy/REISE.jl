@@ -37,32 +37,32 @@ expected_some_equal[2:3, :] = expected_one_segment[2:3, :]
 # Actually run tests
 @testset "test default" begin
         this_case = copy(test_case)
-        gencost_new = REISE.linearize_gencost(this_case)
+        gencost_new = REISE._linearize_gencost(this_case)
         @test gencost_new == expected_one_segment
     end
 
     @testset "test one segment" begin
         this_case = copy(test_case)
-        gencost_new = REISE.linearize_gencost(this_case, num_segments=1)
+        gencost_new = REISE._linearize_gencost(this_case, num_segments=1)
         @test gencost_new == expected_one_segment
     end
     
     @testset "test two segments" begin
         this_case = copy(test_case)
-        gencost_new = REISE.linearize_gencost(this_case, num_segments=2)
+        gencost_new = REISE._linearize_gencost(this_case, num_segments=2)
         @test gencost_new == expected_two_segment
     end
     
     @testset "test all Pmin = Pmax" begin
         this_case = copy(test_case)
         this_case["gen_pmin"] = this_case["gen_pmax"]
-        gencost_new = REISE.linearize_gencost(this_case, num_segments=3)
+        gencost_new = REISE._linearize_gencost(this_case, num_segments=3)
         @test gencost_new == expected_all_equal
     end
     
     @testset "test some Pmin = Pmax" begin
         this_case = copy(test_case)
         this_case["gen_pmin"][1] = this_case["gen_pmax"][1]
-        gencost_new = REISE.linearize_gencost(this_case, num_segments=1)
+        gencost_new = REISE._linearize_gencost(this_case, num_segments=1)
         @test gencost_new == expected_some_equal
     end
