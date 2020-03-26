@@ -372,7 +372,7 @@ function build_and_solve(
             m, JuMP.with_optimizer(Gurobi.Optimizer, env; s_kwargs...))
         status = JuMP.termination_status(m)
         if status == JuMP.MOI.OPTIMAL
-            results = get_results(m)
+            results = get_results(m, model_kwargs["case"])
             break
         elseif status in bad_statuses
             model_kwargs["demand_scaling"] -= 0.05
