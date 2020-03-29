@@ -80,6 +80,11 @@ function save_results(results::Results, filename::String;
                 ),
             )),
         )
+    if size(results.pf_dcline) != (0, 0)
+        # Add DC line results only if they're meaningful
+        mdo_save["flow"]["mpc"]["dcline"] = Dict(
+            "PF_dcline" => results.pf_dcline)
+    end
     if size(results.storage_pg) != (0, 0)
         # Add storage results only if they're meaningful
         mdo_save["flow"]["mpc"]["storage"] = Dict(

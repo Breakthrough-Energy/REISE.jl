@@ -12,12 +12,20 @@ function get_results(m::JuMP.Model, case::Case)::Results
     congl_temp = -1 * _get_2d_constraint_duals(m, "branch_min")
     congu_temp = -1 * _get_2d_constraint_duals(m, "branch_max")
     f = JuMP.objective_value(m)
+    # If DC lines are present, separate their results
+    # Initialize with empty arrays, to be discarded later if they stay empty
+    pf_dcline = zeros(0, 0)
+    num_dclines = length(case.dclineid)
+    if num_dclines > 0
+        pf_dcline = pf[(end - num_dclines + 1):end, :]
+        pf = pf[1:(end - num_dclines), :]
+    end
     # Ensure that we report congestion on all branches, even infinite capacity
-    num_branch = length(case.branchid) + length(case.dcline_rating)
-    num_hour = size(pg, 2)
-    congl = zeros(num_branch, num_hour)
-    congu = zeros(num_branch, num_hour)
-    branch_rating = vcat(case.branch_rating, case.dcline_rating)
+    num_branch_ac = length(case.branchid)
+    num_hour = size(pf, 2)
+    congl = zeros(num_branch_ac, num_hour)
+    congu = zeros(num_branch_ac, num_hour)
+    branch_rating = copy(case.branch_rating)
     branch_rating[branch_rating .== 0] .= Inf
     noninf_branch_idx = findall(branch_rating .!= Inf)
     num_noninf = length(noninf_branch_idx)
@@ -44,8 +52,8 @@ function get_results(m::JuMP.Model, case::Case)::Results
     end
     
     results = Results(;
-        pg=pg, pf=pf, lmp=lmp, congl=congl, congu=congu, f=f,
-        storage_pg=storage_pg, storage_e=storage_e, status=status)
+        pg=pg, pf=pf, lmp=lmp, congl=congl, congu=congu, pf_dcline=pf_dcline,
+        f=f, storage_pg=storage_pg, storage_e=storage_e, status=status)
     return results
 end
 
