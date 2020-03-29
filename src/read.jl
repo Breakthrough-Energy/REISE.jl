@@ -20,7 +20,11 @@ function read_case(filepath)
 
     # DC branches
     if "dcline" in keys(mpc)
-        case["dclineid"] = dropdims(mpc["dclineid"], dims=2)
+        if isa(mpc["dclineid"], Int)
+            case["dclineid"] = Int64[mpc["dclineid"]]
+        else
+            case["dclineid"] = dropdims(mpc["dclineid"], dims=2)
+        end
         case["dcline_from"] = convert(Array{Int,1}, mpc["dcline"][:,1])
         case["dcline_to"] = convert(Array{Int,1}, mpc["dcline"][:,2])
         case["dcline_rating"] = mpc["dcline"][:,11]
