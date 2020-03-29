@@ -19,7 +19,7 @@ function read_case(filepath)
     case["branch_rating"] = mpc["branch"][:,6]
 
     # DC branches
-    if MAT.exists(case_mat_file, "dcline")
+    if "dcline" in keys(mpc)
         case["dclineid"] = dropdims(mpc["dclineid"], dims=2)
         case["dcline_from"] = convert(Array{Int,1}, mpc["dcline"][:,1])
         case["dcline_to"] = convert(Array{Int,1}, mpc["dcline"][:,2])
