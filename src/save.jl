@@ -20,8 +20,8 @@ function save_input_mat(case::Case, storage::Storage, inputfolder::String,
     mdi = Dict("mpc" => mpc)
 
     # Save modifications to gen
-    mpc["gen"][:,gen_PMIN] = case.gen_pmin
-    mpc["gen"][:,gen_RAMP_30] = case.gen_ramp30
+    mpc["gen"][:, gen_PMIN] = case.gen_pmin
+    mpc["gen"][:, gen_RAMP_30] = case.gen_ramp30
     # Save modifications to gencost table
     mpc["gencost"] = case.gencost
     mpc["gencost_orig"] = case.gencost_orig
@@ -34,13 +34,16 @@ function save_input_mat(case::Case, storage::Storage, inputfolder::String,
         # Save storage modifications to gen table (with extra zeros for MUs)
         mpc["gen"] = [mpc["gen"] ; hcat(storage.gen, zeros(num_storage, 4))]
         # Save storage modifications to gencost
-        num_segments = convert(Int, maximum(case.gencost[:,gencost_NCOST])) - 1
+        #@show case.gencost[:, gencost_MODEL]
+        segment_indices = findall(case.gencost[:, gencost_MODEL] .== 1)
+        segment_orders = case.gencost[segment_indices, gencost_NCOST]
+        num_segments = convert(Int, maximum(segment_orders)) - 1
         storage_gencost = zeros(num_storage, (6 + 2 * num_segments))
         # Storage is specified by two points, PMIN and PMAX, both with cost 0
-        storage_gencost[:,gencost_MODEL] .= 1
-        storage_gencost[:,gencost_NCOST] .= 2
-        storage_gencost[:,gencost_COST] = storage.gen[:, gen_PMIN]
-        storage_gencost[:,gencost_COST+2] = storage.gen[:, gen_PMAX]
+        storage_gencost[:, gencost_MODEL] .= 1
+        storage_gencost[:, gencost_NCOST] .= 2
+        storage_gencost[:, gencost_COST] = storage.gen[:, gen_PMIN]
+        storage_gencost[:, gencost_COST+2] = storage.gen[:, gen_PMAX]
         mpc["gencost"] = [mpc["gencost"] ; storage_gencost]
         # Save addition of 'iess' field (index, energy storage systems) to mpc
         num_gen = length(case.genid)
