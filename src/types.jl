@@ -47,6 +47,7 @@ Base.@kwdef struct Results
     lmp::Array{Float64,2}
     congu::Array{Float64,2}
     congl::Array{Float64,2}
+    pf_dcline::Array{Float64,2}
     storage_pg::Array{Float64,2}
     storage_e::Array{Float64,2}
     f::Float64

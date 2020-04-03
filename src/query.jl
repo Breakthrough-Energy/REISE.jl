@@ -3,15 +3,36 @@
 
 Extract the results of a simulation, store in a struct.
 """
-function get_results(m::JuMP.Model)::Results
+function get_results(m::JuMP.Model, case::Case)::Results
     status = JuMP.termination_status(m)
     # These variables will always be in the results
     pg = _get_2d_variable_values(m, "pg")
     pf = _get_2d_variable_values(m, "pf")
     lmp = -1 * _get_2d_constraint_duals(m, "powerbalance")
-    congl = -1 * _get_2d_constraint_duals(m, "branch_min")
-    congu = -1 * _get_2d_constraint_duals(m, "branch_max")
+    congl_temp = -1 * _get_2d_constraint_duals(m, "branch_min")
+    congu_temp = -1 * _get_2d_constraint_duals(m, "branch_max")
     f = JuMP.objective_value(m)
+    # If DC lines are present, separate their results
+    # Initialize with empty arrays, to be discarded later if they stay empty
+    pf_dcline = zeros(0, 0)
+    num_dclines = length(case.dclineid)
+    if num_dclines > 0
+        pf_dcline = pf[(end - num_dclines + 1):end, :]
+        pf = pf[1:(end - num_dclines), :]
+    end
+    # Ensure that we report congestion on all branches, even infinite capacity
+    num_branch_ac = length(case.branchid)
+    num_hour = size(pf, 2)
+    congl = zeros(num_branch_ac, num_hour)
+    congu = zeros(num_branch_ac, num_hour)
+    branch_rating = copy(case.branch_rating)
+    branch_rating[branch_rating .== 0] .= Inf
+    noninf_branch_idx = findall(branch_rating .!= Inf)
+    num_noninf = length(noninf_branch_idx)
+    for i in 1:num_noninf
+        congl[noninf_branch_idx[i], :] = congl_temp[i, :]
+        congu[noninf_branch_idx[i], :] = congu_temp[i, :]
+    end
     # These variables will only be in the results if the model has storage
     # Initialize with empty arrays, to be discarded later if they stay empty
     storage_pg = zeros(0, 0)
@@ -31,8 +52,8 @@ function get_results(m::JuMP.Model)::Results
     end
     
     results = Results(;
-        pg=pg, pf=pf, lmp=lmp, congl=congl, congu=congu, f=f,
-        storage_pg=storage_pg, storage_e=storage_e, status=status)
+        pg=pg, pf=pf, lmp=lmp, congl=congl, congu=congu, pf_dcline=pf_dcline,
+        f=f, storage_pg=storage_pg, storage_e=storage_e, status=status)
     return results
 end
 
