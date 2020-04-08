@@ -1,4 +1,4 @@
-from postreise.process import const
+from pyreisejl.utility import const
 
 import glob
 import h5py
