@@ -1,12 +1,24 @@
-## Usage
+## Installation
 
-This code defines the package `REISE`, which can be added to a Julia
-environment via
+This package is not registered. Therefore, it must be added to a Julia
+environment either directly from github:
 ```
 pkg> add https://github.com/intvenlab/REISE.jl#develop
 ```
+or by cloning the repository locally and then specifying the path to the repo:
+```
+pkg> add /YOUR_PATH_HERE/REISE.jl#develop
+```
 
-Then, import the package: `import REISE`.
+The dependencies of the python scripts contained in `pyreisejl/` are not
+automatically installed. See `requirements.txt` for details.
+
+## Usage
+
+Installation registers a package named `REISE`. Following Julia naming
+conventions, the `.jl` is dropped. The package can be imported using:
+`import REISE` to call `REISE.run_scenario()`, or `using REISE` to call
+`run_scenario()`.
 
 To run a scenario which starts at the `1`st hour of the year, runs in `3`
 intervals of `24` hours each, loading input data from your present working
