@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import time
 import os
+from scipy.io import savemat
 import shutil
 
 from tqdm import tqdm
@@ -205,7 +206,7 @@ def calculate_averaged_congestion(congl, congu):
 
 
 def copy_input(scenario_id):
-    """Copies input file.
+    """Copies input file, converting matfile from v7.3 to v7 on the way.
 
     :param str scenario_id: scenario id
     """
@@ -215,7 +216,12 @@ def copy_input(scenario_id):
                        'input.mat')
     dst = os.path.join(const.INPUT_DIR,
                        '%s_grid.mat' % scenario_id)
-    shutil.copyfile(src, dst)
+    input_mpc = helpers.load_mat73(src)
+    # Change the datatype of genfuel to yield a cell array in the matfile
+    new_genfuel = np.array(input_mpc['mdi']['mpc']['genfuel'], dtype=np.object)
+    new_genfuel = np.expand_dims(new_genfuel, axis=1)
+    input_mpc['mdi']['mpc']['genfuel'] = new_genfuel
+    savemat(dst, input_mpc, do_compression=True)
 
 
 def delete_output(scenario_id):

@@ -19,15 +19,6 @@ def sec2hms(seconds):
     return hours, minutes, seconds
 
 
-def string_from_int_matrix(array):
-    """Convert matrices of integers to strings.
-
-    :param numpy.ndarray array: array of ints, each representing a character
-    :return: (*str*) -- string of converter characters.
-    """
-    return ''.join([str(c[0]) for c in np.char.mod('%c', array)])
-
-
 def load_mat73(filename):
     """Load a HDF5 matfile, and convert to a nested dict of numpy arrays.
 
@@ -56,7 +47,9 @@ def load_mat73(filename):
                 data = data.swapaxes(-1, -2)
             if data[0].dtype == np.uint16:
                 # Convert matrices of integers to strings
-                data = np.array([string_from_int_matrix(arr) for arr in data])
+                data = np.array(
+                    [''.join([str(c[0]) for c in np.char.mod('%c', array)])
+                    for array in data])
             output[k] = data
         return output
 
