@@ -20,6 +20,7 @@ Base.@kwdef struct Case
     genid::Array{Int64,1}
     genfuel::Array{String,1}
     gen_bus::Array{Int64,1}
+    gen_status::BitArray{1}
     gen_pmax::Array{Float64,1}
     gen_pmin::Array{Float64,1}
     gen_ramp30::Array{Float64,1}
