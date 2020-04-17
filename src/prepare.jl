@@ -12,6 +12,8 @@ function reise_data_mods(case::Dict; num_segments::Int=1)::Case
     case["gen_pmin"][nuclear_idx] = 0.95 * (case["gen_pmax"][nuclear_idx])
     geo_idx = case["genfuel"] .== "geothermal"
     case["gen_pmin"][geo_idx] = 0.95 * (case["gen_pmax"][geo_idx])
+    offstatus_idx = case["gen_status"] .== 0
+    case["gen_pmin"][offstatus_idx] .= 0
 
     # Save original gencost to gencost_orig
     case["gencost_orig"] = copy(case["gencost"])

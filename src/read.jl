@@ -45,6 +45,7 @@ function read_case(filepath)
     genfuel = dropdims(mpc["genfuel"], dims=2)
     case["genfuel"] = convert(Array{String,1}, genfuel)
     case["gen_bus"] = convert(Array{Int,1}, mpc["gen"][:,1])
+    case["gen_status"] = mpc["gen"][:,8]
     case["gen_pmax"] = mpc["gen"][:,9]
     case["gen_pmin"] = mpc["gen"][:,10]
     case["gen_ramp30"] = mpc["gen"][:,19]
