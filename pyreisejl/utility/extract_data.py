@@ -1,11 +1,12 @@
 from pyreisejl.utility import const
+from pyreisejl.utility.helpers import load_mat73
 
 import glob
-import h5py
 import numpy as np
 import pandas as pd
 import time
 import os
+from scipy.io import savemat
 import shutil
 
 from tqdm import tqdm
@@ -71,36 +72,6 @@ def _get_outputs_id(folder):
     return outputs_id
 
 
-def _parse_hdf5_matfile(filename):
-    """Recursively convert data in a HDF5-formatted matfile to nested dict.
-    Used only by extract_data_hdf5.
-
-    :param str filename: filename to extract data from.
-    :return: (*dict*) -- nested dictionary of numpy arrays
-    """
-    # TO DO: check licensing
-    def conv(path=''):
-        p = path or '/'
-        paths[p] = ret = {}
-        for k, v in f[p].items():
-            if type(v).__name__ == 'Group':
-                # Nested struct
-                ret[k] = conv('{path}/{k}'.format(path=path,k=k))
-                continue
-            v = v[()]  # It's a Numpy array now
-            if v.dtype == 'object':
-                # HDF5ObjectReferences converted into a list of actual pointers
-                ret[k] = [r and paths.get(f[r].name, f[r].name) for r in v.flat]
-            else:
-                # Matrices and other numeric arrays
-                ret[k] = v if v.ndim < 2 else v.swapaxes(-1, -2)
-        return ret
-
-    paths = {}
-    with h5py.File(filename, 'r') as f:
-        return conv()
-
-
 def extract_data(scenario_info):
     """Builds data frames of {PG, PF, LMP, CONGU, CONGL} from Julia simulation
         output binary files produced by REISE.jl.
@@ -127,7 +98,7 @@ def extract_data(scenario_info):
     for i in tqdm(range(end_index)):
         filename = 'result_' + str(i)
 
-        output = _parse_hdf5_matfile(os.path.join(folder, 'output', filename))
+        output = load_mat73(os.path.join(folder, 'output', filename))
 
         try:
             cost.append(output['mdo_save']['results']['f'][0])
@@ -235,7 +206,7 @@ def calculate_averaged_congestion(congl, congu):
 
 
 def copy_input(scenario_id):
-    """Copies input file.
+    """Copies input file, converting matfile from v7.3 to v7 on the way.
 
     :param str scenario_id: scenario id
     """
@@ -245,7 +216,12 @@ def copy_input(scenario_id):
                        'input.mat')
     dst = os.path.join(const.INPUT_DIR,
                        '%s_grid.mat' % scenario_id)
-    shutil.copyfile(src, dst)
+    input_mpc = helpers.load_mat73(src)
+    # Change the datatype of genfuel to yield a cell array in the matfile
+    new_genfuel = np.array(input_mpc['mdi']['mpc']['genfuel'], dtype=np.object)
+    new_genfuel = np.expand_dims(new_genfuel, axis=1)
+    input_mpc['mdi']['mpc']['genfuel'] = new_genfuel
+    savemat(dst, input_mpc, do_compression=True)
 
 
 def delete_output(scenario_id):
