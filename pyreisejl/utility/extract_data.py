@@ -217,10 +217,6 @@ def copy_input(scenario_id):
     dst = os.path.join(const.INPUT_DIR,
                        '%s_grid.mat' % scenario_id)
     input_mpc = helpers.load_mat73(src)
-    # Change the datatype of genfuel to yield a cell array in the matfile
-    new_genfuel = np.array(input_mpc['mdi']['mpc']['genfuel'], dtype=np.object)
-    new_genfuel = np.expand_dims(new_genfuel, axis=1)
-    input_mpc['mdi']['mpc']['genfuel'] = new_genfuel
     savemat(dst, input_mpc, do_compression=True)
 
 
