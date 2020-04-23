@@ -41,15 +41,25 @@ def load_mat73(filename):
             data = v[()]
             if data.dtype == 'object':
                 # Extract values from HDF5 object references
+                original_dims = data.shape
                 data = np.array([f[r][()] for r in data.flat])
+                # For any entry that is a uint16 array object, convert to str
+                data = np.array(
+                    [''.join([str(c[0]) for c in np.char.mod('%c', array)])
+                    if array.dtype == np.uint16 else array
+                    for array in data])
+                # If data is all strs, set dtype to object to save a cell array
+                if data.dtype.kind in {'U', 'S'}:
+                    data = np.array(data, dtype=np.object)
+                # Un-flatten arrays which had been flattened
+                if len(original_dims) > 1:
+                    data = data.reshape(original_dims)
             if data.ndim >= 2:
                 # Convert multi-dimensional arrays into numpy indexing
                 data = data.swapaxes(-1, -2)
-            if data[0].dtype == np.uint16:
-                # Convert matrices of integers to strings
-                data = np.array(
-                    [''.join([str(c[0]) for c in np.char.mod('%c', array)])
-                    for array in data])
+            else:
+                # Convert single-dimension arrays to N x 1, avoid saving 1 x N
+                data = np.expand_dims(data, axis=1)
             output[k] = data
         return output
 
