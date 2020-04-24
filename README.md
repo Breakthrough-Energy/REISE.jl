@@ -1,5 +1,24 @@
 ## Installation
 
+### Julia package
+
+The most reliable way to install this package is by cloning the repo locally,
+navigating to the project folder, activating the project, and instantiating it.
+This approach will copy install all dependencies in the **exact** version as
+they were installed during package development.
+```
+pkg> activate .
+
+(REISE) pkg> instantiate
+```
+
+Another way is to install the package using the list of dependencies specified
+in the `Project.toml` file, which will pull the most recent allowed version of
+the dependencies. Currently, this package is known to be compatible with JuMP
+v0.20, but not v0.21; this is specified in the `Project.toml` file, but there
+may be other packages for which the latest version does not maintain
+backward-compatibility.
+
 This package is not registered. Therefore, it must be added to a Julia
 environment either directly from github:
 ```
@@ -9,6 +28,13 @@ or by cloning the repository locally and then specifying the path to the repo:
 ```
 pkg> add /YOUR_PATH_HERE/REISE.jl#develop
 ```
+
+Instead of calling `add PACKAGE`, it is also possible to call `dev PACKAGE`,
+which will always import the latest version of the code on your local machine.
+See the documentation for the Julia package manager for more information:
+https://julialang.github.io/Pkg.jl/v1/.
+
+### Associated python scripts
 
 The dependencies of the python scripts contained in `pyreisejl/` are not
 automatically installed. See `requirements.txt` for details.
