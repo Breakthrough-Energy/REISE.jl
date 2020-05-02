@@ -5,7 +5,14 @@
 The most reliable way to install this package is by cloning the repo locally,
 navigating to the project folder, activating the project, and instantiating it.
 This approach will copy install all dependencies in the **exact** version as
-they were installed during package development.
+they were installed during package development. **Note**: If `Gurobi.jl` is not
+already installed in your Julia environment, then its build step will fail if
+it cannot find the Gurobi installation folder. To avoid this, you can specify
+an environment variable for `GUROBI_HOME`, pointing to the Gurobi
+`<installdir>`.
+For more information, see https://github.com/JuliaOpt/Gurobi.jl#installation.
+To instantiate:
+
 ```
 pkg> activate .
 
