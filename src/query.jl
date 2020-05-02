@@ -51,9 +51,24 @@ function get_results(m::JuMP.Model, case::Case)::Results
         end
     end
     
+    # This variable will only be in the results if load shedding is enabled
+    # Initialize with empty arrays, to be discarded later if they stay empty
+    load_shed = zeros(0, 0)
+    try
+        load_shed = _get_2d_variable_values(m, "load_shed")
+    catch e
+        if isa(e, BoundsError)
+            # Thrown by _get_2d_variable_values, variable does not exist
+        else
+            # Unknown error, rethrow it
+            rethrow(e)
+        end
+    end
+
     results = Results(;
         pg=pg, pf=pf, lmp=lmp, congl=congl, congu=congu, pf_dcline=pf_dcline,
-        f=f, storage_pg=storage_pg, storage_e=storage_e, status=status)
+        f=f, storage_pg=storage_pg, storage_e=storage_e, load_shed=load_shed,
+        status=status)
     return results
 end
 
