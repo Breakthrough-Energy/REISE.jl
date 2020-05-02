@@ -140,7 +140,8 @@ function _build_model(; case::Case, storage::Storage,
                              num_storage)::SparseMatrixCSC
     end
     # Subsets
-    gen_wind_idx = gen_idx[findall(case.genfuel .== "wind")]
+    gen_wind_idx = gen_idx[findall(
+        (case.genfuel .== "wind") .| (case.genfuel .== "wind_offshore"))]
     gen_solar_idx = gen_idx[findall(case.genfuel .== "solar")]
     gen_hydro_idx = gen_idx[findall(case.genfuel .== "hydro")]
     renewable_idx = sort(vcat(gen_wind_idx, gen_solar_idx, gen_hydro_idx))
