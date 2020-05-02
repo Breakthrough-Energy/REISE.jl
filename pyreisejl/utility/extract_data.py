@@ -53,6 +53,7 @@ def _get_outputs_id(folder):
     outputs_id = {'pg': case['mpc'].genid,
                   'pf': case['mpc'].branchid,
                   'lmp': case['mpc'].bus[:, 0].astype(np.int64),
+                  'load_shed': case['mpc'].bus[:, 0].astype(np.int64),
                   'congu': case['mpc'].branchid,
                   'congl': case['mpc'].branchid}
     try:
@@ -77,7 +78,8 @@ def extract_data(scenario_info):
         output binary files produced by REISE.jl.
 
     :param dict scenario_info: scenario information.
-    :return: (*pandas.DataFrame*) -- data frames of: PG, PF, LMP, CONGU, CONGL.
+    :return: (*pandas.DataFrame*) -- data frames of:
+        PG, PF, LMP, CONGU, CONGL, LOAD_SHED.
     """
     infeasibilities = []
     cost = []
@@ -85,8 +87,8 @@ def extract_data(scenario_info):
     solve_time = []
     optimize_time = []
 
-    extraction_vars = ['pf', 'pg', 'lmp', 'congu', 'congl']
-    sparse_extraction_vars = {'congu', 'congl'}
+    extraction_vars = ['pf', 'pg', 'lmp', 'congu', 'congl', 'load_shed']
+    sparse_extraction_vars = {'congu', 'congl', 'load_shed'}
     temps = {}
     outputs = {}
 
@@ -127,6 +129,12 @@ def extract_data(scenario_info):
             if i == 0:
                 extraction_vars.append('storage_pg')
                 extraction_vars.append('storage_e')
+        except KeyError:
+            pass
+        try:
+            temps['load_shed'] = output_mpc['load_shed']['load_shed'].T
+            if i == 0:
+                extraction_vars.append('load_shed')
         except KeyError:
             pass
         for v in extraction_vars:
