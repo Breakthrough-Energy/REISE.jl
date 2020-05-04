@@ -225,7 +225,7 @@ def copy_input(scenario_id):
                        'input.mat')
     dst = os.path.join(const.INPUT_DIR,
                        '%s_grid.mat' % scenario_id)
-    input_mpc = helpers.load_mat73(src)
+    input_mpc = load_mat73(src)
     savemat(dst, input_mpc, do_compression=True)
 
 
