@@ -98,7 +98,7 @@ def extract_data(scenario_info):
 
     tic = time.process_time()
     for i in tqdm(range(end_index)):
-        filename = 'result_' + str(i)
+        filename = 'result_' + str(i) + '.mat'
 
         output = load_mat73(os.path.join(folder, 'output', filename))
 
