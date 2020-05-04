@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import time
 import os
-from scipy.io import savemat
+from scipy.io import loadmat, savemat
 import shutil
 
 from tqdm import tqdm
@@ -98,7 +98,7 @@ def extract_data(scenario_info):
 
     tic = time.process_time()
     for i in tqdm(range(end_index)):
-        filename = 'result_' + str(i)
+        filename = 'result_' + str(i) + '.mat'
 
         output = load_mat73(os.path.join(folder, 'output', filename))
 
@@ -142,7 +142,7 @@ def extract_data(scenario_info):
                 interval_length, n_columns = temps[v].shape
                 total_length = end_index * interval_length
                 outputs[v] = pd.DataFrame(np.zeros((total_length, n_columns)))
-                outputs[v].name = str(scenario_id) + '_' + v.upper()
+                outputs[v].name = str(scenario_info['id']) + '_' + v.upper()
             start_hour, end_hour = (i*interval_length), ((i+1)*interval_length)
             outputs[v].iloc[start_hour:end_hour, :] = temps[v]
 
@@ -225,7 +225,7 @@ def copy_input(scenario_id):
                        'input.mat')
     dst = os.path.join(const.INPUT_DIR,
                        '%s_grid.mat' % scenario_id)
-    input_mpc = helpers.load_mat73(src)
+    input_mpc = load_mat73(src)
     savemat(dst, input_mpc, do_compression=True)
 
 
