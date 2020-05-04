@@ -74,23 +74,25 @@ function save_results(results::Results, filename::String;
             "gen" => Dict("PG" => results.pg),
             "branch" => Dict(
                 "PF" => results.pf,
-                # Note: check that these aren't swapped
                 "MU_SF" => results.congu,
                 "MU_ST" => results.congl,
                 ),
             )),
         )
+    # For DC lines, storage power/energy, and load_shed, save only if nonempty
     if size(results.pf_dcline) != (0, 0)
-        # Add DC line results only if they're meaningful
         mdo_save["flow"]["mpc"]["dcline"] = Dict(
             "PF_dcline" => results.pf_dcline)
     end
     if size(results.storage_pg) != (0, 0)
-        # Add storage results only if they're meaningful
         mdo_save["flow"]["mpc"]["storage"] = Dict(
             "PG" => results.storage_pg,
             "Energy" => results.storage_e,
             )
+    end
+    if size(results.load_shed) != (0, 0)
+        mdo_save["flow"]["mpc"]["load_shed"] = Dict(
+            "load_shed" => results.load_shed)
     end
     MAT.matwrite(filename, Dict("mdo_save" => mdo_save); compress=true)
 end

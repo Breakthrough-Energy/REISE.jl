@@ -53,6 +53,7 @@ def _get_outputs_id(folder):
     outputs_id = {'pg': case['mpc'].genid,
                   'pf': case['mpc'].branchid,
                   'lmp': case['mpc'].bus[:, 0].astype(np.int64),
+                  'load_shed': case['mpc'].bus[:, 0].astype(np.int64),
                   'congu': case['mpc'].branchid,
                   'congl': case['mpc'].branchid}
     try:
@@ -77,7 +78,8 @@ def extract_data(scenario_info):
         output binary files produced by REISE.jl.
 
     :param dict scenario_info: scenario information.
-    :return: (*pandas.DataFrame*) -- data frames of: PG, PF, LMP, CONGU, CONGL.
+    :return: (*pandas.DataFrame*) -- data frames of:
+        PG, PF, LMP, CONGU, CONGL, LOAD_SHED.
     """
     infeasibilities = []
     cost = []
@@ -86,7 +88,7 @@ def extract_data(scenario_info):
     optimize_time = []
 
     extraction_vars = ['pf', 'pg', 'lmp', 'congu', 'congl']
-    sparse_extraction_vars = {'congu', 'congl'}
+    sparse_extraction_vars = {'congu', 'congl', 'load_shed'}
     temps = {}
     outputs = {}
 
@@ -129,6 +131,12 @@ def extract_data(scenario_info):
                 extraction_vars.append('storage_e')
         except KeyError:
             pass
+        try:
+            temps['load_shed'] = output_mpc['load_shed']['load_shed'].T
+            if i == 0:
+                extraction_vars.append('load_shed')
+        except KeyError:
+            pass
         for v in extraction_vars:
             if i == 0:
                 interval_length, n_columns = temps[v].shape
@@ -163,14 +171,15 @@ def extract_data(scenario_info):
 
     # Get/set index column name of data frame
     outputs_id = _get_outputs_id(folder)
-    for k, v in outputs_id.items():
-        if isinstance(v, int):
-            outputs[k].columns = [v]
+    for k in outputs:
+        index = outputs_id[k]
+        if isinstance(index, int):
+            outputs[k].columns = [index]
         else:
-            outputs[k].columns = v.tolist()
+            outputs[k].columns = index.tolist()
 
     # Convert outputs with many zero or near-zero values to sparse dtype
-    for v in sparse_extraction_vars:
+    for v in (set(extraction_vars) & sparse_extraction_vars):
         outputs[v] = outputs[v].round(6).astype(pd.SparseDtype("float", 0))
 
     return outputs
