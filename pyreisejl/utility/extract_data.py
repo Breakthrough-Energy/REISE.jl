@@ -171,11 +171,12 @@ def extract_data(scenario_info):
 
     # Get/set index column name of data frame
     outputs_id = _get_outputs_id(folder)
-    for k, v in outputs_id.items():
-        if isinstance(v, int):
-            outputs[k].columns = [v]
+    for k in outputs:
+        index = outputs_id[k]
+        if isinstance(index, int):
+            outputs[k].columns = [index]
         else:
-            outputs[k].columns = v.tolist()
+            outputs[k].columns = index.tolist()
 
     # Convert outputs with many zero or near-zero values to sparse dtype
     for v in (set(extraction_vars) & sparse_extraction_vars):
