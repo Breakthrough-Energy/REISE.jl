@@ -102,18 +102,25 @@ def scenario_julia_call(scenario_info, start_index, end_index):
     :param int end_index: end index.
     """
 
+    from julia.api import Julia
+    jl = Julia(compiled_modules=False)
     from julia import Main
     from julia import REISE
 
     interval = int(scenario_info['interval'].split('H', 1)[0])
-    n_interval = (end_index - start_index) / interval
+    n_interval = int((end_index - start_index + 1) / interval)
 
     input_dir = os.path.join(const.EXECUTE_DIR,
                              'scenario_%s' % scenario_info['id'])
     output_dir = os.path.join(const.EXECUTE_DIR,
                               'scenario_%s/output/' % scenario_info['id'])
 
-    REISE.run_scenario(interval, n_interval, start_index, input_dir, output_dir)
+    REISE.run_scenario(
+        interval=interval,
+        n_interval=n_interval,
+        start_index=start_index,
+        inputfolder=input_dir,
+        outputfolder=output_dir)
     Main.eval('exit()')
 
 
