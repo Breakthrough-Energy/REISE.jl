@@ -142,7 +142,7 @@ def extract_data(scenario_info):
                 interval_length, n_columns = temps[v].shape
                 total_length = end_index * interval_length
                 outputs[v] = pd.DataFrame(np.zeros((total_length, n_columns)))
-                outputs[v].name = str(scenario_id) + '_' + v.upper()
+                outputs[v].name = str(scenario_info['id']) + '_' + v.upper()
             start_hour, end_hour = (i*interval_length), ((i+1)*interval_length)
             outputs[v].iloc[start_hour:end_hour, :] = temps[v]
 
