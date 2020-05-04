@@ -90,7 +90,7 @@ end
 Given a Case object and a set of options, build an optimization model.
 Returns a JuMP.Model instance.
 """
-function _build_model(; case::Case, storage::Storage,
+function _build_model(m::JuMP.Model; case::Case, storage::Storage,
                      start_index::Int, interval_length::Int,
                      demand_scaling::Number=1.0,
                      load_shed_enabled::Bool=false,
@@ -179,9 +179,6 @@ function _build_model(; case::Case, storage::Storage,
     simulation_hydro = Matrix(case.hydro[start_index:end_index, 2:end])
     simulation_solar = Matrix(case.solar[start_index:end_index, 2:end])
     simulation_wind = Matrix(case.wind[start_index:end_index, 2:end])
-
-    # Model
-    m = JuMP.Model()
 
     println("variables: ", Dates.now())
     # Variables
@@ -386,9 +383,9 @@ function build_and_solve(
         # Convert Dicts to NamedTuples
         m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
         s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
-        m, voi = _build_model(; m_kwargs...)
-        JuMP.optimize!(
-            m, JuMP.with_optimizer(Gurobi.Optimizer, env; s_kwargs...))
+        m = JuMP.direct_model(Gurobi.Optimizer(env; s_kwargs...))
+        m, voi = _build_model(m; m_kwargs...)
+        JuMP.optimize!(m)
         status = JuMP.termination_status(m)
         if status == JuMP.MOI.OPTIMAL
             f = JuMP.objective_value(m)
