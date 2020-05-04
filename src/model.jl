@@ -99,7 +99,8 @@ function _build_model(; case::Case, storage::Storage,
                      trans_viol_penalty::Number=100,
                      initial_ramp_enabled::Bool=false,
                      initial_ramp_g0::Array{Float64,1}=Float64[],
-                     storage_e0::Array{Float64,1}=Float64[])::JuMP.Model
+                     storage_e0::Array{Float64,1}=Float64[])::Tuple{
+                        JuMP.Model, VariablesOfInterest}
     # Positional indices from mpc.gencost
     MODEL = 1
     STARTUP = 2
@@ -349,7 +350,24 @@ function _build_model(; case::Case, storage::Storage,
     JuMP.@objective(m, Min, obj)
 
     println(Dates.now())
-    return m
+    # For non-existent variables/constraints, define as `nothing`
+    load_shed = load_shed_enabled ? load_shed : nothing
+    storage_dis = storage_enabled ? storage_dis : nothing
+    storage_chg = storage_enabled ? storage_chg : nothing
+    storage_soc = storage_enabled ? storage_soc : nothing
+    initial_soc = storage_enabled ? initial_soc : nothing
+    initial_rampup = initial_ramp_enabled ? initial_rampup : nothing
+    initial_rampdown = initial_ramp_enabled ? initial_rampdown : nothing
+    voi = VariablesOfInterest(;
+        # Variables
+        pg=pg, pf=pf, load_shed=load_shed, storage_soc=storage_soc,
+        storage_dis=storage_dis, storage_chg=storage_chg,
+        # Constraints
+        branch_min=branch_min, branch_max=branch_max,
+        powerbalance=powerbalance, initial_soc=initial_soc,
+        initial_rampup=initial_rampup, initial_rampdown=initial_rampdown,
+        hydro_fixed=hydro_fixed, solar_max=solar_max, wind_max=wind_max)
+    return (m, voi)
 end
 
 
@@ -368,7 +386,7 @@ function build_and_solve(
         # Convert Dicts to NamedTuples
         m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
         s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
-        m = _build_model(; m_kwargs...)
+        m, voi = _build_model(; m_kwargs...)
         JuMP.optimize!(
             m, JuMP.with_optimizer(Gurobi.Optimizer, env; s_kwargs...))
         status = JuMP.termination_status(m)
