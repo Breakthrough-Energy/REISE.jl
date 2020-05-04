@@ -87,7 +87,7 @@ def extract_data(scenario_info):
     solve_time = []
     optimize_time = []
 
-    extraction_vars = ['pf', 'pg', 'lmp', 'congu', 'congl', 'load_shed']
+    extraction_vars = ['pf', 'pg', 'lmp', 'congu', 'congl']
     sparse_extraction_vars = {'congu', 'congl', 'load_shed'}
     temps = {}
     outputs = {}
