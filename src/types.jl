@@ -53,7 +53,7 @@ Base.@kwdef struct Results
     storage_e::Array{Float64,2}
     load_shed::Array{Float64,2}
     f::Float64
-    status::JuMP.MOI.TerminationStatusCode
+    status::String
 end
 
 
