@@ -5,7 +5,6 @@ import DataFrames
 import Dates
 import JuMP
 import Gurobi
-import LinearAlgebra: transpose
 import MAT
 import SparseArrays: sparse, SparseMatrixCSC
 
