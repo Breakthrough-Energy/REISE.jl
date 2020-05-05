@@ -49,29 +49,27 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
         else
             # Reassign right-hand-side of constraints to match profiles
             bus_demand = _make_bus_demand(case, interval_start, interval_end)
-            simulation_hydro = Matrix(
-                case.hydro[interval_start:interval_end, 2:end])
-            simulation_solar = Matrix(
-                case.solar[interval_start:interval_end, 2:end])
-            simulation_wind = Matrix(
-                case.wind[interval_start:interval_end, 2:end])
-            for t in 1:interval
-                for b in 1:num_bus
-                    JuMP.set_normalized_rhs(
-                        voi.powerbalance[b, t], bus_demand[b, t])
-                end
-                for g in 1:num_hydro
-                    JuMP.set_normalized_rhs(
-                        voi.hydro_fixed[g, t], simulation_hydro[t, g])
-                end
-                for g in 1:num_solar
-                    JuMP.set_normalized_rhs(
-                        voi.solar_max[g, t], simulation_solar[t, g])
-                end
-                for g in 1:num_wind
-                    JuMP.set_normalized_rhs(
-                        voi.wind_max[g, t], simulation_wind[t, g])
-                end
+            simulation_hydro = permutedims(Matrix(
+                case.hydro[interval_start:interval_end, 2:end]))
+            simulation_solar = permutedims(Matrix(
+                case.solar[interval_start:interval_end, 2:end]))
+            simulation_wind = permutedims(Matrix(
+                case.wind[interval_start:interval_end, 2:end]))
+            for t in 1:interval, b in 1:num_bus
+                JuMP.set_normalized_rhs(
+                    voi.powerbalance[b, t], bus_demand[b, t])
+            end
+            for t in 1:interval, g in 1:num_hydro
+                JuMP.set_normalized_rhs(
+                    voi.hydro_fixed[g, t], simulation_hydro[g, t])
+            end
+            for t in 1:interval, g in 1:num_solar
+                JuMP.set_normalized_rhs(
+                    voi.solar_max[g, t], simulation_solar[g, t])
+            end
+            for t in 1:interval, g in 1:num_wind
+                JuMP.set_normalized_rhs(
+                    voi.wind_max[g, t], simulation_wind[g, t])
             end
             # Re-assign right-hand-side for initial conditions
             noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
