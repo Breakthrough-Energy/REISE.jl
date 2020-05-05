@@ -58,8 +58,7 @@ function _make_bus_demand(case::Case, start_index::Int, end_index::Int)::Matrix
         bus_zone_idx, bus_idx, bus_share)::SparseMatrixCSC
     # Profiles
     simulation_demand = Matrix(case.demand[start_index:end_index, 2:end])
-    bus_demand = convert(
-        Matrix, transpose(simulation_demand * zone_to_bus_shares))
+    bus_demand = permutedims(simulation_demand * zone_to_bus_shares)
     return bus_demand
 end
 

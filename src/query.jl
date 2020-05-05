@@ -97,7 +97,8 @@ function _get_2d_variable_values(m::JuMP.Model, s::String)::Array{Float64,2}
     # Use our knowledge of the dims to appropriately reshape the outputs
     match_vars = JuMP.value.(match_vars)
     if (second_dims - first_dims) == [0, 1]
-        match_vars = transpose(reshape(match_vars, (end_dims[2], end_dims[1])))
+        match_vars = permutedims(
+            reshape(match_vars, (end_dims[2], end_dims[1])))
     else
         match_vars = reshape(match_vars, tuple(end_dims...))
     end
@@ -133,7 +134,7 @@ function _get_2d_constraint_duals(m::JuMP.Model, s::String)::Array{Float64,2}
     # Use our knowledge of the dims to appropriately reshape the outputs
     match_cons = JuMP.shadow_price.(match_cons)
     if (second_dims - first_dims) == [0, 1]
-        match_cons = transpose(reshape(match_cons, (end_dims[2], :)))
+        match_cons = permutedims(reshape(match_cons, (end_dims[2], :)))
     else
         match_cons = reshape(match_cons, (:, end_dims[2]))
     end
