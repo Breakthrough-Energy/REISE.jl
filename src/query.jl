@@ -54,7 +54,13 @@ function get_results(f::Float64, voi::VariablesOfInterest, case::Case)::Results
     # Initialize with empty arrays, to be discarded later if they stay empty
     load_shed = zeros(0, 0)
     try
-        load_shed = JuMP.value.(voi.load_shed)
+        load_shed_temp = JuMP.value.(voi.load_shed)
+        load_bus_idx = findall(case.bus_demand .> 0)
+        num_bus = length(case.busid)
+        num_load_bus = length(load_bus_idx)
+        load_bus_map = sparse(
+            load_bus_idx, 1:num_load_bus, 1, num_bus, num_load_bus)
+        load_shed = load_bus_map * load_shed_temp
     catch e
         if isa(e, MethodError)
             # Thrown when load_shed is `nothing`

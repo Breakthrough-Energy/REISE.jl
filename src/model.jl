@@ -112,22 +112,50 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
     PMIN = 10
 
     println("building sets: ", Dates.now())
-    # Sets
+    # Sets - time periods
+    num_hour = interval_length
+    hour_idx = 1:interval_length
+    end_index = start_index + interval_length - 1
+    # Sets - buses
     num_bus = length(case.busid)
     bus_idx = 1:num_bus
     bus_id2idx = Dict(case.busid .=> bus_idx)
+    load_bus_idx = findall(case.bus_demand .> 0)
+    num_load_bus = length(load_bus_idx)
+    load_bus_map = sparse(
+        load_bus_idx, 1:num_load_bus, 1, num_bus, num_load_bus)
+    # Sets - branches
     branch_rating = vcat(case.branch_rating, case.dcline_rating)
     branch_rating[branch_rating .== 0] .= Inf
     num_branch_ac = length(case.branchid)
     num_branch = num_branch_ac + length(case.dclineid)
     branch_idx = 1:num_branch
     noninf_branch_idx = findall(branch_rating .!= Inf)
+    # Sets - generators
     num_gen = length(case.genid)
     gen_idx = 1:num_gen
-    end_index = start_index + interval_length - 1
-    num_hour = interval_length
-    hour_idx = 1:interval_length
-    # If storage is present, build required sets & parameters
+    # Sets/parameters - generator cost curve segments
+    piecewise_enabled = (sum(case.gencost[:, MODEL] .== 1) > 0)
+    @assert(piecewise_enabled, "No piecewise segments detected. "
+                               * "Did you forget to linearize_gencost?")
+    # For now, assume all gens are represented with same number of segments
+    num_segments = convert(Int, maximum(case.gencost[:, NCOST])) - 1
+    segment_width = (case.gen_pmax - case.gen_pmin) ./ num_segments
+    segment_idx = 1:num_segments
+    fixed_cost = case.gencost[:, COST+1]
+    segment_slope = _build_segment_slope(case, segment_idx, segment_width)
+    # Subsets - generators
+    gen_wind_idx = gen_idx[findall(
+        (case.genfuel .== "wind") .| (case.genfuel .== "wind_offshore"))]
+    gen_solar_idx = gen_idx[findall(case.genfuel .== "solar")]
+    gen_hydro_idx = gen_idx[findall(case.genfuel .== "hydro")]
+    renewable_idx = sort(vcat(gen_wind_idx, gen_solar_idx, gen_hydro_idx))
+    case.gen_pmax[renewable_idx] .= Inf
+    noninf_pmax = findall(case.gen_pmax .!= Inf)
+    num_wind = length(gen_wind_idx)
+    num_solar = length(gen_solar_idx)
+    num_hydro = length(gen_hydro_idx)
+    # Sets/parameters - storage (if present)
     storage_enabled = (size(storage.gen, 1) > 0)
     if storage_enabled
         num_storage = size(storage.gen, 1)
@@ -140,28 +168,6 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
         storage_map = sparse(storage_bus_idx, storage_idx, 1, num_bus,
                              num_storage)::SparseMatrixCSC
     end
-    # Subsets
-    gen_wind_idx = gen_idx[findall(
-        (case.genfuel .== "wind") .| (case.genfuel .== "wind_offshore"))]
-    gen_solar_idx = gen_idx[findall(case.genfuel .== "solar")]
-    gen_hydro_idx = gen_idx[findall(case.genfuel .== "hydro")]
-    renewable_idx = sort(vcat(gen_wind_idx, gen_solar_idx, gen_hydro_idx))
-    case.gen_pmax[renewable_idx] .= Inf
-    noninf_pmax = findall(case.gen_pmax .!= Inf)
-    num_wind = length(gen_wind_idx)
-    num_solar = length(gen_solar_idx)
-    num_hydro = length(gen_hydro_idx)
-    # Ensure that the model has been piecewise linearized; sum should be > 0
-    piecewise_enabled = (sum(case.gencost[:, MODEL] .== 1) > 0)
-    err_msg = ("No piecewise segments detected. "
-               * "Did you forget to linearize_gencost?")
-    @assert(piecewise_enabled, err_msg)
-    # For now, assume all gens are represented with same number of segments
-    num_segments = convert(Int, maximum(case.gencost[:, NCOST])) - 1
-    segment_width = (case.gen_pmax - case.gen_pmin) ./ num_segments
-    segment_idx = 1:num_segments
-    fixed_cost = case.gencost[:, COST+1]
-    segment_slope = _build_segment_slope(case, segment_idx, segment_width)
 
     println("parameters: ", Dates.now())
     # Parameters
@@ -191,7 +197,8 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
     end)
     if load_shed_enabled
         JuMP.@variable(m,
-            0 <= load_shed[i in bus_idx, j in hour_idx] <= bus_demand[i, j],
+            0 <= load_shed[i in 1:num_load_bus, j in hour_idx]
+            <= bus_demand[load_bus_idx[i], j],
             container=Array)
     end
     if trans_viol_enabled
@@ -218,7 +225,7 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
     line_injections = JuMP.@expression(m, branch_map * pf)
     injections = JuMP.@expression(m, gen_injections + line_injections)
     if load_shed_enabled
-        injections = JuMP.@expression(m, injections + load_shed)
+        injections = JuMP.@expression(m, injections + load_bus_map * load_shed)
     end
     withdrawls = JuMP.@expression(m, bus_demand)
     if storage_enabled
