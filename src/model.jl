@@ -65,9 +65,10 @@ end
 
 
 """
-    _make_bus_demand(case)
+    _build_segment_slope(case, segment_idx, segment_width)
 
-Given a Case object, build a matrix of segment slopes by (gen, segment_idx).
+Given a Case object, an index of segments (e.g. 1:3), and a vector of widths
+    (matching dimension of gen), return segment slopes by (gen, segment_idx).
 """
 function _build_segment_slope(case::Case, segment_idx, segment_width)::Matrix
     # Note: this formulation still assumes quadratic cost curves only!
