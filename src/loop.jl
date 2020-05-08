@@ -11,6 +11,7 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
     case = model_kwargs["case"]
     num_storage = size(model_kwargs["storage"].gen, 1)
     num_bus = length(case.busid)
+    load_bus_idx = findall(case.bus_demand .> 0)
     num_gen = length(case.genid)
     gen_idx = 1:num_gen
     gen_wind_idx = gen_idx[findall(
@@ -55,7 +56,7 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 case.solar[interval_start:interval_end, 2:end]))
             simulation_wind = permutedims(Matrix(
                 case.wind[interval_start:interval_end, 2:end]))
-            for t in 1:interval, b in 1:num_bus
+            for t in 1:interval, b in load_bus_idx
                 JuMP.set_normalized_rhs(
                     voi.powerbalance[b, t], bus_demand[b, t])
             end
