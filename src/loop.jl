@@ -60,6 +60,10 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 JuMP.set_normalized_rhs(
                     voi.powerbalance[b, t], bus_demand[b, t])
             end
+            for t in 1:interval, i in 1:length(load_bus_idx)
+                JuMP.set_upper_bound(
+                    voi.load_shed[i, t], bus_demand[load_bus_idx[i], t])
+            end
             for t in 1:interval, g in 1:num_hydro
                 JuMP.set_normalized_rhs(
                     voi.hydro_fixed[g, t], simulation_hydro[g, t])
