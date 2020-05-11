@@ -90,7 +90,7 @@ end
 Given a Case object and a set of options, build an optimization model.
 Returns a JuMP.Model instance.
 """
-function _build_model(; case::Case, storage::Storage,
+function _build_model(m::JuMP.Model; case::Case, storage::Storage,
                      start_index::Int, interval_length::Int,
                      demand_scaling::Number=1.0,
                      load_shed_enabled::Bool=false,
@@ -99,7 +99,8 @@ function _build_model(; case::Case, storage::Storage,
                      trans_viol_penalty::Number=100,
                      initial_ramp_enabled::Bool=false,
                      initial_ramp_g0::Array{Float64,1}=Float64[],
-                     storage_e0::Array{Float64,1}=Float64[])::JuMP.Model
+                     storage_e0::Array{Float64,1}=Float64[])::Tuple{
+                        JuMP.Model, VariablesOfInterest}
     # Positional indices from mpc.gencost
     MODEL = 1
     STARTUP = 2
@@ -111,22 +112,50 @@ function _build_model(; case::Case, storage::Storage,
     PMIN = 10
 
     println("building sets: ", Dates.now())
-    # Sets
+    # Sets - time periods
+    num_hour = interval_length
+    hour_idx = 1:interval_length
+    end_index = start_index + interval_length - 1
+    # Sets - buses
     num_bus = length(case.busid)
     bus_idx = 1:num_bus
     bus_id2idx = Dict(case.busid .=> bus_idx)
+    load_bus_idx = findall(case.bus_demand .> 0)
+    num_load_bus = length(load_bus_idx)
+    load_bus_map = sparse(
+        load_bus_idx, 1:num_load_bus, 1, num_bus, num_load_bus)
+    # Sets - branches
     branch_rating = vcat(case.branch_rating, case.dcline_rating)
     branch_rating[branch_rating .== 0] .= Inf
     num_branch_ac = length(case.branchid)
     num_branch = num_branch_ac + length(case.dclineid)
     branch_idx = 1:num_branch
     noninf_branch_idx = findall(branch_rating .!= Inf)
+    # Sets - generators
     num_gen = length(case.genid)
     gen_idx = 1:num_gen
-    end_index = start_index + interval_length - 1
-    num_hour = interval_length
-    hour_idx = 1:interval_length
-    # If storage is present, build required sets & parameters
+    # Sets/parameters - generator cost curve segments
+    piecewise_enabled = (sum(case.gencost[:, MODEL] .== 1) > 0)
+    @assert(piecewise_enabled, "No piecewise segments detected. "
+                               * "Did you forget to linearize_gencost?")
+    # For now, assume all gens are represented with same number of segments
+    num_segments = convert(Int, maximum(case.gencost[:, NCOST])) - 1
+    segment_width = (case.gen_pmax - case.gen_pmin) ./ num_segments
+    segment_idx = 1:num_segments
+    fixed_cost = case.gencost[:, COST+1]
+    segment_slope = _build_segment_slope(case, segment_idx, segment_width)
+    # Subsets - generators
+    gen_wind_idx = gen_idx[findall(
+        (case.genfuel .== "wind") .| (case.genfuel .== "wind_offshore"))]
+    gen_solar_idx = gen_idx[findall(case.genfuel .== "solar")]
+    gen_hydro_idx = gen_idx[findall(case.genfuel .== "hydro")]
+    renewable_idx = sort(vcat(gen_wind_idx, gen_solar_idx, gen_hydro_idx))
+    case.gen_pmax[renewable_idx] .= Inf
+    noninf_pmax = findall(case.gen_pmax .!= Inf)
+    num_wind = length(gen_wind_idx)
+    num_solar = length(gen_solar_idx)
+    num_hydro = length(gen_hydro_idx)
+    # Sets/parameters - storage (if present)
     storage_enabled = (size(storage.gen, 1) > 0)
     if storage_enabled
         num_storage = size(storage.gen, 1)
@@ -139,28 +168,6 @@ function _build_model(; case::Case, storage::Storage,
         storage_map = sparse(storage_bus_idx, storage_idx, 1, num_bus,
                              num_storage)::SparseMatrixCSC
     end
-    # Subsets
-    gen_wind_idx = gen_idx[findall(
-        (case.genfuel .== "wind") .| (case.genfuel .== "wind_offshore"))]
-    gen_solar_idx = gen_idx[findall(case.genfuel .== "solar")]
-    gen_hydro_idx = gen_idx[findall(case.genfuel .== "hydro")]
-    renewable_idx = sort(vcat(gen_wind_idx, gen_solar_idx, gen_hydro_idx))
-    case.gen_pmax[renewable_idx] .= Inf
-    noninf_pmax = findall(case.gen_pmax .!= Inf)
-    num_wind = length(gen_wind_idx)
-    num_solar = length(gen_solar_idx)
-    num_hydro = length(gen_hydro_idx)
-    # Ensure that the model has been piecewise linearized; sum should be > 0
-    piecewise_enabled = (sum(case.gencost[:, MODEL] .== 1) > 0)
-    err_msg = ("No piecewise segments detected. "
-               * "Did you forget to linearize_gencost?")
-    @assert(piecewise_enabled, err_msg)
-    # For now, assume all gens are represented with same number of segments
-    num_segments = convert(Int, maximum(case.gencost[:, NCOST])) - 1
-    segment_width = (case.gen_pmax - case.gen_pmin) ./ num_segments
-    segment_idx = 1:num_segments
-    fixed_cost = case.gencost[:, COST+1]
-    segment_slope = _build_segment_slope(case, segment_idx, segment_width)
 
     println("parameters: ", Dates.now())
     # Parameters
@@ -179,9 +186,6 @@ function _build_model(; case::Case, storage::Storage,
     simulation_solar = Matrix(case.solar[start_index:end_index, 2:end])
     simulation_wind = Matrix(case.wind[start_index:end_index, 2:end])
 
-    # Model
-    m = JuMP.Model()
-
     println("variables: ", Dates.now())
     # Variables
     # Explicitly declare containers as Array of VariableRefs, not DenseArrayAxis
@@ -193,7 +197,8 @@ function _build_model(; case::Case, storage::Storage,
     end)
     if load_shed_enabled
         JuMP.@variable(m,
-            0 <= load_shed[i in bus_idx, j in hour_idx] <= bus_demand[i, j],
+            0 <= load_shed[i in 1:num_load_bus, j in hour_idx]
+            <= bus_demand[load_bus_idx[i], j],
             container=Array)
     end
     if trans_viol_enabled
@@ -220,7 +225,7 @@ function _build_model(; case::Case, storage::Storage,
     line_injections = JuMP.@expression(m, branch_map * pf)
     injections = JuMP.@expression(m, gen_injections + line_injections)
     if load_shed_enabled
-        injections = JuMP.@expression(m, injections + load_shed)
+        injections = JuMP.@expression(m, injections + load_bus_map * load_shed)
     end
     withdrawls = JuMP.@expression(m, bus_demand)
     if storage_enabled
@@ -349,43 +354,22 @@ function _build_model(; case::Case, storage::Storage,
     JuMP.@objective(m, Min, obj)
 
     println(Dates.now())
-    return m
-end
-
-
-"""Build and solve a model using a given Gurobi env."""
-function build_and_solve(
-        model_kwargs::Dict, solver_kwargs::Dict, env::Gurobi.Env)::Results
-    # Bad (but known) statuses to match against
-    bad_statuses = (
-        JuMP.MOI.INFEASIBLE, JuMP.MOI.INFEASIBLE_OR_UNBOUNDED,
-        JuMP.MOI.NUMERICAL_ERROR, JuMP.MOI.OTHER_LIMIT,
-        )
-    # Start with no demand downscaling
-    model_kwargs["demand_scaling"] = 1.0
-    while true
-        global results
-        # Convert Dicts to NamedTuples
-        m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
-        s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
-        m = _build_model(; m_kwargs...)
-        JuMP.optimize!(
-            m, JuMP.with_optimizer(Gurobi.Optimizer, env; s_kwargs...))
-        status = JuMP.termination_status(m)
-        if status == JuMP.MOI.OPTIMAL
-            results = get_results(m, model_kwargs["case"])
-            break
-        elseif status in bad_statuses
-            model_kwargs["demand_scaling"] -= 0.05
-            if model_kwargs["demand_scaling"] < 0
-                error("Too many demand reductions, scaling cannot go negative")
-            end
-            println("Optimization failed, Reducing demand: "
-                    * string(model_kwargs["demand_scaling"]))
-        else
-            @show status
-            error("Unknown status code!")
-        end
-    end
-    return results
+    # For non-existent variables/constraints, define as `nothing`
+    load_shed = load_shed_enabled ? load_shed : nothing
+    storage_dis = storage_enabled ? storage_dis : nothing
+    storage_chg = storage_enabled ? storage_chg : nothing
+    storage_soc = storage_enabled ? storage_soc : nothing
+    initial_soc = storage_enabled ? initial_soc : nothing
+    initial_rampup = initial_ramp_enabled ? initial_rampup : nothing
+    initial_rampdown = initial_ramp_enabled ? initial_rampdown : nothing
+    voi = VariablesOfInterest(;
+        # Variables
+        pg=pg, pf=pf, load_shed=load_shed, storage_soc=storage_soc,
+        storage_dis=storage_dis, storage_chg=storage_chg,
+        # Constraints
+        branch_min=branch_min, branch_max=branch_max,
+        powerbalance=powerbalance, initial_soc=initial_soc,
+        initial_rampup=initial_rampup, initial_rampdown=initial_rampdown,
+        hydro_fixed=hydro_fixed, solar_max=solar_max, wind_max=wind_max)
+    return (m, voi)
 end
