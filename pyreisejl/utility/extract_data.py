@@ -178,6 +178,9 @@ def extract_data(scenario_info):
         else:
             outputs[k].columns = index.tolist()
 
+    for v in extraction_vars:
+        outputs[v] = outputs[v].astype(np.float32)
+
     # Convert outputs with many zero or near-zero values to sparse dtype
     for v in (set(extraction_vars) & sparse_extraction_vars):
         outputs[v] = outputs[v].round(6).astype(pd.SparseDtype("float", 0))
