@@ -7,7 +7,6 @@ import pandas as pd
 import time
 import os
 from scipy.io import loadmat, savemat
-import shutil
 
 from tqdm import tqdm
 from collections import OrderedDict
