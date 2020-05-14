@@ -74,3 +74,37 @@ Base.@kwdef struct VariablesOfInterest
     storage_soc::Union{Array{JuMP.VariableRef,2},Nothing}
     initial_soc::Union{Array{JuMP.ConstraintRef,1},Nothing}
 end
+
+
+Base.@kwdef struct Sets
+    # Branch and branch subsets
+    num_branch::Int64
+    num_branch_ac::Int64
+    branch_idx::UnitRange{Int64}
+    noninf_branch_idx::Array{Int64,1}
+    branch_to_idx::Array{Int64,1}
+    branch_from_idx::Array{Int64,1}
+    # Bus & bus subsets
+    num_bus::Int64
+    num_load_bus::Int64
+    bus_idx::UnitRange{Int64}
+    load_bus_idx::Array{Int64,1}
+    bus_id2idx::Dict{Int64,Int64}
+    # Gen & gen sub-sets
+    num_gen::Int64
+    num_wind::Int64
+    num_solar::Int64
+    num_hydro::Int64
+    gen_idx::UnitRange{Int64}
+    gen_wind_idx::Array{Int64,1}
+    gen_solar_idx::Array{Int64,1}
+    gen_hydro_idx::Array{Int64,1}
+    renewable_idx::Array{Int64,1}
+    noninf_pmax::Array{Int64,1}
+    # Segments
+    num_segments::Int64
+    segment_idx::UnitRange{Int64}
+    # Storage
+    num_storage::Int64
+    storage_idx::Union{UnitRange{Int64},Nothing}
+end
