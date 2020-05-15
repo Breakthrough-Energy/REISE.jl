@@ -7,7 +7,6 @@ import pandas as pd
 import time
 import os
 from scipy.io import loadmat, savemat
-import shutil
 
 from tqdm import tqdm
 from collections import OrderedDict
@@ -177,6 +176,9 @@ def extract_data(scenario_info):
             outputs[k].columns = [index]
         else:
             outputs[k].columns = index.tolist()
+
+    for v in extraction_vars:
+        outputs[v] = outputs[v].astype(np.float32)
 
     # Convert outputs with many zero or near-zero values to sparse dtype
     for v in (set(extraction_vars) & sparse_extraction_vars):
