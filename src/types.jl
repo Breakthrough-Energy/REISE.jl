@@ -72,5 +72,5 @@ Base.@kwdef struct VariablesOfInterest
     storage_dis::Union{Array{JuMP.VariableRef,2},Nothing}
     storage_chg::Union{Array{JuMP.VariableRef,2},Nothing}
     storage_soc::Union{Array{JuMP.VariableRef,2},Nothing}
-    initial_soc::Union{Array{JuMP.ConstraintRef,2},Nothing}
+    initial_soc::Union{Array{JuMP.ConstraintRef,1},Nothing}
 end

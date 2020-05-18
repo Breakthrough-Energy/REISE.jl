@@ -9,7 +9,8 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
         )
     # Constant parameters
     case = model_kwargs["case"]
-    num_storage = size(model_kwargs["storage"].gen, 1)
+    storage = model_kwargs["storage"]
+    num_storage = size(storage.gen, 1)
     num_bus = length(case.busid)
     load_bus_idx = findall(case.bus_demand .> 0)
     num_gen = length(case.genid)
@@ -32,17 +33,20 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
         model_kwargs["start_index"] = interval_start
         if i == 1
             # Build a model with no initial ramp constraint
+            if storage_enabled
+                model_kwargs["storage_e0"] = storage.sd_table.InitialStorage
+            end
             m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
             s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
             m = JuMP.direct_model(Gurobi.Optimizer(env; s_kwargs...))
             m, voi = _build_model(m; m_kwargs...)
-            if storage_enabled
-                model_kwargs["storage_e0"] = storage.sd_table.InitialStorage
-            end
         elseif i == 2
             # Build a model with an initial ramp constraint
             model_kwargs["initial_ramp_enabled"] = true
             model_kwargs["initial_ramp_g0"] = pg0
+            if storage_enabled
+                model_kwargs["storage_e0"] = storage_e0
+            end
             m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
             s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
             m = JuMP.direct_model(Gurobi.Optimizer(env; s_kwargs...))
