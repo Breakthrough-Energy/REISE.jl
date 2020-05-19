@@ -21,9 +21,10 @@ pkg> activate .
 
 Another way is to install the package using the list of dependencies specified
 in the `Project.toml` file, which will pull the most recent allowed version of
-the dependencies. Importantly, there may be packages for which the latest
-version does not maintain backward-compatibility, so this method is less stable
-than `instantiate`.
+the dependencies. Currently, this package is known to be compatible with JuMP
+v0.20, but not v0.21; this is specified in the `Project.toml` file, but there
+may be other packages for which the latest version does not maintain
+backward-compatibility.
 
 This package is not registered. Therefore, it must be added to a Julia
 environment either directly from github:
