@@ -122,7 +122,20 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                         voi.powerbalance[b, t], bus_demand[b, t])
                 end
             else
+                # Something has gone very wrong
                 @show status
+                @show JuMP.objective_value(m)
+                if (("load_shed_enabled" in keys(model_kwargs))
+                    && (model_kwargs["load_shed_enabled"] == true))
+                    # Display where load shedding is occurring
+                    load_shed_values = JuMP.value.(voi.load_shed)
+                    load_shed_indices = findall(load_shed_values .> 1e-6)
+                    if length(load_shed_indices) > 0
+                        @show load_shed_indices
+                        @show load_shed_values[load_shed_indices]
+                        @show sum(load_shed_values[load_shed_indices])
+                    end
+                end
                 error("Unknown status code!")
             end
         end
