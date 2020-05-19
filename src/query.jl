@@ -5,6 +5,7 @@ Extract the results of a simulation, store in a struct.
 """
 function get_results(f::Float64, voi::VariablesOfInterest, case::Case)::Results
     status = "OPTIMAL"
+    sets = _make_sets(case)
     # These variables will always be in the results
     pg = JuMP.value.(voi.pg)
     pf = JuMP.value.(voi.pf)
@@ -20,15 +21,11 @@ function get_results(f::Float64, voi::VariablesOfInterest, case::Case)::Results
         pf = pf[1:(end - num_dclines), :]
     end
     # Ensure that we report congestion on all branches, even infinite capacity
-    num_branch_ac = length(case.branchid)
     num_hour = size(pf, 2)
-    congl = zeros(num_branch_ac, num_hour)
-    congu = zeros(num_branch_ac, num_hour)
-    branch_rating = copy(case.branch_rating)
-    branch_rating[branch_rating .== 0] .= Inf
-    noninf_branch_idx = findall(branch_rating .!= Inf)
+    congl = zeros(sets.num_branch_ac, num_hour)
+    congu = zeros(sets.num_branch_ac, num_hour)
     # Access congl_temp via key `i`, then store result in congl at position `i`
-    for i in noninf_branch_idx
+    for i in intersect(Set(sets.noninf_branch_idx), Set(1:sets.num_branch_ac))
         congl[i, :] = congl_temp[i, :]
         congu[i, :] = congu_temp[i, :]
     end
@@ -55,11 +52,8 @@ function get_results(f::Float64, voi::VariablesOfInterest, case::Case)::Results
     load_shed = zeros(0, 0)
     try
         load_shed_temp = JuMP.value.(voi.load_shed)
-        load_bus_idx = findall(case.bus_demand .> 0)
-        num_bus = length(case.busid)
-        num_load_bus = length(load_bus_idx)
-        load_bus_map = sparse(
-            load_bus_idx, 1:num_load_bus, 1, num_bus, num_load_bus)
+        load_bus_map = sparse(sets.load_bus_idx, 1:sets.num_load_bus, 1,
+                              sets.num_bus, sets.num_load_bus)
         load_shed = load_bus_map * load_shed_temp
     catch e
         if isa(e, MethodError)
