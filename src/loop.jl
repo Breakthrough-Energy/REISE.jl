@@ -98,7 +98,7 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
             end
         end
 
-        # The demand_scaling decrement should only be triggered w/o load_shed
+        # The demand_scaling decrement _should_ only be triggered w/o load_shed
         while true
             global results
             JuMP.optimize!(m)
@@ -114,6 +114,13 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 end
                 println("Optimization failed, Reducing demand: "
                         * string(model_kwargs["demand_scaling"]))
+                bus_demand = _make_bus_demand(
+                    case, interval_start, interval_end)
+                bus_demand *= model_kwargs["demand_scaling"]
+                for t in 1:interval, b in load_bus_idx
+                    JuMP.set_normalized_rhs(
+                        voi.powerbalance[b, t], bus_demand[b, t])
+                end
             else
                 @show status
                 error("Unknown status code!")
