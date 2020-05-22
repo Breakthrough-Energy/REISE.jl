@@ -1,3 +1,20 @@
+"""
+    interval_loop(env, model_kwargs, solver_kwargs, interval, n_interval,
+                  start_index, inputfolder, outputfolder)
+
+Given:
+- a Gurobi environment `env`
+- a dictionary of model keyword arguments `model_kwargs`
+- a dictionary of solver keyword arguments `solver_kwargs`
+- an interval length `interval` (hours)
+- a number of intervals `n_interval`
+- a starting index position `start_index`
+- a folder path to load all input files from `inputfolder`
+- a folder path to write output files to `outputfolder`
+
+Build a model, and run through the intervals, re-building the model and/or
+re-setting constraint right-hand-side values as necessary.
+"""
 function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                        solver_kwargs::Dict, interval::Int,
                        n_interval::Int, start_index::Int,
@@ -9,7 +26,8 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
         )
     # Constant parameters
     case = model_kwargs["case"]
-    num_storage = size(model_kwargs["storage"].gen, 1)
+    storage = model_kwargs["storage"]
+    num_storage = size(storage.gen, 1)
     num_bus = length(case.busid)
     load_bus_idx = findall(case.bus_demand .> 0)
     num_gen = length(case.genid)
@@ -32,17 +50,20 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
         model_kwargs["start_index"] = interval_start
         if i == 1
             # Build a model with no initial ramp constraint
+            if storage_enabled
+                model_kwargs["storage_e0"] = storage.sd_table.InitialStorage
+            end
             m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
             s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
             m = JuMP.direct_model(Gurobi.Optimizer(env; s_kwargs...))
             m, voi = _build_model(m; m_kwargs...)
-            if storage_enabled
-                model_kwargs["storage_e0"] = storage.sd_table.InitialStorage
-            end
         elseif i == 2
             # Build a model with an initial ramp constraint
             model_kwargs["initial_ramp_enabled"] = true
             model_kwargs["initial_ramp_g0"] = pg0
+            if storage_enabled
+                model_kwargs["storage_e0"] = storage_e0
+            end
             m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
             s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
             m = JuMP.direct_model(Gurobi.Optimizer(env; s_kwargs...))
@@ -94,7 +115,7 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
             end
         end
 
-        # The demand_scaling decrement should only be triggered w/o load_shed
+        # The demand_scaling decrement _should_ only be triggered w/o load_shed
         while true
             global results
             JuMP.optimize!(m)
@@ -110,8 +131,28 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 end
                 println("Optimization failed, Reducing demand: "
                         * string(model_kwargs["demand_scaling"]))
+                bus_demand = _make_bus_demand(
+                    case, interval_start, interval_end)
+                bus_demand *= model_kwargs["demand_scaling"]
+                for t in 1:interval, b in load_bus_idx
+                    JuMP.set_normalized_rhs(
+                        voi.powerbalance[b, t], bus_demand[b, t])
+                end
             else
+                # Something has gone very wrong
                 @show status
+                @show JuMP.objective_value(m)
+                if (("load_shed_enabled" in keys(model_kwargs))
+                    && (model_kwargs["load_shed_enabled"] == true))
+                    # Display where load shedding is occurring
+                    load_shed_values = JuMP.value.(voi.load_shed)
+                    load_shed_indices = findall(load_shed_values .> 1e-6)
+                    if length(load_shed_indices) > 0
+                        @show load_shed_indices
+                        @show load_shed_values[load_shed_indices]
+                        @show sum(load_shed_values[load_shed_indices])
+                    end
+                end
                 error("Unknown status code!")
             end
         end
