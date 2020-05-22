@@ -9,12 +9,13 @@ import MAT
 import SparseArrays: sparse, SparseMatrixCSC
 
 
-include("types.jl")         # Defines Case, Results, Storage
+include("types.jl")         # Defines Case, Results, Storage,
+                            #     VariablesOfInterest
 include("read.jl")          # Defines read_case, read_storage
 include("prepare.jl")       # Defines reise_data_mods
-include("model.jl")         # Defines build_and_solve
+include("model.jl")         # Defines _build_model (used in interval_loop)
 include("loop.jl")          # Defines interval_loop
-include("query.jl")         # Defines get_results (used in build_and_solve)
+include("query.jl")         # Defines get_results (used in interval_loop)
 include("save.jl")          # Defines save_input_mat, save_results
 
 
@@ -53,7 +54,7 @@ function run_scenario(;
     solver_kwargs = Dict("Method" => 2, "Crossover" => 0)
     # Then loop through intervals
     interval_loop(env, model_kwargs, solver_kwargs, interval, n_interval,
-               start_index, inputfolder, outputfolder)
+                  start_index, inputfolder, outputfolder)
     GC.gc()
     Gurobi.free_env(env)
     println("Connection closed successfully!")
