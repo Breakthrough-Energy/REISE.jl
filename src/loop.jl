@@ -1,3 +1,20 @@
+"""
+    interval_loop(env, model_kwargs, solver_kwargs, interval, n_interval,
+                  start_index, inputfolder, outputfolder)
+
+Given:
+- a Gurobi environment `env`
+- a dictionary of model keyword arguments `model_kwargs`
+- a dictionary of solver keyword arguments `solver_kwargs`
+- an interval length `interval` (hours)
+- a number of intervals `n_interval`
+- a starting index position `start_index`
+- a folder path to load all input files from `inputfolder`
+- a folder path to write output files to `outputfolder`
+
+Build a model, and run through the intervals, re-building the model and/or
+re-setting constraint right-hand-side values as necessary.
+"""
 function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                        solver_kwargs::Dict, interval::Int,
                        n_interval::Int, start_index::Int,
