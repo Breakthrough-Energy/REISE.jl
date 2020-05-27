@@ -86,7 +86,7 @@ def extract_data(scenario_info):
     solve_time = []
     optimize_time = []
 
-    extraction_vars = ['pf', 'pg', 'lmp', 'congu', 'congl']
+    extraction_vars = {'pf', 'pg', 'lmp', 'congu', 'congl'}
     sparse_extraction_vars = {'congu', 'congl', 'load_shed'}
     temps = {}
     outputs = {}
@@ -118,26 +118,22 @@ def extract_data(scenario_info):
         temps['congl'] = output_mpc['branch']['MU_ST'].T
         try:
             temps['pf_dcline'] = output_mpc['dcline']['PF_dcline'].T
-            if i == 0:
-                extraction_vars.append('pf_dcline')
+            extraction_vars |= {'pf_dcline'}
         except KeyError:
             pass
         try:
             temps['storage_pg'] = output_mpc['storage']['PG'].T
             temps['storage_e'] = output_mpc['storage']['Energy'].T
-            if i == 0:
-                extraction_vars.append('storage_pg')
-                extraction_vars.append('storage_e')
+            extraction_vars |= {'storage_pg', 'storage_e'}
         except KeyError:
             pass
         try:
             temps['load_shed'] = output_mpc['load_shed']['load_shed'].T
-            if i == 0:
-                extraction_vars.append('load_shed')
+            extraction_vars |= {'load_shed'}
         except KeyError:
             pass
         for v in extraction_vars:
-            if i == 0:
+            if v not in outputs:
                 interval_length, n_columns = temps[v].shape
                 total_length = end_index * interval_length
                 outputs[v] = pd.DataFrame(np.zeros((total_length, n_columns)))
