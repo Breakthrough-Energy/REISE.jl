@@ -33,7 +33,7 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
     for i in 1:n_interval
         # These must be declared global so that they persist through the loop.
         global m, voi, pg0, storage_e0
-        model_kwargs["demand_scaling"] = 1.0
+        @show ("load_shed_enabled" in keys(model_kwargs))
         interval_start = start_index + (i - 1) * interval
         interval_end = interval_start + interval - 1
         model_kwargs["start_index"] = interval_start
@@ -104,29 +104,27 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
             end
         end
 
-        # The demand_scaling decrement _should_ only be triggered w/o load_shed
         while true
             global results
             JuMP.optimize!(m)
             status = JuMP.termination_status(m)
-                if status == JuMP.MOI.OPTIMAL
+            if status == JuMP.MOI.OPTIMAL
                 f = JuMP.objective_value(m)
                 results = get_results(f, voi, model_kwargs["case"])
                 break
-            elseif status in bad_statuses
-                model_kwargs["demand_scaling"] -= 0.05
-                if model_kwargs["demand_scaling"] < 0
-                    error("Too many demand reductions, demand is at zero!")
-                end
-                println("Optimization failed, Reducing demand: "
-                        * string(model_kwargs["demand_scaling"]))
-                bus_demand = _make_bus_demand(
-                    case, interval_start, interval_end)
-                bus_demand *= model_kwargs["demand_scaling"]
-                for t in 1:interval, b in sets.load_bus_idx
-                    JuMP.set_normalized_rhs(
-                        voi.powerbalance[b, t], bus_demand[b, t])
-                end
+            elseif !("load_shed_enabled" in keys(model_kwargs))
+                # is load shed not enabled, enable it and re-build the model
+                model_kwargs["load_shed_enabled"] = true
+                m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
+                s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
+                println("rebuild with load shed")
+                m = JuMP.direct_model(Gurobi.Optimizer(env; s_kwargs...))
+                m, voi = _build_model(m; m_kwargs...)
+            elseif !("BarHomogeneous" in keys(solver_kwargs))
+                # if BarHomogeneous is not enabled, enable it and re-build
+                solver_kwargs["BarHomogeneous"] = 1
+                println("enable BarHomogeneous")
+                JuMP.set_parameter(m, "BarHomogeneous", 1)
             else
                 # Something has gone very wrong
                 @show status
@@ -155,7 +153,6 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
         # Save results
         results_filename = "result_" * string(i-1) * ".mat"
         results_filepath = joinpath(outputfolder, results_filename)
-        save_results(results, results_filepath;
-                     demand_scaling=model_kwargs["demand_scaling"])
+        save_results(results, results_filepath)
     end
 end
