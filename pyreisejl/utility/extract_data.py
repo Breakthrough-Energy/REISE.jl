@@ -106,7 +106,7 @@ def extract_data(scenario_info):
         except KeyError:
             pass
 
-        demand_scaling = output['mdo_save']['demand_scaling'][0]
+        demand_scaling = output['mdo_save']['demand_scaling'][0][0]
         if demand_scaling < 1:
             demand_change = round(100 * (1 - demand_scaling))
             infeasibilities.append('%s:%s' % (str(i), str(demand_change)))
