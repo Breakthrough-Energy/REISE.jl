@@ -27,19 +27,8 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
     # Constant parameters
     case = model_kwargs["case"]
     storage = model_kwargs["storage"]
-    num_storage = size(storage.gen, 1)
-    num_bus = length(case.busid)
-    load_bus_idx = findall(case.bus_demand .> 0)
-    num_gen = length(case.genid)
-    gen_idx = 1:num_gen
-    gen_wind_idx = gen_idx[findall(
-        (case.genfuel .== "wind") .| (case.genfuel .== "wind_offshore"))]
-    gen_solar_idx = gen_idx[findall(case.genfuel .== "solar")]
-    gen_hydro_idx = gen_idx[findall(case.genfuel .== "hydro")]
-    num_wind = length(gen_wind_idx)
-    num_solar = length(gen_solar_idx)
-    num_hydro = length(gen_hydro_idx)
-    storage_enabled = (num_storage > 0)
+    sets = _make_sets(case, storage)
+    storage_enabled = (sets.num_storage > 0)
     # Start looping
     for i in 1:n_interval
         # These must be declared global so that they persist through the loop.
@@ -77,26 +66,26 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 case.solar[interval_start:interval_end, 2:end]))
             simulation_wind = permutedims(Matrix(
                 case.wind[interval_start:interval_end, 2:end]))
-            for t in 1:interval, b in load_bus_idx
+            for t in 1:interval, b in sets.load_bus_idx
                 JuMP.set_normalized_rhs(
                     voi.powerbalance[b, t], bus_demand[b, t])
             end
             if (("load_shed_enabled" in keys(model_kwargs))
                 && (model_kwargs["load_shed_enabled"] == true))
-                for t in 1:interval, i in 1:length(load_bus_idx)
-                    JuMP.set_upper_bound(
-                        voi.load_shed[i, t], bus_demand[load_bus_idx[i], t])
+                for t in 1:interval, i in 1:length(sets.load_bus_idx)
+                    JuMP.set_upper_bound(voi.load_shed[i, t],
+                                         bus_demand[sets.load_bus_idx[i], t])
                 end
             end
-            for t in 1:interval, g in 1:num_hydro
+            for t in 1:interval, g in 1:sets.num_hydro
                 JuMP.set_normalized_rhs(
                     voi.hydro_fixed[g, t], simulation_hydro[g, t])
             end
-            for t in 1:interval, g in 1:num_solar
+            for t in 1:interval, g in 1:sets.num_solar
                 JuMP.set_normalized_rhs(
                     voi.solar_max[g, t], simulation_solar[g, t])
             end
-            for t in 1:interval, g in 1:num_wind
+            for t in 1:interval, g in 1:sets.num_wind
                 JuMP.set_normalized_rhs(
                     voi.wind_max[g, t], simulation_wind[g, t])
             end
@@ -109,7 +98,7 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 JuMP.set_normalized_rhs(voi.initial_rampdown[g], rhs)
             end
             if storage_enabled
-                for s in 1:num_storage
+                for s in 1:sets.num_storage
                     JuMP.set_normalized_rhs(voi.initial_soc[s], storage_e0[s])
                 end
             end
@@ -134,7 +123,7 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 bus_demand = _make_bus_demand(
                     case, interval_start, interval_end)
                 bus_demand *= model_kwargs["demand_scaling"]
-                for t in 1:interval, b in load_bus_idx
+                for t in 1:interval, b in sets.load_bus_idx
                     JuMP.set_normalized_rhs(
                         voi.powerbalance[b, t], bus_demand[b, t])
                 end
