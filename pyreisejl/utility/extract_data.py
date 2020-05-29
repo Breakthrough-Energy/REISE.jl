@@ -255,6 +255,12 @@ def extract_scenario(scenario_id):
         v.to_pickle(os.path.join(
             const.OUTPUT_DIR, scenario_info['id']+'_'+k.upper()+'.pkl'))
 
+    # Save a copy of the file list in the output folder, to get timestamps
+    result_folder = os.path.join(
+        const.EXECUTE_DIR, 'scenario_%s' % scenario_id, 'output')
+    timestamp_filepath = os.path.join(result_folder, 'timestamps.txt')
+    os.system('ls -lrth %s > %s' % (result_folder, timestamp_filepath))
+
     calculate_averaged_congestion(
         outputs['congl'], outputs['congu']).to_pickle(os.path.join(
             const.OUTPUT_DIR, scenario_info['id'] + '_AVERAGED_CONG.pkl'))
