@@ -20,10 +20,11 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                        n_interval::Int, start_index::Int,
                        inputfolder::String, outputfolder::String)
     # Bad (but known) statuses to match against
-    bad_statuses = (
-        JuMP.MOI.INFEASIBLE, JuMP.MOI.INFEASIBLE_OR_UNBOUNDED,
-        JuMP.MOI.NUMERICAL_ERROR, JuMP.MOI.OTHER_LIMIT,
-        )
+    numeric_statuses = (
+        JuMP.MOI.INFEASIBLE_OR_UNBOUNDED, JuMP.MOI.NUMERICAL_ERROR,
+        JuMP.MOI.OTHER_LIMIT)
+    infeasible_statuses = (
+        JuMP.MOI.INFEASIBLE, JuMP.MOI.INFEASIBLE_OR_UNBOUNDED)
     # Constant parameters
     case = model_kwargs["case"]
     storage = model_kwargs["storage"]
@@ -34,6 +35,7 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
         # These must be declared global so that they persist through the loop.
         global m, voi, pg0, storage_e0
         @show ("load_shed_enabled" in keys(model_kwargs))
+        @show ("BarHomogeneous" in keys(solver_kwargs))
         interval_start = start_index + (i - 1) * interval
         interval_end = interval_start + interval - 1
         model_kwargs["start_index"] = interval_start
@@ -112,8 +114,15 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 f = JuMP.objective_value(m)
                 results = get_results(f, voi, model_kwargs["case"])
                 break
-            elseif !("load_shed_enabled" in keys(model_kwargs))
-                # is load shed not enabled, enable it and re-build the model
+            elseif ((status in numeric_statuses)
+                    & !("BarHomogeneous" in keys(solver_kwargs)))
+                # if BarHomogeneous is not enabled, enable it and re-build
+                solver_kwargs["BarHomogeneous"] = 1
+                println("enable BarHomogeneous")
+                JuMP.set_parameter(m, "BarHomogeneous", 1)
+            elseif ((status in infeasible_statuses)
+                    & !("load_shed_enabled" in keys(model_kwargs)))
+                # if load shed not enabled, enable it and re-build the model
                 model_kwargs["load_shed_enabled"] = true
                 m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
                 s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
@@ -125,9 +134,18 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 solver_kwargs["BarHomogeneous"] = 1
                 println("enable BarHomogeneous")
                 JuMP.set_parameter(m, "BarHomogeneous", 1)
+            elseif !("load_shed_enabled" in keys(model_kwargs))
+                model_kwargs["load_shed_enabled"] = true
+                m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
+                s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
+                println("rebuild with load shed")
+                m = JuMP.direct_model(Gurobi.Optimizer(env; s_kwargs...))
+                m, voi = _build_model(m; m_kwargs...)
             else
                 # Something has gone very wrong
                 @show status
+                @show keys(model_kwargs)
+                @show keys(solver_kwargs)
                 @show JuMP.objective_value(m)
                 if (("load_shed_enabled" in keys(model_kwargs))
                     && (model_kwargs["load_shed_enabled"] == true))
