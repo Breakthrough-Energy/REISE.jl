@@ -46,6 +46,10 @@ https://julialang.github.io/Pkg.jl/v1/.
 The dependencies of the python scripts contained in `pyreisejl/` are not
 automatically installed. See `requirements.txt` for details.
 
+### Other tools
+
+Text file manipulation requires GNU `awk`, also known as `gawk`.
+
 ## Usage
 
 Installation registers a package named `REISE`. Following Julia naming
