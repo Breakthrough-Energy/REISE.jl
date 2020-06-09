@@ -40,6 +40,8 @@ function run_scenario(;
     # Setup things that build once
     # If outputfolder doesn't exist (isdir evaluates false) create it (mkdir)
     isdir(outputfolder) || mkdir(outputfolder)
+    stdout_filepath = joinpath(outputfolder, "stdout.log")
+    stderr_filepath = joinpath(outputfolder, "stderr.err")
     env = Gurobi.Env()
     case = read_case(inputfolder)
     storage = read_storage(inputfolder)
@@ -52,12 +54,17 @@ function run_scenario(;
         "interval_length" => interval,
         )
     solver_kwargs = Dict("Method" => 2, "Crossover" => 0)
-    # Then loop through intervals
-    interval_loop(env, model_kwargs, solver_kwargs, interval, n_interval,
-                  start_index, inputfolder, outputfolder)
-    GC.gc()
-    Gurobi.free_env(env)
-    println("Connection closed successfully!")
+    println("All preparation complete!")
+    # While redirecting stdout and stderr...
+    println("Redirecting outputs, see stdout.log & stderr.err in outputfolder")
+    redirect_stdout_stderr(stdout_filepath, stderr_filepath) do
+        # Loop through intervals
+        interval_loop(env, model_kwargs, solver_kwargs, interval, n_interval,
+                      start_index, inputfolder, outputfolder)
+        GC.gc()
+        Gurobi.free_env(env)
+        println("Connection closed successfully!")
+    end
 end
 
 # Module end

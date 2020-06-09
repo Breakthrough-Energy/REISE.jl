@@ -108,7 +108,10 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
 
         while true
             global results
+            # Solve the model, flushing before/after for proper stdout order
+            flush(stdout)
             JuMP.optimize!(m)
+            flush(stdout)
             status = JuMP.termination_status(m)
             if status == JuMP.MOI.OPTIMAL
                 f = JuMP.objective_value(m)
