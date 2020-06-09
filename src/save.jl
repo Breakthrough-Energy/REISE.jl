@@ -96,3 +96,23 @@ function save_results(results::Results, filename::String;
     end
     MAT.matwrite(filename, Dict("mdo_save" => mdo_save); compress=true)
 end
+
+
+"""
+    redirect_stdout_stderr("stdout.log", "stderr.err") do
+        run_scenario(; kwargs...)
+    end
+
+While executing a function, redirect stdout and stderr to files.
+"""
+function redirect_stdout_stderr(dofunc, stdoutfile, stderrfile)
+    open(stdoutfile, "a") do out
+        open(stderrfile, "a") do err
+            redirect_stdout(out) do
+                redirect_stderr(err) do
+                    dofunc()
+                end
+            end
+        end
+    end
+end
