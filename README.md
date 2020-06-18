@@ -124,7 +124,7 @@ at time at time ![t](https://render.githubusercontent.com/render/math?math=t).
 
 ### Parameters
 
-generator pmin, cost at pmin, segment widths
+generator pmin, cost at pmin
 demand, solar, hydro, wind
 
 - ![g_{i,s,t}^{\text{max}}](https://render.githubusercontent.com/render/math?math=g%5E%7B%5Ctext%7Bmax%7D%7D_%7Bi%2Cs%2Ct%7D):
