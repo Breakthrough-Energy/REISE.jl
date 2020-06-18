@@ -124,9 +124,11 @@ at time at time ![t](https://render.githubusercontent.com/render/math?math=t).
 
 ### Parameters
 
-generator pmin, cost at pmin
+generator pmin, cost at pmin, segment widths
 demand, solar, hydro, wind
 
+- ![g_{i,s,t}^{\text{max}}](https://render.githubusercontent.com/render/math?math=g%5E%7B%5Ctext%7Bmax%7D%7D_%7Bi%2Cs%2Ct%7D):
+Generator cost curve segment width.
 - ![m_{l,b}^{\text{line}}](https://render.githubusercontent.com/render/math?math=m_%7Bl%2Cb%7D%5E%7B%5Ctext%7Bline%7D%7D):
 Mapping of branches to buses. 
 ![m_{l,b}^{\text{line}} = 1](https://render.githubusercontent.com/render/math?math=m_%7Bl%2Cb%7D%5E%7B%5Ctext%7Bline%7D%7D%20%3D%201)
@@ -147,7 +149,7 @@ Impedance of branch ![l](https://render.githubusercontent.com/render/math?math=l
 
 ### Constraints
 
-segment bounds
+- ![segment_bounds](https://render.githubusercontent.com/render/math?math=0%5Cle%20g_%7Bi%2Cs%2Ct%7D%5Cle%20g%5E%7B%5Ctext%7Bmax%7D%7D_%7Bi%2Cs%2Ct%7D).
 load shed bounds
 transmission violation bounds
 charge bounds
