@@ -100,6 +100,15 @@ Set of generation cost curve segments, indexed by
 Set of time periods, indexed by
 ![t](https://render.githubusercontent.com/render/math?math=t)
 
+#### Subsets
+
+- ![I^{\text{H}}](https://render.githubusercontent.com/render/math?math=I%5E%7B%5Ctext%7BH%7D%7D):
+Set of hydro generators.
+- ![I^{\text{S}}](https://render.githubusercontent.com/render/math?math=I%5E%7B%5Ctext%7BS%7D%7D):
+Set of solar generators.
+- ![I^{\text{W}}](https://render.githubusercontent.com/render/math?math=I%5E%7B%5Ctext%7BW%7D%7D):
+Set of wind generators.
+
 ### Variables
 
 storage charge, discharge, soc
@@ -175,6 +184,8 @@ Impedance of branch ![l](https://render.githubusercontent.com/render/math?math=l
 
 ### Constraints
 
+All equations apply over all entries in the indexed sets unless otherwise listed.
+
 - ![0 \le g_{i,s,t} \le g_{i,s,t}^{\text{max}}](https://render.githubusercontent.com/render/math?math=0%5Cle%20g_%7Bi%2Cs%2Ct%7D%5Cle%20g%5E%7B%5Ctext%7Bmax%7D%7D_%7Bi%2Cs%2Ct%7D):
 generator segment power is non-negative and less than the segment width.
 - ![0 \le s_{b,t} \le a^{\text{shed}} \cdot d_{b,t}](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20s_%7Bb%2Ct%7D%20%5Cle%20a%5E%7B%5Ctext%7Bshed%7D%7D%20%5Ccdot%20d_%7Bb%2Ct%7D):
@@ -189,6 +200,10 @@ Storage charging power is non-negative and limited by the maximum charging power
 Storage discharging power is non-negative and limited by the maximum charging power at that bus.
 - ![0 \le E_{b,t} \le E_{b}^{\text{max}}](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20E_%7Bb%2Ct%7D%20%5Cle%20E_%7Bb%7D%5E%7B%5Ctext%7Bmax%7D%7D):
 Storage state-of-charge is non-negative and limited by the maximum state of charge at that bus.
+- ![g_{i,s} = w_{i,t} \forall i \in I^{\text{H}}](https://render.githubusercontent.com/render/math?math=g_%7Bi%2Cs%7D%20%3D%20w_%7Bi%2Ct%7D%20%5Cforall%20i%20%5Cin%20I%5E%7B%5Ctext%7BH%7D%7D):
+Hydro generator power is fixed to the profiles.
+- ![0 \le g_{i,s} \le w_{i,t} \forall i \in I^{\text{S}} \cup I^{\text{W}}](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20g_%7Bi%2Cs%7D%20%5Cle%20w_%7Bi%2Ct%7D%20%5Cforall%20i%20%5Cin%20I%5E%7B%5Ctext%7BS%7D%7D%20%5Ccup%20I%5E%7B%5Ctext%7BW%7D%7D):
+Solar and wind generator power is non-negative and not greater than the availability profiles.
 
 powerbalance
 storage soc tracking
@@ -198,8 +213,5 @@ segment addition
 branch flow max
 branch flow min
 branch angle constraint
-hydro fixed
-solar max
-wind max
 
 ### Objective function
