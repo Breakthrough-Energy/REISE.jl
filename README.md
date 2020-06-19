@@ -155,6 +155,8 @@ at time at time ![t](https://render.githubusercontent.com/render/math?math=t).
 Initial energy available in energy storage devices at bus ![b](https://render.githubusercontent.com/render/math?math=b).
 - ![E_{b}^{\text{max}}](https://render.githubusercontent.com/render/math?math=E_%7Bb%7D%5E%7B%5Ctext%7Bmax%7D%7D):
 Maximum energy stored in energy storage devices at bus ![b](https://render.githubusercontent.com/render/math?math=b).
+- ![f_{l}^{\text{max}}](https://render.githubusercontent.com/render/math?math=f_%7Bl%7D%5E%7B%5Ctext%7Bmax%7D%7D):
+Maximum flow over line ![l](https://render.githubusercontent.com/render/math?math=l)
 - ![g_{i}^{\text{min}}](https://render.githubusercontent.com/render/math?math=g_%7Bi%7D%5E%7B%5Ctext%7Bmin%7D%7D):
 Minimum generation for generator ![i](https://render.githubusercontent.com/render/math?math=i).
 - ![g_{i,s}^{\text{max}}](https://render.githubusercontent.com/render/math?math=g_%7Bi%2Cs%7D%5E%7B%5Ctext%7Bmax%7D%7D):
@@ -225,9 +227,9 @@ Conservation of energy for energy storage state-of-charge.
 Ramp-up constraint.
 - ![g_{i,t} - g_{i,t-1} \ge r_{i}^{\text{down}}](https://render.githubusercontent.com/render/math?math=g_%7Bi%2Ct%7D%20-%20g_%7Bi%2Ct-1%7D%20%5Cge%20r_%7Bi%7D%5E%7B%5Ctext%7Bdown%7D%7D):
 Ramp-down constraint.
+- ![-f_{l}^{\text{max}} \le f_{l,t} \le f_{l}^{\text{max}}](https://render.githubusercontent.com/render/math?math=-f_%7Bl%7D%5E%7B%5Ctext%7Bmax%7D%7D%20%5Cle%20f_%7Bl%2Ct%7D%20%5Cle%20f_%7Bl%7D%5E%7B%5Ctext%7Bmax%7D%7D):
+Power over each branch is limited by the branch power limit.
 
-branch flow max
-branch flow min
 branch angle constraint
 
 ### Objective function
