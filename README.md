@@ -218,9 +218,9 @@ at time ![t](https://render.githubusercontent.com/render/math?math=t).
 Conservation of energy for energy storage state-of-charge.
 - ![g_{i,t} - g_{i,t-1} \le r_{i}^{\text{up}}](https://render.githubusercontent.com/render/math?math=g_%7Bi%2Ct%7D%20-%20g_%7Bi%2Ct-1%7D%20%5Cle%20r_%7Bi%7D%5E%7B%5Ctext%7Bup%7D%7D):
 Ramp-up constraint.
+- ![g_{i,t} - g_{i,t-1} \ge r_{i}^{\text{down}}](https://render.githubusercontent.com/render/math?math=g_%7Bi%2Ct%7D%20-%20g_%7Bi%2Ct-1%7D%20%5Cge%20r_%7Bi%7D%5E%7B%5Ctext%7Bdown%7D%7D):
+Ramp-down constraint.
 
-ramp up
-ramp down
 segment addition
 branch flow max
 branch flow min
