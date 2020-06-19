@@ -111,8 +111,6 @@ Set of wind generators.
 
 ### Variables
 
-storage charge, discharge, soc
-
 - ![E_{b,t}](https://render.githubusercontent.com/render/math?math=E_%7Bb%2Ct%7D):
 Energy available in energy storage devices at bus ![b](https://render.githubusercontent.com/render/math?math=b)
 at time ![t](https://render.githubusercontent.com/render/math?math=t).
