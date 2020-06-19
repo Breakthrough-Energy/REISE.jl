@@ -104,9 +104,12 @@ Set of time periods, indexed by
 
 storage charge, discharge, soc
 
+- ![E_{b,t}](https://render.githubusercontent.com/render/math?math=E_%7Bb%2Ct%7D):
+Energy available in energy storage devices at bus ![b](https://render.githubusercontent.com/render/math?math=b)
+at time ![t](https://render.githubusercontent.com/render/math?math=t).
 - ![f_{l,t}](https://render.githubusercontent.com/render/math?math=f_%7Bl%2Ct%7D):
 Power flowing on branch ![l](https://render.githubusercontent.com/render/math?math=l)
-at time at time ![t](https://render.githubusercontent.com/render/math?math=t).
+at time ![t](https://render.githubusercontent.com/render/math?math=t).
 - ![g_{i,t}](https://render.githubusercontent.com/render/math?math=g_%7Bi%2Ct%7D): 
 Power injected by each generator ![i](https://render.githubusercontent.com/render/math?math=i)
 at time ![t](https://render.githubusercontent.com/render/math?math=t).
@@ -114,15 +117,21 @@ at time ![t](https://render.githubusercontent.com/render/math?math=t).
 Power injected by each generator ![i](https://render.githubusercontent.com/render/math?math=i)
 from cost curve segment ![s](https://render.githubusercontent.com/render/math?math=s)
 at time ![t](https://render.githubusercontent.com/render/math?math=t).
+- ![J_{b,t}^{\text{chg}}](https://render.githubusercontent.com/render/math?math=J_%7Bb%2Ct%7D%5E%7B%5Ctext%7Bchg%7D%7D):
+Charging power of energy storage devices at bus ![b](https://render.githubusercontent.com/render/math?math=b)
+at time ![t](https://render.githubusercontent.com/render/math?math=t).
+- ![J_{b,t}^{\text{dis}}](https://render.githubusercontent.com/render/math?math=J_%7Bb%2Ct%7D%5E%7B%5Ctext%7Bchg%7D%7D):
+Discharging power of energy storage devices at bus ![b](https://render.githubusercontent.com/render/math?math=b)
+at time ![t](https://render.githubusercontent.com/render/math?math=t).
 - ![s_{b,t}] (https://render.githubusercontent.com/render/math?math=s_%7Bb%2Ct%7D):
 Load shed at bus ![b](https://render.githubusercontent.com/render/math?math=b)
-at time at time ![t](https://render.githubusercontent.com/render/math?math=t).
+at time ![t](https://render.githubusercontent.com/render/math?math=t).
 - ![v_{l,t}](https://render.githubusercontent.com/render/math?math=v_%7Bl%2Ct%7D):
 Branch limit violation for branch ![l](https://render.githubusercontent.com/render/math?math=l)
 at time ![t](https://render.githubusercontent.com/render/math?math=t).
 - ![{\theta}_{b,t}](https://render.githubusercontent.com/render/math?math=%7B%5Ctheta%7D_%7Bb%2Ct%7D):
 Voltage angle of bus ![b](https://render.githubusercontent.com/render/math?math=b)
-at time at time ![t](https://render.githubusercontent.com/render/math?math=t).
+at time ![t](https://render.githubusercontent.com/render/math?math=t).
 
 ### Parameters
 
@@ -135,6 +144,8 @@ Binary parameter, whether transmission limit violation is enabled.
 - ![d_{b,t}](https://render.githubusercontent.com/render/math?math=d_%7Bb%2Ct%7D):
 Power demand at bus ![b](https://render.githubusercontent.com/render/math?math=b)
 at time at time ![t](https://render.githubusercontent.com/render/math?math=t).
+- ![E_{0,b}](https://render.githubusercontent.com/render/math?math=E_%7Bb%2Ct%7D):
+Initial energy available in energy storage devices at bus ![b](https://render.githubusercontent.com/render/math?math=b).
 - ![g_{i,s,t}^{\text{max}}](https://render.githubusercontent.com/render/math?math=g%5E%7B%5Ctext%7Bmax%7D%7D_%7Bi%2Cs%2Ct%7D):
 Generator cost curve segment width.
 - ![m_{l,b}^{\text{line}}](https://render.githubusercontent.com/render/math?math=m_%7Bl%2Cb%7D%5E%7B%5Ctext%7Bline%7D%7D):
