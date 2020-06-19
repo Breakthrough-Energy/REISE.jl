@@ -130,7 +130,7 @@ at time ![t](https://render.githubusercontent.com/render/math?math=t).
 - ![J_{b,t}^{\text{dis}}](https://render.githubusercontent.com/render/math?math=J_%7Bb%2Ct%7D%5E%7B%5Ctext%7Bchg%7D%7D):
 Discharging power of energy storage devices at bus ![b](https://render.githubusercontent.com/render/math?math=b)
 at time ![t](https://render.githubusercontent.com/render/math?math=t).
-- ![s_{b,t}](https://render.githubusercontent.com/render/math?math=s_%7Bb%2Ct%7D):
+- ![s_{b,t}] (https://render.githubusercontent.com/render/math?math=s_%7Bb%2Ct%7D):
 Load shed at bus ![b](https://render.githubusercontent.com/render/math?math=b)
 at time ![t](https://render.githubusercontent.com/render/math?math=t).
 - ![v_{l,t}](https://render.githubusercontent.com/render/math?math=v_%7Bl%2Ct%7D):
@@ -198,9 +198,9 @@ Storage charging power is non-negative and limited by the maximum charging power
 Storage discharging power is non-negative and limited by the maximum charging power at that bus.
 - ![0 \le E_{b,t} \le E_{b}^{\text{max}}](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20E_%7Bb%2Ct%7D%20%5Cle%20E_%7Bb%7D%5E%7B%5Ctext%7Bmax%7D%7D):
 Storage state-of-charge is non-negative and limited by the maximum state of charge at that bus.
-- ![g_{i,s} = w_{i,t} \forall i \in I^{\text{H}}](https://render.githubusercontent.com/render/math?math=g_%7Bi%2Cs%7D%20%3D%20w_%7Bi%2Ct%7D%20%5Cforall%20i%20%5Cin%20I%5E%7B%5Ctext%7BH%7D%7D):
+- ![g_{i,t} = w_{i,t} \forall i \in I^{\text{H}}](https://render.githubusercontent.com/render/math?math=g_%7Bi%2Cs%7D%20%3D%20w_%7Bi%2Ct%7D%20%5Cforall%20i%20%5Cin%20I%5E%7B%5Ctext%7BH%7D%7D):
 Hydro generator power is fixed to the profiles.
-- ![0 \le g_{i,s} \le w_{i,t} \forall i \in I^{\text{S}} \cup I^{\text{W}}](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20g_%7Bi%2Cs%7D%20%5Cle%20w_%7Bi%2Ct%7D%20%5Cforall%20i%20%5Cin%20I%5E%7B%5Ctext%7BS%7D%7D%20%5Ccup%20I%5E%7B%5Ctext%7BW%7D%7D):
+- ![0 \le g_{i,t} \le w_{i,t} \forall i \in I^{\text{S}} \cup I^{\text{W}}](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20g_%7Bi%2Cs%7D%20%5Cle%20w_%7Bi%2Ct%7D%20%5Cforall%20i%20%5Cin%20I%5E%7B%5Ctext%7BS%7D%7D%20%5Ccup%20I%5E%7B%5Ctext%7BW%7D%7D):
 Solar and wind generator power is non-negative and not greater than the availability profiles.
 
 powerbalance
