@@ -228,8 +228,8 @@ Ramp-up constraint.
 - ![g_{i,t} - g_{i,t-1} \ge r_{i}^{\text{down}}](https://render.githubusercontent.com/render/math?math=g_%7Bi%2Ct%7D%20-%20g_%7Bi%2Ct-1%7D%20%5Cge%20r_%7Bi%7D%5E%7B%5Ctext%7Bdown%7D%7D):
 Ramp-down constraint.
 - ![-f_{l}^{\text{max}} \le f_{l,t} \le f_{l}^{\text{max}}](https://render.githubusercontent.com/render/math?math=-f_%7Bl%7D%5E%7B%5Ctext%7Bmax%7D%7D%20%5Cle%20f_%7Bl%2Ct%7D%20%5Cle%20f_%7Bl%7D%5E%7B%5Ctext%7Bmax%7D%7D):
-Power over each branch is limited by the branch power limit.
-
-branch angle constraint
+Power flow over each branch is limited by the branch power limit.
+- ![f_{l,t} = \frac{1}{x_{l}} \sum_{b \in B} m_{l,b}^{\text{line}} \theta_{b,t}](https://render.githubusercontent.com/render/math?math=f_%7Bl%2Ct%7D%20%3D%20%5Csum_%7Bb%20%5Cin%20B%7D%20m_%7Bl%2Cb%7D%5E%7B%5Ctext%7Bline%7D%7D%20%5Ctheta_%7Bb%2Ct%7D):
+Power flow over each branch is proportional to the admittance and the angle difference.
 
 ### Objective function
