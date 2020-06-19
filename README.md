@@ -142,8 +142,6 @@ at time ![t](https://render.githubusercontent.com/render/math?math=t).
 
 ### Parameters
 
-cost at pmin
-
 - ![a^{\text{shed}}](https://render.githubusercontent.com/render/math?math=a%5E%7B%5Ctext%7Bshed%7D%7D):
 Binary parameter, whether load shedding is enabled.
 - ![a^{\text{viol}}](https://render.githubusercontent.com/render/math?math=a%5E%7B%5Ctext%7Bviol%7D%7D):
