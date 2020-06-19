@@ -179,6 +179,11 @@ Power available from time-varying generator (hydro, wind, solar) ![i](https://re
 at time ![t](https://render.githubusercontent.com/render/math?math=t).
 - ![x_{l}](https://render.githubusercontent.com/render/math?math=x_%7Bl%7D):
 Impedance of branch ![l](https://render.githubusercontent.com/render/math?math=l).
+- ![\eta_{b}^{\text{chg}}](https://render.githubusercontent.com/render/math?math=%5Ceta_%7Bb%7D%5E%7B%5Ctext%7Bchg%7D%7D:
+Charging efficiency of storage device at bus ![b](https://render.githubusercontent.com/render/math?math=b).
+- ![\eta_{b}^{\text{dis}}](https://render.githubusercontent.com/render/math?math=%5Ceta_%7Bb%7D%5E%7B%5Ctext%7Bdis%7D%7D:
+Charging efficiency of storage device at bus ![b](https://render.githubusercontent.com/render/math?math=b).
+
 
 ### Constraints
 
@@ -205,8 +210,9 @@ Solar and wind generator power is non-negative and not greater than the availabi
 - ![\sum_{i \in I} m_{i,b}^{\text{unit}} g_{i,t} + \sum_{l \in L} m_{l,b}^{\text{line}} f_{l,t} + J_{b,t}^{\text{dis}} + s_{b,t} = d_{b,t} + J_{b,t}^{\text{chg}}](https://render.githubusercontent.com/render/math?math=%5Csum_%7Bi%20%5Cin%20I%7D%20m_%7Bi%2Cb%7D%5E%7B%5Ctext%7Bunit%7D%7D%20g_%7Bi%2Ct%7D%20%2B%20%5Csum_%7Bl%20%5Cin%20L%7D%20m_%7Bl%2Cb%7D%5E%7B%5Ctext%7Bline%7D%7D%20f_%7Bl%2Ct%7D%20%2B%20J_%7Bb%2Ct%7D%5E%7B%5Ctext%7Bdis%7D%7D%20%2B%20s_%7Bb%2Ct%7D%20%3D%20d_%7Bb%2Ct%7D%20%2B%20J_%7Bb%2Ct%7D%5E%7B%5Ctext%7Bchg%7D%7D):
 Power balance at each bus ![b](https://render.githubusercontent.com/render/math?math=b)
 at time ![t](https://render.githubusercontent.com/render/math?math=t).
+- ![E_{b,t} = E_{b,t-1} + \eta_{b}^{\text{chg}} J_{b,t}^{\text{chg}} - \frac{1}{\eta_{b}^{\text{dis}}} J_{b,t}^{\text{dis}}]:
+Conservation of energy for energy storage state-of-charge.
 
-storage soc tracking
 ramp up
 ramp down
 segment addition
