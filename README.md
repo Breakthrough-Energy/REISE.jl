@@ -149,7 +149,8 @@ Impedance of branch ![l](https://render.githubusercontent.com/render/math?math=l
 
 ### Constraints
 
-- ![segment_bounds](https://render.githubusercontent.com/render/math?math=0%5Cle%20g_%7Bi%2Cs%2Ct%7D%5Cle%20g%5E%7B%5Ctext%7Bmax%7D%7D_%7Bi%2Cs%2Ct%7D).
+- ![0 \le g_{i,s,t} \le g_{i,s,t}^{\text{max}}](https://render.githubusercontent.com/render/math?math=0%5Cle%20g_%7Bi%2Cs%2Ct%7D%5Cle%20g%5E%7B%5Ctext%7Bmax%7D%7D_%7Bi%2Cs%2Ct%7D):
+generator segment power is non-negative and less than the segment width.
 load shed bounds
 transmission violation bounds
 charge bounds
