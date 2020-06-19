@@ -102,7 +102,6 @@ Set of time periods, indexed by
 
 ### Variables
 
-load shedding
 storage charge, discharge, soc
 
 - ![f_{l,t}](https://render.githubusercontent.com/render/math?math=f_%7Bl%2Ct%7D):
