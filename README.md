@@ -202,8 +202,10 @@ Storage state-of-charge is non-negative and limited by the maximum state of char
 Hydro generator power is fixed to the profiles.
 - ![0 \le g_{i,t} \le w_{i,t} \forall i \in I^{\text{S}} \cup I^{\text{W}}](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20g_%7Bi%2Cs%7D%20%5Cle%20w_%7Bi%2Ct%7D%20%5Cforall%20i%20%5Cin%20I%5E%7B%5Ctext%7BS%7D%7D%20%5Ccup%20I%5E%7B%5Ctext%7BW%7D%7D):
 Solar and wind generator power is non-negative and not greater than the availability profiles.
+- ![\sum_{i \in I} m_{i,b}^{\text{unit}} g_{i,t} + \sum_{l \in L} m_{l,b}^{\text{line}} f_{l,t} + J_{b,t}^{\text{dis}} + s_{b,t} = d_{b,t} + J_{b,t}^{\text{chg}}](https://render.githubusercontent.com/render/math?math=%5Csum_%7Bi%20%5Cin%20I%7D%20m_%7Bi%2Cb%7D%5E%7B%5Ctext%7Bunit%7D%7D%20g_%7Bi%2Ct%7D%20%2B%20%5Csum_%7Bl%20%5Cin%20L%7D%20m_%7Bl%2Cb%7D%5E%7B%5Ctext%7Bline%7D%7D%20f_%7Bl%2Ct%7D%20%2B%20J_%7Bb%2Ct%7D%5E%7B%5Ctext%7Bdis%7D%7D%20%2B%20s_%7Bb%2Ct%7D%20%3D%20d_%7Bb%2Ct%7D%20%2B%20J_%7Bb%2Ct%7D%5E%7B%5Ctext%7Bchg%7D%7D):
+Power balance at each bus ![b](https://render.githubusercontent.com/render/math?math=b)
+at time ![t](https://render.githubusercontent.com/render/math?math=t).
 
-powerbalance
 storage soc tracking
 ramp up
 ramp down
