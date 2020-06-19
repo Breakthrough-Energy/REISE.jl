@@ -174,6 +174,10 @@ Mapping of generators to buses.
 if generator ![i](https://render.githubusercontent.com/render/math?math=i)
 is located at bus ![b](https://render.githubusercontent.com/render/math?math=b),
 otherwise ![m_{i,b}^{\text{unit}} = 0](https://render.githubusercontent.com/render/math?math=m_%7Bi%2Cb%7D%5E%7B%5Ctext%7Bunit%7D%7D%20%3D%200).
+- ![r_{i}^{\text{up}}](https://render.githubusercontent.com/render/math?math=r_%7Bi%7D%5E%7B%5Ctext%7Bup%7D%7D):
+Ramp-up limit for generator ![i](https://render.githubusercontent.com/render/math?math=i).
+- ![r_{i}^{\text{down}}](https://render.githubusercontent.com/render/math?math=r_%7Bi%7D%5E%7B%5Ctext%7Bdown%7D%7D):
+Ramp-down limit for generator ![i](https://render.githubusercontent.com/render/math?math=i).
 - ![w_{i,t}](https://render.githubusercontent.com/render/math?math=w_%7Bi%2Ct%7D):
 Power available from time-varying generator (hydro, wind, solar) ![i](https://render.githubusercontent.com/render/math?math=i)
 at time ![t](https://render.githubusercontent.com/render/math?math=t).
@@ -212,6 +216,8 @@ Power balance at each bus ![b](https://render.githubusercontent.com/render/math?
 at time ![t](https://render.githubusercontent.com/render/math?math=t).
 - ![E_{b,t} = E_{b,t-1} + \eta_{b}^{\text{chg}} J_{b,t}^{\text{chg}} - \frac{1}{\eta_{b}^{\text{dis}}} J_{b,t}^{\text{dis}}]:
 Conservation of energy for energy storage state-of-charge.
+- ![g_{i,t} - g_{i,t-1} \le r_{i}^{\text{up}}](https://render.githubusercontent.com/render/math?math=g_%7Bi%2Ct%7D%20-%20g_%7Bi%2Ct-1%7D%20%5Cle%20r_%7Bi%7D%5E%7B%5Ctext%7Bup%7D%7D):
+Ramp-up constraint.
 
 ramp up
 ramp down
