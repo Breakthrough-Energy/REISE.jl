@@ -183,9 +183,12 @@ If not, load shed is fixed to 0.
 - ![0 \le v_{b,t} \le a^{\text{viol}} \cdot M](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20v_%7Bb%2Ct%7D%20%5Cle%20a%5E%7B%5Ctext%7Bshed%7D%7D%20%5Ccdot%20M):
 transmission violations are non-negative, if they are enabled.
 If not, they are fixed to zero.
-charge bounds
-discharge bounds
-state of charge bounds
+- ![0 \le J_{b,t}^{\text{chg}} \le J_{b}^{\text{max}}](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20J_%7Bb%2Ct%7D%5E%7B%5Ctext%7Bchg%7D%7D%20%5Cle%20J_%7Bb%7D%5E%7B%5Ctext%7Bmax%7D%7D):
+Storage charging power is non-negative and limited by the maximum charging power at that bus.
+- ![0 \le J_{b,t}^{\text{dis}} \le J_{b}^{\text{max}}](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20J_%7Bb%2Ct%7D%5E%7B%5Ctext%7Bdis%7D%7D%20%5Cle%20J_%7Bb%7D%5E%7B%5Ctext%7Bmax%7D%7D):
+Storage discharging power is non-negative and limited by the maximum charging power at that bus.
+- ![0 \le E_{b,t} \le E_{b}^{\text{max}}](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20E_%7Bb%2Ct%7D%20%5Cle%20E_%7Bb%7D%5E%7B%5Ctext%7Bmax%7D%7D):
+Storage state-of-charge is non-negative and limited by the maximum state of charge at that bus.
 
 powerbalance
 storage soc tracking
