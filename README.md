@@ -183,7 +183,7 @@ if generator ![i](https://render.githubusercontent.com/render/math?math=i)
 is located at bus ![b](https://render.githubusercontent.com/render/math?math=b),
 otherwise ![m_{i,b}^{\text{unit}} = 0](https://render.githubusercontent.com/render/math?math=m_%7Bi%2Cb%7D%5E%7B%5Ctext%7Bunit%7D%7D%20%3D%200).
 - ![p^{\text{e}}](https://render.githubusercontent.com/render/math?math=p%5E%7B%5Ctext%7Be%7D%7D):
-Storage discharge penalty factor.
+Value of stored energy at beginning/end of interval (so that optimization does not automatically drain the storage by end-of-interval).
 - ![p^{\text{s}}](https://render.githubusercontent.com/render/math?math=p%5E%7B%5Ctext%7Bs%7D%7D):
 Load shed penalty factor.
 - ![p^{\text{v}}](https://render.githubusercontent.com/render/math?math=p%5E%7B%5Ctext%7Bv%7D%7D):
