@@ -166,7 +166,7 @@ Minimum generation for generator ![i](https://render.githubusercontent.com/rende
 - ![g_{i,s}^{\text{max}}](https://render.githubusercontent.com/render/math?math=g_%7Bi%2Cs%7D%5E%7B%5Ctext%7Bmax%7D%7D):
 Generator cost curve segment width.
 - ![J_{b}^{\text{max}}](https://render.githubusercontent.com/render/math?math=J_%7Bb%7D%5E%7B%5Ctext%7Bmax%7D%7D):
-Maximum discharging power of energy storage devices at bus ![b](https://render.githubusercontent.com/render/math?math=b).
+Maximum charging/discharging power of energy storage devices at bus ![b](https://render.githubusercontent.com/render/math?math=b).
 - ![m_{l,b}^{\text{line}}](https://render.githubusercontent.com/render/math?math=m_%7Bl%2Cb%7D%5E%7B%5Ctext%7Bline%7D%7D):
 Mapping of branches to buses. 
 ![m_{l,b}^{\text{line}} = 1](https://render.githubusercontent.com/render/math?math=m_%7Bl%2Cb%7D%5E%7B%5Ctext%7Bline%7D%7D%20%3D%201)
