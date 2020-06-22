@@ -146,7 +146,7 @@ at time ![t](https://render.githubusercontent.com/render/math?math=t).
 Binary parameter, whether load shedding is enabled.
 - ![a^{\text{viol}}](https://render.githubusercontent.com/render/math?math=a%5E%7B%5Ctext%7Bviol%7D%7D):
 Binary parameter, whether transmission limit violation is enabled.
-- ![b_{i,s}](https://render.githubusercontent.com/render/math?math=b_%7Bi%2Cs%7D):
+- ![c_{i,s}](https://render.githubusercontent.com/render/math?math=c_%7Bi%2Cs%7D):
 Cost coefficient for segment ![s](https://render.githubusercontent.com/render/math?math=s)
 of generator ![i](https://render.githubusercontent.com/render/math?math=i).
 - ![C_{i}^{\text{min}}](https://render.githubusercontent.com/render/math?math=C_%7Bi%7D%5E%7B%5Ctext%7Bmin%7D%7D):
@@ -244,4 +244,4 @@ Power flow over each branch is proportional to the admittance and the angle diff
 
 ### Objective function
 
-![\sum_{t \in T} \sum_{i \in I} [ C_{i}^{\text{min}} + \sum_{s \in S} b_{i,s} g_{i,s,t} ] + p^{\text{s}} \sum_{t \in T} \sum_{b \in B} s_{b,t} + p^{\text{v}} \sum_{t \in T} \sum_{l \in L} v_{l,t} + p^{\text{e}} \sum_{\b \in B} [E_{b,0} - E_{b,|T|}]](https://render.githubusercontent.com/render/math?math=%5Csum_%7Bt%20%5Cin%20T%7D%20%5Csum_%7Bi%20%5Cin%20I%7D%20%5B%20C_%7Bi%7D%5E%7B%5Ctext%7Bmin%7D%7D%20%2B%20%5Csum_%7Bs%20%5Cin%20S%7D%20b_%7Bi%2Cs%7D%20g_%7Bi%2Cs%2Ct%7D%20%5D%20%2B%20p%5E%7B%5Ctext%7Bs%7D%7D%20%5Csum_%7Bt%20%5Cin%20T%7D%20%5Csum_%7Bb%20%5Cin%20B%7D%20s_%7Bb%2Ct%7D%20%2B%20p%5E%7B%5Ctext%7Bv%7D%7D%20%5Csum_%7Bt%20%5Cin%20T%7D%20%5Csum_%7Bl%20%5Cin%20L%7D%20v_%7Bl%2Ct%7D%20%2B%20p%5E%7B%5Ctext%7Be%7D%7D%20%5Csum_%7B%5Cb%20%5Cin%20B%7D%20%5BE_%7Bb%2C0%7D%20-%20E_%7Bb%2C%7CT%7C%7D%5D)
+![\sum_{t \in T} \sum_{i \in I} [ C_{i}^{\text{min}} + \sum_{s \in S} c_{i,s} g_{i,s,t} ] + p^{\text{s}} \sum_{t \in T} \sum_{b \in B} s_{b,t} + p^{\text{v}} \sum_{t \in T} \sum_{l \in L} v_{l,t} + p^{\text{e}} \sum_{\b \in B} [E_{b,0} - E_{b,|T|}]](https://render.githubusercontent.com/render/math?math=%5Csum_%7Bt%20%5Cin%20T%7D%20%5Csum_%7Bi%20%5Cin%20I%7D%20%5B%20C_%7Bi%7D%5E%7B%5Ctext%7Bmin%7D%7D%20%2B%20%5Csum_%7Bs%20%5Cin%20S%7D%20c_%7Bi%2Cs%7D%20g_%7Bi%2Cs%2Ct%7D%20%5D%20%2B%20p%5E%7B%5Ctext%7Bs%7D%7D%20%5Csum_%7Bt%20%5Cin%20T%7D%20%5Csum_%7Bb%20%5Cin%20B%7D%20s_%7Bb%2Ct%7D%20%2B%20p%5E%7B%5Ctext%7Bv%7D%7D%20%5Csum_%7Bt%20%5Cin%20T%7D%20%5Csum_%7Bl%20%5Cin%20L%7D%20v_%7Bl%2Ct%7D%20%2B%20p%5E%7B%5Ctext%7Be%7D%7D%20%5Csum_%7B%5Cb%20%5Cin%20B%7D%20%5BE_%7Bb%2C0%7D%20-%20E_%7Bb%2C%7CT%7C%7D%5D)
