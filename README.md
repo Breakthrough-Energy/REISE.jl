@@ -200,7 +200,7 @@ Impedance of branch ![l](https://render.githubusercontent.com/render/math?math=l
 - ![\eta_{b}^{\text{chg}}](https://render.githubusercontent.com/render/math?math=%5Ceta_%7Bb%7D%5E%7B%5Ctext%7Bchg%7D%7D):
 Charging efficiency of storage device at bus ![b](https://render.githubusercontent.com/render/math?math=b).
 - ![\eta_{b}^{\text{dis}}](https://render.githubusercontent.com/render/math?math=%5Ceta_%7Bb%7D%5E%7B%5Ctext%7Bdis%7D%7D):
-Charging efficiency of storage device at bus ![b](https://render.githubusercontent.com/render/math?math=b).
+Discharging efficiency of storage device at bus ![b](https://render.githubusercontent.com/render/math?math=b).
 
 
 ### Constraints
