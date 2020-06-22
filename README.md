@@ -86,19 +86,19 @@ definitions are all in the other files in the `src` folder.
 
 - ![B](https://render.githubusercontent.com/render/math?math=B): 
 Set of buses, indexed by
-![b](https://render.githubusercontent.com/render/math?math=b)
+![b](https://render.githubusercontent.com/render/math?math=b).
 - ![I](https://render.githubusercontent.com/render/math?math=I): 
 Set of generators, indexed by
-![i](https://render.githubusercontent.com/render/math?math=i)
+![i](https://render.githubusercontent.com/render/math?math=i).
 - ![L](https://render.githubusercontent.com/render/math?math=L): 
 Set of transmission network branches, indexed by
-![l](https://render.githubusercontent.com/render/math?math=l)
+![l](https://render.githubusercontent.com/render/math?math=l).
 - ![S](https://render.githubusercontent.com/render/math?math=S): 
 Set of generation cost curve segments, indexed by
-![s](https://render.githubusercontent.com/render/math?math=s)
+![s](https://render.githubusercontent.com/render/math?math=s).
 - ![T](https://render.githubusercontent.com/render/math?math=T): 
 Set of time periods, indexed by
-![t](https://render.githubusercontent.com/render/math?math=t)
+![t](https://render.githubusercontent.com/render/math?math=t).
 
 #### Subsets
 
@@ -160,7 +160,7 @@ Initial energy available in energy storage devices at bus ![b](https://render.gi
 - ![E_{b}^{\text{max}}](https://render.githubusercontent.com/render/math?math=E_%7Bb%7D%5E%7B%5Ctext%7Bmax%7D%7D):
 Maximum energy stored in energy storage devices at bus ![b](https://render.githubusercontent.com/render/math?math=b).
 - ![f_{l}^{\text{max}}](https://render.githubusercontent.com/render/math?math=f_%7Bl%7D%5E%7B%5Ctext%7Bmax%7D%7D):
-Maximum flow over line ![l](https://render.githubusercontent.com/render/math?math=l)
+Maximum flow over line ![l](https://render.githubusercontent.com/render/math?math=l).
 - ![g_{i}^{\text{min}}](https://render.githubusercontent.com/render/math?math=g_%7Bi%7D%5E%7B%5Ctext%7Bmin%7D%7D):
 Minimum generation for generator ![i](https://render.githubusercontent.com/render/math?math=i).
 - ![g_{i,s}^{\text{max}}](https://render.githubusercontent.com/render/math?math=g_%7Bi%2Cs%7D%5E%7B%5Ctext%7Bmax%7D%7D):
@@ -215,7 +215,8 @@ generator segment power is non-negative and less than the segment width.
 load shed is non-negative and less than the demand at that bus, if load shedding is enabled.
 If not, load shed is fixed to 0.
 - ![0 \le v_{b,t} \le a^{\text{viol}} \cdot M](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20v_%7Bb%2Ct%7D%20%5Cle%20a%5E%7B%5Ctext%7Bshed%7D%7D%20%5Ccdot%20M):
-transmission violations are non-negative, if they are enabled.
+transmission violations are non-negative, if they are enabled
+(![M](https://render.githubusercontent.com/render/math?math=M) is a sufficiently large constant that there is no effective upper limit when ![a^{\text{shed}} = 1](https://render.githubusercontent.com/render/math?math=a%5E%7B%5Ctext%7Bshed%7D%7D%20%3D%201)).
 If not, they are fixed to zero.
 - ![0 \le J_{b,t}^{\text{chg}} \le J_{b}^{\text{max}}](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20J_%7Bb%2Ct%7D%5E%7B%5Ctext%7Bchg%7D%7D%20%5Cle%20J_%7Bb%7D%5E%7B%5Ctext%7Bmax%7D%7D):
 Storage charging power is non-negative and limited by the maximum charging power at that bus.
