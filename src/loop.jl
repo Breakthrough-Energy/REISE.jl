@@ -30,10 +30,11 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
     storage = model_kwargs["storage"]
     sets = _make_sets(case, storage)
     storage_enabled = (sets.num_storage > 0)
+    unused_load_shed_intervals_turnoff = 14
     # Start looping
     for i in 1:n_interval
         # These must be declared global so that they persist through the loop.
-        global m, voi, pg0, storage_e0
+        global m, voi, pg0, storage_e0, intervals_without_loadshed
         @show ("load_shed_enabled" in keys(model_kwargs))
         @show ("BarHomogeneous" in keys(solver_kwargs))
         interval_start = start_index + (i - 1) * interval
@@ -132,6 +133,7 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 println("rebuild with load shed")
                 m = JuMP.direct_model(Gurobi.Optimizer(env; s_kwargs...))
                 m, voi = _build_model(m; m_kwargs...)
+                intervals_without_loadshed = 0
             elseif !("BarHomogeneous" in keys(solver_kwargs))
                 # if BarHomogeneous is not enabled, enable it and re-build
                 solver_kwargs["BarHomogeneous"] = 1
@@ -144,6 +146,7 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 println("rebuild with load shed")
                 m = JuMP.direct_model(Gurobi.Optimizer(env; s_kwargs...))
                 m, voi = _build_model(m; m_kwargs...)
+                intervals_without_loadshed = 0
             else
                 # Something has gone very wrong
                 @show status
@@ -175,5 +178,26 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
         results_filename = "result_" * string(i-1) * ".mat"
         results_filepath = joinpath(outputfolder, results_filename)
         save_results(results, results_filepath)
+
+        # If load shedding is enabled but hasn't been used for a while, disable
+        if (("load_shed_enabled" in keys(model_kwargs))
+            && (model_kwargs["load_shed_enabled"] == true))
+            total_load_shed = sum(results.load_shed)
+            if total_load_shed < 1e-3
+                intervals_without_loadshed += 1
+            else
+                intervals_without_loadshed = 0
+            end
+            if intervals_without_loadshed == unused_load_shed_intervals_turnoff
+                println("rebuilding without load_shed")
+                # delete! will work here even if the key is not present
+                delete!(solver_kwargs, "BarHomogeneous")
+                delete!(model_kwargs, "load_shed_enabled")
+                m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
+                s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
+                m = JuMP.direct_model(Gurobi.Optimizer(env; s_kwargs...))
+                m, voi = _build_model(m; m_kwargs...)
+            end
+        end
     end
 end
