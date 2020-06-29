@@ -80,7 +80,8 @@ definitions are all in the other files in the `src` folder.
 
 ## Formulation
 
-[comment]: # (LaTeX via https://alexanderrodin.com/github-latex-markdown/)
+[comment]: # (getting Github to display LaTeX via the approach in https://gist.github.com/a-rodin/fef3f543412d6e1ec5b6cf55bf197d7b)
+[comment]: # (Encoding LaTeX via https://www.urlencoder.org/)
 
 ### Sets
 
