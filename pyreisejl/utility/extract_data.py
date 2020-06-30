@@ -1,15 +1,18 @@
-from pyreisejl.utility import const
-from pyreisejl.utility.helpers import load_mat73
-
+from collections import OrderedDict
+import datetime as dt
 import glob
+import io
+import os
+import subprocess
+import time
+
 import numpy as np
 import pandas as pd
-import time
-import os
 from scipy.io import loadmat, savemat
-
 from tqdm import tqdm
-from collections import OrderedDict
+
+from pyreisejl.utility import const
+from pyreisejl.utility.helpers import load_mat73
 
 
 def get_scenario(scenario_id):
@@ -102,7 +105,7 @@ def extract_data(scenario_info):
         output = load_mat73(os.path.join(folder, 'output', filename))
 
         try:
-            cost.append(output['mdo_save']['results']['f'][0])
+            cost.append(output['mdo_save']['results']['f'][0][0])
         except KeyError:
             pass
 
@@ -152,8 +155,20 @@ def extract_data(scenario_info):
 
     # Write log
     log = pd.DataFrame(data={'cost': cost})
-    log.to_csv(os.path.join(const.OUTPUT_DIR, scenario_info['id']+'_log.csv'),
-               header=True)
+    file_filter = os.path.join(folder, 'output', 'result_*.mat')
+    ls_options = '-lrt --time-style="+%Y-%m-%d %H:%M:%S" ' + file_filter
+    awk_options = "-v OFS=','"
+    awk_program = (
+        "'BEGIN{print \"filesize,datetime,filename\"}; "
+        "NR >0 {print $5, $6\" \"$7, $8}'")
+    ls_call = "ls %s | awk %s %s" % (ls_options, awk_options, awk_program)
+    ls_output = subprocess.Popen(ls_call, shell=True, stdout=subprocess.PIPE)
+    utf_ls_output = io.StringIO(ls_output.communicate()[0].decode('utf-8'))
+    properties_df = pd.read_csv(utf_ls_output, sep=',', dtype=str)
+    log['filesize'] = properties_df.filesize
+    log['write_datetime'] = properties_df.datetime
+    log_filename = scenario_info['id'] + '_log.csv'
+    log.to_csv(os.path.join(const.OUTPUT_DIR, log_filename), header=True)
 
     # Set index of data frame
     date_range = pd.date_range(scenario_info['start_date'],
@@ -254,12 +269,6 @@ def extract_scenario(scenario_id):
     for k, v in outputs.items():
         v.to_pickle(os.path.join(
             const.OUTPUT_DIR, scenario_info['id']+'_'+k.upper()+'.pkl'))
-
-    # Save a copy of the file list in the output folder, to get timestamps
-    result_folder = os.path.join(
-        const.EXECUTE_DIR, 'scenario_%s' % scenario_id, 'output')
-    timestamp_filepath = os.path.join(result_folder, 'timestamps.txt')
-    os.system('ls -lrth %s > %s' % (result_folder, timestamp_filepath))
 
     calculate_averaged_congestion(
         outputs['congl'], outputs['congu']).to_pickle(os.path.join(
