@@ -1,15 +1,18 @@
-from pyreisejl.utility import const
-from pyreisejl.utility.helpers import load_mat73
-
+from collections import OrderedDict
+import datetime as dt
 import glob
+import io
+import os
+import subprocess
+import time
+
 import numpy as np
 import pandas as pd
-import time
-import os
 from scipy.io import loadmat, savemat
-
 from tqdm import tqdm
-from collections import OrderedDict
+
+from pyreisejl.utility import const
+from pyreisejl.utility.helpers import load_mat73
 
 
 def get_scenario(scenario_id):
@@ -102,7 +105,7 @@ def extract_data(scenario_info):
         output = load_mat73(os.path.join(folder, 'output', filename))
 
         try:
-            cost.append(output['mdo_save']['results']['f'][0])
+            cost.append(output['mdo_save']['results']['f'][0][0])
         except KeyError:
             pass
 
@@ -150,10 +153,23 @@ def extract_data(scenario_info):
     insert_in_file(const.SCENARIO_LIST, scenario_info['id'], '16',
                    '_'.join(infeasibilities))
 
-    # Write log
+    # Build log: costs from matfiles, file attributes from ls/awk
     log = pd.DataFrame(data={'cost': cost})
-    log.to_csv(os.path.join(const.OUTPUT_DIR, scenario_info['id']+'_log.csv'),
-               header=True)
+    file_filter = os.path.join(folder, 'output', 'result_*.mat')
+    ls_options = '-lrt --time-style="+%Y-%m-%d %H:%M:%S" ' + file_filter
+    awk_options = "-v OFS=','"
+    awk_program = (
+        "'BEGIN{print \"filesize,datetime,filename\"}; "
+        "NR >0 {print $5, $6\" \"$7, $8}'")
+    ls_call = "ls %s | awk %s %s" % (ls_options, awk_options, awk_program)
+    ls_output = subprocess.Popen(ls_call, shell=True, stdout=subprocess.PIPE)
+    utf_ls_output = io.StringIO(ls_output.communicate()[0].decode('utf-8'))
+    properties_df = pd.read_csv(utf_ls_output, sep=',', dtype=str)
+    log['filesize'] = properties_df.filesize
+    log['write_datetime'] = properties_df.datetime
+    # Write log
+    log_filename = scenario_info['id'] + '_log.csv'
+    log.to_csv(os.path.join(const.OUTPUT_DIR, log_filename), header=True)
 
     # Set index of data frame
     date_range = pd.date_range(scenario_info['start_date'],
@@ -173,11 +189,14 @@ def extract_data(scenario_info):
         else:
             outputs[k].columns = index.tolist()
 
+    print('converting to float32')
     for v in extraction_vars:
         outputs[v] = outputs[v].astype(np.float32)
 
     # Convert outputs with many zero or near-zero values to sparse dtype
-    for v in (set(extraction_vars) & sparse_extraction_vars):
+    to_sparsify = set(extraction_vars) & sparse_extraction_vars
+    print('sparsifying', to_sparsify)
+    for v in to_sparsify:
         outputs[v] = outputs[v].round(6).astype(pd.SparseDtype("float", 0))
 
     return outputs
@@ -223,7 +242,9 @@ def copy_input(scenario_id):
                        'input.mat')
     dst = os.path.join(const.INPUT_DIR,
                        '%s_grid.mat' % scenario_id)
+    print('loading and parsing input.mat')
     input_mpc = load_mat73(src)
+    print('saving converted input.mat as %s_grid.mat' % scenario_id)
     savemat(dst, input_mpc, do_compression=True)
 
 
@@ -251,9 +272,10 @@ def extract_scenario(scenario_id):
     copy_input(scenario_id)
 
     outputs = extract_data(scenario_info)
+    print('saving pickles')
     for k, v in outputs.items():
-        v.to_pickle(os.path.join(
-            const.OUTPUT_DIR, scenario_info['id']+'_'+k.upper()+'.pkl'))
+        pickle_filename = scenario_info['id'] + '_' + k.upper() + '.pkl'
+        v.to_pickle(os.path.join(const.OUTPUT_DIR, pickle_filename))
 
     calculate_averaged_congestion(
         outputs['congl'], outputs['congu']).to_pickle(os.path.join(
@@ -262,6 +284,7 @@ def extract_scenario(scenario_id):
     insert_in_file(const.EXECUTE_LIST, scenario_info['id'], '2', 'extracted')
     insert_in_file(const.SCENARIO_LIST, scenario_info['id'], '4', 'analyze')
 
+    print('deleting matfiles')
     delete_output(scenario_id)
 
 
