@@ -36,8 +36,10 @@ Run a scenario consisting of several intervals.
 """
 function run_scenario(;
         num_segments::Int=1, interval::Int, n_interval::Int, start_index::Int,
-        inputfolder::String, outputfolder::String)
+        inputfolder::String, outputfolder::Union{String, Nothing}=nothing)
     # Setup things that build once
+    # If outputfolder not given, by default assign it inside inputfolder
+    isnothing(outputfolder) && (outputfolder = joinpath(inputfolder, "output"))
     # If outputfolder doesn't exist (isdir evaluates false) create it (mkdir)
     isdir(outputfolder) || mkdir(outputfolder)
     stdout_filepath = joinpath(outputfolder, "stdout.log")
