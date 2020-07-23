@@ -46,12 +46,13 @@ function _make_bus_demand(case::Case, start_index::Int, end_index::Int)::Matrix
     bus_idx = 1:length(case.busid)
     bus_df = DataFrames.DataFrame(
         name=case.busid, load=case.bus_demand, zone=case.bus_zone)
-    zone_demand = DataFrames.by(bus_df, :zone, :load => sum)
+    zone_demand = DataFrames.combine(
+		DataFrames.groupby(bus_df, :zone), :load => sum)
     zone_list = sort(collect(Set(case.bus_zone)))
     num_zones = length(zone_list)
     zone_idx = 1:num_zones
     zone_id2idx = Dict(zone_list .=> zone_idx)
-    bus_df_with_zone_load = join(bus_df, zone_demand, on = :zone)
+    bus_df_with_zone_load = DataFrames.innerjoin(bus_df, zone_demand, on=:zone)
     bus_share = bus_df[:, :load] ./ bus_df_with_zone_load[:, :load_sum]
     bus_zone_idx = Int64[zone_id2idx[z] for z in case.bus_zone]
     zone_to_bus_shares = sparse(
