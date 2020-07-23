@@ -22,7 +22,7 @@ pkg> activate .
 Another way is to install the package using the list of dependencies specified
 in the `Project.toml` file, which will pull the most recent allowed version of
 the dependencies. Currently, this package is known to be compatible with JuMP
-v0.20, but not v0.21; this is specified in the `Project.toml` file, but there
+v0.21.3; this is specified in the `Project.toml` file, but there
 may be other packages for which the latest version does not maintain
 backward-compatibility.
 
