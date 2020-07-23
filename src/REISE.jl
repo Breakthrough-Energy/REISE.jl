@@ -36,7 +36,8 @@ Run a scenario consisting of several intervals.
 """
 function run_scenario(;
         num_segments::Int=1, interval::Int, n_interval::Int, start_index::Int,
-        inputfolder::String, outputfolder::Union{String, Nothing}=nothing)
+        inputfolder::String, outputfolder::Union{String, Nothing}=nothing,
+        threads::Union{Int, Nothing}=nothing)
     # Setup things that build once
     # If outputfolder not given, by default assign it inside inputfolder
     isnothing(outputfolder) && (outputfolder = joinpath(inputfolder, "output"))
@@ -56,6 +57,8 @@ function run_scenario(;
         "interval_length" => interval,
         )
     solver_kwargs = Dict("Method" => 2, "Crossover" => 0)
+    # If a number of threads is specified, add to solver settings dict
+    isnothing(threads) || (solver_kwargs["Threads"] = threads)
     println("All preparation complete!")
     # While redirecting stdout and stderr...
     println("Redirecting outputs, see stdout.log & stderr.err in outputfolder")
