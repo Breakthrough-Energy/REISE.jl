@@ -1,1 +1,1 @@
-__all__ = ['test_extract_data']
+__all__ = ["test_extract_data"]

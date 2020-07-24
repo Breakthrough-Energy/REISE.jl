@@ -11,7 +11,7 @@ def sec2hms(seconds):
     :raises TypeError: if argument is not an integer.
     """
     if not isinstance(seconds, int):
-        raise TypeError('seconds must be an integer')
+        raise TypeError("seconds must be an integer")
 
     minutes, seconds = divmod(seconds, 60)
     hours, minutes = divmod(minutes, 60)
@@ -25,7 +25,8 @@ def load_mat73(filename):
     :param str filename: path to file which will be loaded.
     :return: (*dict*) -- A possibly nested dictionary of numpy arrays.
     """
-    def convert(path='/'):
+
+    def convert(path="/"):
         """A recursive walk through the HDF5 structure.
 
         :param str path: traverse from where in the HDF5 tree, default is '/'.
@@ -34,22 +35,26 @@ def load_mat73(filename):
         output = {}
         references[path] = output = {}
         for k, v in f[path].items():
-            if type(v).__name__ == 'Group':
-                output[k] = convert('{path}/{k}'.format(path=path, k=k))
+            if type(v).__name__ == "Group":
+                output[k] = convert("{path}/{k}".format(path=path, k=k))
                 continue
             # Retrieve numpy array from h5py_hl.dataset.Dataset
             data = v[()]
-            if data.dtype == 'object':
+            if data.dtype == "object":
                 # Extract values from HDF5 object references
                 original_dims = data.shape
                 data = np.array([f[r][()] for r in data.flat])
                 # For any entry that is a uint16 array object, convert to str
                 data = np.array(
-                    [''.join([str(c[0]) for c in np.char.mod('%c', array)])
-                    if array.dtype == np.uint16 else array
-                    for array in data])
+                    [
+                        "".join([str(c[0]) for c in np.char.mod("%c", array)])
+                        if array.dtype == np.uint16
+                        else array
+                        for array in data
+                    ]
+                )
                 # If data is all strs, set dtype to object to save a cell array
-                if data.dtype.kind in {'U', 'S'}:
+                if data.dtype.kind in {"U", "S"}:
                     data = np.array(data, dtype=np.object)
                 # Un-flatten arrays which had been flattened
                 if len(original_dims) > 1:
@@ -64,5 +69,5 @@ def load_mat73(filename):
         return output
 
     references = {}
-    with h5py.File(filename, 'r') as f:
+    with h5py.File(filename, "r") as f:
         return convert()
