@@ -1,5 +1,5 @@
 from pyreisejl.utility import const
-from pyreisejl.utility.helpers import sec2hms
+from pyreisejl.utility.helpers import sec2hms, WrongNumberOfArguments
 
 import numpy as np
 import os
@@ -45,6 +45,7 @@ def launch_scenario(scenario_id, threads=None):
     """Launches the scenario.
 
     :param str scenario_id: scenario index.
+    :param None/int threads: number of threads to use, None defaults to auto.
     """
 
     scenario_info = get_scenario(scenario_id)
@@ -93,6 +94,7 @@ def launch_scenario(scenario_id, threads=None):
         start_index=start_index,
         inputfolder=input_dir,
         outputfolder=output_dir,
+        threads=threads,
     )
     Main.eval("exit()")
 
@@ -112,12 +114,12 @@ def launch_scenario(scenario_id, threads=None):
 if __name__ == "__main__":
     import sys
 
-    if len(sys.argv == 2):
+    if len(sys.argv) == 2:
         # First argument is the name of the script
         # Second argument is the scenario number to run
         launch_scenario(sys.argv[1])
-    elif len(sys.argv == 3):
+    elif len(sys.argv) == 3:
         # Third argument is the number of threads to use
         launch_scenario(sys.argv[1], int(sys.argv[2]))
     else:
-        raise ArgumentError(f"Got bad number of arguments: {len(sys.argv) - 1}")
+        raise WrongNumberOfArguments(f"Must specify either one or two arguments")
