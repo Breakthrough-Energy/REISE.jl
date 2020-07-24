@@ -41,12 +41,10 @@ def insert_in_file(filename, scenario_id, column_number, column_value):
     os.system(command)
 
 
-def launch_scenario_performance(scenario_id, n_parallel_call=1):
+def launch_scenario(scenario_id, threads=None):
     """Launches the scenario.
 
     :param str scenario_id: scenario index.
-    :param int n_parallel_call: number of parallel runs. This function calls
-        :func:scenario_julia_call.
     """
 
     scenario_info = get_scenario(scenario_id)
@@ -72,43 +70,9 @@ def launch_scenario_performance(scenario_id, n_parallel_call=1):
     # Update status in ExecuteList.csv on server
     insert_in_file(const.EXECUTE_LIST, scenario_info["id"], "2", "running")
 
-    # Split the index into n_parallel_call parts
-    parallel_call_list = np.array_split(
-        range(start_index, end_index + 1), n_parallel_call
-    )
-    proc = []
     start = time()
-    for i in parallel_call_list:
-        p = Process(
-            target=scenario_julia_call, args=(scenario_info, int(i[0]), int(i[-1]),)
-        )
-        p.start()
-        proc.append(p)
-    for p in proc:
-        p.join()
-    end = time()
 
-    # Update status in ExecuteList.csv on server
-    insert_in_file(const.EXECUTE_LIST, scenario_info["id"], "2", "finished")
-
-    runtime = round(end - start)
-    print("Run time: %s" % str(runtime))
-    hours, minutes, seconds = sec2hms(runtime)
-    insert_in_file(
-        const.SCENARIO_LIST, scenario_info["id"], "15", "%d:%02d" % (hours, minutes)
-    )
-
-
-def scenario_julia_call(scenario_info, start_index, end_index):
-    """
-    Starts a Julia engine, runs the add_path file to load Julia code.
-    Then, loads the data path and runs the scenario.
-
-    :param dict scenario_info: scenario information.
-    :param int start_index: start index.
-    :param int end_index: end index.
-    """
-
+    # Import these within function because there is a lengthy compilation step
     from julia.api import Julia
 
     jl = Julia(compiled_modules=False)
@@ -132,8 +96,28 @@ def scenario_julia_call(scenario_info, start_index, end_index):
     )
     Main.eval("exit()")
 
+    end = time()
+
+    # Update status in ExecuteList.csv on server
+    insert_in_file(const.EXECUTE_LIST, scenario_info["id"], "2", "finished")
+
+    runtime = round(end - start)
+    print("Run time: %s" % str(runtime))
+    hours, minutes, seconds = sec2hms(runtime)
+    insert_in_file(
+        const.SCENARIO_LIST, scenario_info["id"], "15", "%d:%02d" % (hours, minutes)
+    )
+
 
 if __name__ == "__main__":
     import sys
 
-    launch_scenario_performance(sys.argv[1])
+    if len(sys.argv == 2):
+        # First argument is the name of the script
+        # Second argument is the scenario number to run
+        launch_scenario(sys.argv[1])
+    elif len(sys.argv == 3):
+        # Third argument is the number of threads to use
+        launch_scenario(sys.argv[1], int(sys.argv[2]))
+    else:
+        raise ArgumentError(f"Got bad number of arguments: {len(sys.argv) - 1}")
