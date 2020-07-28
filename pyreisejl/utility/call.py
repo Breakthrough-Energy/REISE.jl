@@ -6,7 +6,6 @@ import os
 import pandas as pd
 
 from collections import OrderedDict
-from multiprocessing import Process
 from time import time
 
 
@@ -71,8 +70,6 @@ def launch_scenario(scenario_id, threads=None):
     # Update status in ExecuteList.csv on server
     insert_in_file(const.EXECUTE_LIST, scenario_info["id"], "2", "running")
 
-    start = time()
-
     # Import these within function because there is a lengthy compilation step
     from julia.api import Julia
 
@@ -88,6 +85,7 @@ def launch_scenario(scenario_id, threads=None):
         const.EXECUTE_DIR, "scenario_%s/output/" % scenario_info["id"]
     )
 
+    start = time()
     REISE.run_scenario(
         interval=interval,
         n_interval=n_interval,
@@ -96,8 +94,6 @@ def launch_scenario(scenario_id, threads=None):
         outputfolder=output_dir,
         threads=threads,
     )
-    Main.eval("exit()")
-
     end = time()
 
     # Update status in ExecuteList.csv on server
