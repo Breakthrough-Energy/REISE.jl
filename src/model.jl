@@ -272,7 +272,7 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
     if storage_enabled
         println("storage soc_tracking: ", Dates.now())
         JuMP.@constraint(m,
-            soc_tracking[i in sets.storage_idx, h in 1:(num_hour-1)],
+            soc_tracking[i in 1:sets.num_storage, h in 1:(num_hour-1)],
             storage_soc[i, h+1] == (
                 storage_soc[i, h]
                 + storage.sd_table.InEff[i] * storage_chg[i, h+1]
@@ -280,7 +280,7 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
             container=Array)
         println("storage initial_soc: ", Dates.now())
         JuMP.@constraint(m,
-            initial_soc[i in sets.storage_idx],
+            initial_soc[i in 1:sets.num_storage],
             storage_soc[i, 1] == (
                 storage_e0[i]
                 + storage.sd_table.InEff[i] * storage_chg[i, 1]
