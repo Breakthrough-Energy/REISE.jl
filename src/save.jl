@@ -20,8 +20,8 @@ function save_input_mat(case::Case, storage::Storage, inputfolder::String,
     mdi = Dict("mpc" => mpc)
 
     # Save modifications to gen
-    mpc["gen"][:,gen_PMIN] = case.gen_pmin
-    mpc["gen"][:,gen_RAMP_30] = case.gen_ramp30
+    mpc["gen"][:, gen_PMIN] = case.gen_pmin
+    mpc["gen"][:, gen_RAMP_30] = case.gen_ramp30
     # Save modifications to gencost table
     mpc["gencost"] = case.gencost
     mpc["gencost_orig"] = case.gencost_orig
@@ -34,13 +34,16 @@ function save_input_mat(case::Case, storage::Storage, inputfolder::String,
         # Save storage modifications to gen table (with extra zeros for MUs)
         mpc["gen"] = [mpc["gen"] ; hcat(storage.gen, zeros(num_storage, 4))]
         # Save storage modifications to gencost
-        num_segments = convert(Int, maximum(case.gencost[:,gencost_NCOST])) - 1
+        #@show case.gencost[:, gencost_MODEL]
+        segment_indices = findall(case.gencost[:, gencost_MODEL] .== 1)
+        segment_orders = case.gencost[segment_indices, gencost_NCOST]
+        num_segments = convert(Int, maximum(segment_orders)) - 1
         storage_gencost = zeros(num_storage, (6 + 2 * num_segments))
         # Storage is specified by two points, PMIN and PMAX, both with cost 0
-        storage_gencost[:,gencost_MODEL] .= 1
-        storage_gencost[:,gencost_NCOST] .= 2
-        storage_gencost[:,gencost_COST] = storage.gen[:, gen_PMIN]
-        storage_gencost[:,gencost_COST+2] = storage.gen[:, gen_PMAX]
+        storage_gencost[:, gencost_MODEL] .= 1
+        storage_gencost[:, gencost_NCOST] .= 2
+        storage_gencost[:, gencost_COST] = storage.gen[:, gen_PMIN]
+        storage_gencost[:, gencost_COST+2] = storage.gen[:, gen_PMAX]
         mpc["gencost"] = [mpc["gencost"] ; storage_gencost]
         # Save addition of 'iess' field (index, energy storage systems) to mpc
         num_gen = length(case.genid)
@@ -71,18 +74,45 @@ function save_results(results::Results, filename::String;
             "gen" => Dict("PG" => results.pg),
             "branch" => Dict(
                 "PF" => results.pf,
-                # Note: check that these aren't swapped
                 "MU_SF" => results.congu,
                 "MU_ST" => results.congl,
                 ),
             )),
         )
+    # For DC lines, storage power/energy, and load_shed, save only if nonempty
+    if size(results.pf_dcline) != (0, 0)
+        mdo_save["flow"]["mpc"]["dcline"] = Dict(
+            "PF_dcline" => results.pf_dcline)
+    end
     if size(results.storage_pg) != (0, 0)
-        # Add storage results only if they're meaningful
         mdo_save["flow"]["mpc"]["storage"] = Dict(
             "PG" => results.storage_pg,
             "Energy" => results.storage_e,
             )
     end
+    if size(results.load_shed) != (0, 0)
+        mdo_save["flow"]["mpc"]["load_shed"] = Dict(
+            "load_shed" => results.load_shed)
+    end
     MAT.matwrite(filename, Dict("mdo_save" => mdo_save); compress=true)
+end
+
+
+"""
+    redirect_stdout_stderr("stdout.log", "stderr.err") do
+        run_scenario(; kwargs...)
+    end
+
+While executing a function, redirect stdout and stderr to files.
+"""
+function redirect_stdout_stderr(dofunc, stdoutfile, stderrfile)
+    open(stdoutfile, "a") do out
+        open(stderrfile, "a") do err
+            redirect_stdout(out) do
+                redirect_stderr(err) do
+                    dofunc()
+                end
+            end
+        end
+    end
 end

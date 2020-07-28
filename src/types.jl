@@ -20,6 +20,7 @@ Base.@kwdef struct Case
     genid::Array{Int64,1}
     genfuel::Array{String,1}
     gen_bus::Array{Int64,1}
+    gen_status::BitArray{1}
     gen_pmax::Array{Float64,1}
     gen_pmin::Array{Float64,1}
     gen_ramp30::Array{Float64,1}
@@ -47,8 +48,63 @@ Base.@kwdef struct Results
     lmp::Array{Float64,2}
     congu::Array{Float64,2}
     congl::Array{Float64,2}
+    pf_dcline::Array{Float64,2}
     storage_pg::Array{Float64,2}
     storage_e::Array{Float64,2}
+    load_shed::Array{Float64,2}
     f::Float64
-    status::JuMP.MOI.TerminationStatusCode
+    status::String
+end
+
+
+Base.@kwdef struct VariablesOfInterest
+    pg::Array{JuMP.VariableRef,2}
+    pf::Array{JuMP.VariableRef,2}
+    load_shed::Union{Array{JuMP.VariableRef,2},Nothing}
+    powerbalance::Array{JuMP.ConstraintRef,2}
+    branch_min::JuMP.Containers.DenseAxisArray
+    branch_max::JuMP.Containers.DenseAxisArray
+    initial_rampup::Union{JuMP.Containers.DenseAxisArray,Nothing}
+    initial_rampdown::Union{JuMP.Containers.DenseAxisArray,Nothing}
+    hydro_fixed::JuMP.Containers.DenseAxisArray
+    solar_max::JuMP.Containers.DenseAxisArray
+    wind_max::JuMP.Containers.DenseAxisArray
+    storage_dis::Union{Array{JuMP.VariableRef,2},Nothing}
+    storage_chg::Union{Array{JuMP.VariableRef,2},Nothing}
+    storage_soc::Union{Array{JuMP.VariableRef,2},Nothing}
+    initial_soc::Union{Array{JuMP.ConstraintRef,1},Nothing}
+end
+
+
+Base.@kwdef struct Sets
+    # Branch and branch subsets
+    num_branch::Int64
+    num_branch_ac::Int64
+    branch_idx::UnitRange{Int64}
+    noninf_branch_idx::Array{Int64,1}
+    branch_to_idx::Array{Int64,1}
+    branch_from_idx::Array{Int64,1}
+    # Bus & bus subsets
+    num_bus::Int64
+    num_load_bus::Int64
+    bus_idx::UnitRange{Int64}
+    load_bus_idx::Array{Int64,1}
+    bus_id2idx::Dict{Int64,Int64}
+    # Gen & gen sub-sets
+    num_gen::Int64
+    num_wind::Int64
+    num_solar::Int64
+    num_hydro::Int64
+    gen_idx::UnitRange{Int64}
+    gen_wind_idx::Array{Int64,1}
+    gen_solar_idx::Array{Int64,1}
+    gen_hydro_idx::Array{Int64,1}
+    renewable_idx::Array{Int64,1}
+    noninf_pmax::Array{Int64,1}
+    # Segments
+    num_segments::Int64
+    segment_idx::UnitRange{Int64}
+    # Storage
+    num_storage::Int64
+    storage_idx::Union{UnitRange{Int64},Nothing}
 end
