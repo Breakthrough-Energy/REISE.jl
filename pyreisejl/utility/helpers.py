@@ -2,6 +2,12 @@ import h5py
 import numpy as np
 
 
+class WrongNumberOfArguments(TypeError):
+    """To be used when the wrong number of arguments are specified at command line."""
+
+    pass
+
+
 def sec2hms(seconds):
     """Converts seconds to hours, minutes, seconds
 
