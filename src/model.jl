@@ -226,7 +226,7 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
     end)
     if load_shed_enabled
         JuMP.@variable(m,
-            0 <= load_shed[i in 1:sets.num_load_bus, j in hour_idx]
+            0 <= load_shed[i in 1:sets.num_load_bus, j in 1:interval_length]
             <= bus_demand[sets.load_bus_idx[i], j],
             container=Array)
     end
