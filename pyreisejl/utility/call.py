@@ -1,10 +1,17 @@
 from pyreisejl.utility import const
-from pyreisejl.utility.helpers import sec2hms, WrongNumberOfArguments
+from pyreisejl.utility.helpers import (
+    sec2hms,
+    WrongNumberOfArguments,
+    InvalidDateArgument,
+    InvalidInterval,
+)
 
 import numpy as np
 import os
 import pandas as pd
 import argparse
+import re
+import csv
 
 from collections import OrderedDict
 from time import time
@@ -27,10 +34,6 @@ def _get_scenario(scenario_id):
     output_dir = os.path.join(
         const.EXECUTE_DIR, "scenario_%s/output" % scenario_info["id"]
     )
-
-    # Create save data folder if does not exist
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
 
     # Grab start and end date for scenario
     start_date = scenario_info["start_date"]
@@ -78,26 +81,108 @@ def _insert_in_file(filename, scenario_id, column_number, column_value):
     return
 
 
+def _extract_date_limits(profile_csv):
+    """Parses a profile csv to extract the first and last time stamp
+    as well as the time
+
+    :param  iterator: iterator containing the data of a profile.csv
+    :return: (*tuple*) -- (min timestamp, max timestamp, timestamp frequency) as pandas.Timestamp
+    """
+
+    # read in headers
+    profile = csv.reader(profile_csv)
+    next(profile)
+
+    # get min timestamp from first non-header line
+    min_ts = pd.Timestamp(next(profile)[0])
+
+    # assume max timestamp is the last timestamp seen
+    max_ts = next(profile)[0]
+
+    freq = pd.Timestamp(max_ts) - min_ts
+
+    for row in profile:
+        max_ts = row[0]
+
+    max_ts = pd.Timestamp(max_ts)
+
+    return (min_ts, max_ts, freq)
+
+
+def _validate_time_format(date, end_date=False):
+    """Validates that the given dates are valid,
+    and adds 23 hours if an end date is specified without hours.
+
+    :param str date: date string
+    :param bool end_date: whether or not this date is an end date
+    :return: (*pandas.Timestamp*) -- the valid date as a pandas timestamp
+    """
+    regex = "^\d{4}-\d{1,2}-\d{1,2}( (?P<hour>\d{1,2})(:\d{1,2})?(:\d{1,2})?)?$"
+    match = re.match(regex, date)
+
+    if match:
+        # if pandas won't convert the regex match, it's not a valid date (i.e. invalid month or date)
+        try:
+            valid_date = pd.Timestamp(date)
+        except ValueError:
+            raise InvalidDateArgument(f"{date} is not a valid timestamp.")
+
+        # if an end_date is given with no hours, assume date range is until the end of the day (23h)
+        if end_date and not match.group("hour"):
+            valid_date += pd.Timedelta(hours=23)
+
+    else:
+        err_str = f"'{date}' is an invalid date. It needs to be in the form YYYY-MM-DD."
+        raise InvalidDateArgument(err_str)
+
+    return valid_date
+
+
+def _validate_time_range(date, min_ts, max_ts):
+    """Validates that a date is within the given time range.
+
+    :param pandas.Timestamp date:
+    :param pandas.Timestamp date:
+    :param pandas.Timestamp date:
+    """
+    # make sure the dates are within the time frame we have data for
+    if date < min_ts or date > max_ts:
+        err_str = f"'{date}' is an invalid date. Valid dates are between {min_ts} and {max_ts}."
+        raise InvalidDateArgument(err_str)
+
+
 def launch_scenario(
     start_date, end_date, interval, input_dir, output_dir=None, threads=None
 ):
     """Launches the scenario.
 
-    :param str start_date: start date of simulation as 'YYYY-MM-DD HH:MM:SS'
-    :param str end_date: end date of simulation as 'YYYY-MM-DD HH:MM:SS'
+    :param str start_date: start date of simulation as 'YYYY-MM-DD HH:MM:SS',
+    where HH, MM, and SS are optional.
+    :param str end_date: end date of simulation as 'YYYY-MM-DD HH:MM:SS',
+    where HH, MM, and SS are optional.
     :param int interval: length of each interval in hours
     :param str input_dir: directory with input data
-    :param None/str output_dir: directory for output data. None defaults to input directory
+    :param None/str output_dir: directory for output data. None defaults to an
+    output folder that will be created in the input directory
     :param None/int threads: number of threads to use, None defaults to auto.
     :return: (*int*) runtime of scenario in seconds
     """
-    # we need n_interval, start_index
-    min_ts = pd.Timestamp("2016-01-01 00:00:00")
-    max_ts = pd.Timestamp("2016-12-31 23:00:00")
-    dates = pd.date_range(start=min_ts, end=max_ts, freq="1H")
+    # extract time limits from 'demand.csv'
+    profile = open(os.path.join(input_dir, "demand.csv"))
+    min_ts, max_ts, freq = _extract_date_limits(profile)
+    dates = pd.date_range(start=min_ts, end=max_ts, freq=freq)
 
-    start_ts = pd.Timestamp(start_date)
-    end_ts = pd.Timestamp(end_date)
+    start_ts = _validate_time_format(start_date)
+    end_ts = _validate_time_format(end_date)
+
+    # make sure the dates are within the time frame we have data for
+    _validate_time_range(start_ts, min_ts, max_ts)
+    _validate_time_range(end_ts, min_ts, max_ts)
+
+    if start_ts > end_ts:
+        raise InvalidDateArgument(
+            f"The start date ({start_ts}) cannot be after the end date ({end_ts})."
+        )
 
     # Julia starts at 1
     start_index = dates.get_loc(start_ts) + 1
@@ -105,10 +190,12 @@ def launch_scenario(
 
     # Calculate number of intervals
     ts_range = end_index - start_index + 1
-    n_interval = int(ts_range / interval)
-
     if ts_range % interval > 0:
-        print("WARNING: The interval you chose does not evenly divide your date range.")
+        raise InvalidInterval(
+            "This interval does not evenly divide the given date range."
+        )
+
+    n_interval = int(ts_range / interval)
 
     # Import these within function because there is a lengthy compilation step
     from julia.api import Julia
@@ -129,7 +216,8 @@ def launch_scenario(
     end = time()
 
     runtime = round(end - start)
-    print("Run time: %ss" % str(runtime))
+    hours, minutes, seconds = sec2hms(runtime)
+    print(f"Run time: {hours}:{minutes:02d}:{seconds:02d}")
 
     return runtime
 
@@ -141,12 +229,15 @@ if __name__ == "__main__":
     parser.add_argument(
         "-s",
         "--start-date",
-        help="The start date for the simulation in format 'YYYY-MM-DD HH:MM:SS'",
+        help="The start date for the simulation in format 'YYYY-MM-DD'. 'YYYY-MM-DD HH'. "
+        "'YYYY-MM-DD HH:MM', or 'YYYY-MM-DD HH:MM:SS'.",
     )
     parser.add_argument(
         "-e",
         "--end-date",
-        help="The end date for the simulation in format 'YYYY-MM-DD HH:MM:SS'",
+        help="The end date for the simulation in format 'YYYY-MM-DD'. 'YYYY-MM-DD HH'. "
+        "'YYYY-MM-DD HH:MM', or 'YYYY-MM-DD HH:MM:SS'. If only the date is specified "
+        "(without any hours), the entire end-date will be included in the simulation.",
     )
     parser.add_argument(
         "-int", "--interval", help="The length of each interval in hours.", type=int
@@ -166,7 +257,7 @@ if __name__ == "__main__":
         "if it does not exist.",
     )
     parser.add_argument(
-        "-t",
+        "-T",
         "--threads",
         help="The number of threads to run the simulation with. "
         "This is optional and defaults to Auto.",

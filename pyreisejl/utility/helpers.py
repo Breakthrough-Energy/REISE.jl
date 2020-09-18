@@ -8,6 +8,18 @@ class WrongNumberOfArguments(TypeError):
     pass
 
 
+class InvalidDateArgument(TypeError):
+    """To be used when an invalid string is passed for the start or end date."""
+
+    pass
+
+
+class InvalidInterval(TypeError):
+    """To be used when the interval does not evenly divide the date range given."""
+
+    pass
+
+
 def sec2hms(seconds):
     """Converts seconds to hours, minutes, seconds
 
