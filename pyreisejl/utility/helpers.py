@@ -1,5 +1,7 @@
 import h5py
 import numpy as np
+import pandas as pd
+import re
 
 
 class WrongNumberOfArguments(TypeError):
@@ -89,3 +91,61 @@ def load_mat73(filename):
     references = {}
     with h5py.File(filename, "r") as f:
         return convert()
+
+
+def extract_date_limits(profile_csv):
+    """Parses a profile csv to extract the first and last time stamp
+    as well as the time
+
+    :param  iterator: iterator containing the data of a profile.csv
+    :return: (*tuple*) -- (min timestamp, max timestamp, timestamp frequency) as pandas.Timestamp
+    """
+
+    profile = pd.read_csv(profile_csv, index_col=0, parse_dates=True)
+    min_ts = profile.index.min()
+    max_ts = profile.index.max()
+    freq = pd.infer_freq(profile.index)
+
+    return (min_ts, max_ts, freq)
+
+
+def validate_time_format(date, end_date=False):
+    """Validates that the given dates are valid,
+    and adds 23 hours if an end date is specified without hours.
+
+    :param str date: date string
+    :param bool end_date: whether or not this date is an end date
+    :return: (*pandas.Timestamp*) -- the valid date as a pandas timestamp
+    """
+    regex = r"^\d{4}-\d{1,2}-\d{1,2}( (?P<hour>\d{1,2})(:\d{1,2})?(:\d{1,2})?)?$"
+    match = re.match(regex, date)
+
+    if match:
+        # if pandas won't convert the regex match, it's not a valid date (i.e. invalid month or date)
+        try:
+            valid_date = pd.Timestamp(date)
+        except ValueError:
+            raise InvalidDateArgument(f"{date} is not a valid timestamp.")
+
+        # if an end_date is given with no hours, assume date range is until the end of the day (23h)
+        if end_date and not match.group("hour"):
+            valid_date += pd.Timedelta(hours=23)
+
+    else:
+        err_str = f"'{date}' is an invalid date. It needs to be in the form YYYY-MM-DD."
+        raise InvalidDateArgument(err_str)
+
+    return valid_date
+
+
+def validate_time_range(date, min_ts, max_ts):
+    """Validates that a date is within the given time range.
+
+    :param pandas.Timestamp date: date to validate
+    :param pandas.Timestamp date: start date of time range
+    :param pandas.Timestamp date: end date of time range
+    """
+    # make sure the dates are within the time frame we have data for
+    if date < min_ts or date > max_ts:
+        err_str = f"'{date}' is an invalid date. Valid dates are between {min_ts} and {max_ts}."
+        raise InvalidDateArgument(err_str)

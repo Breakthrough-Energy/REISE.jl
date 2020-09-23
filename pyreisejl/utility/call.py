@@ -4,14 +4,15 @@ from pyreisejl.utility.helpers import (
     WrongNumberOfArguments,
     InvalidDateArgument,
     InvalidInterval,
+    extract_date_limits,
+    validate_time_format,
+    validate_time_range,
 )
 
 import numpy as np
 import os
 import pandas as pd
 import argparse
-import re
-import csv
 
 from collections import OrderedDict
 from time import time
@@ -78,78 +79,6 @@ def _insert_in_file(filename, scenario_id, column_number, column_value):
     command = "awk %s %s %s" % (options, program, filename)
     os.system(command)
 
-    return
-
-
-def _extract_date_limits(profile_csv):
-    """Parses a profile csv to extract the first and last time stamp
-    as well as the time
-
-    :param  iterator: iterator containing the data of a profile.csv
-    :return: (*tuple*) -- (min timestamp, max timestamp, timestamp frequency) as pandas.Timestamp
-    """
-
-    # read in headers
-    profile = csv.reader(profile_csv)
-    next(profile)
-
-    # get min timestamp from first non-header line
-    min_ts = pd.Timestamp(next(profile)[0])
-
-    # assume max timestamp is the last timestamp seen
-    max_ts = next(profile)[0]
-
-    freq = pd.Timestamp(max_ts) - min_ts
-
-    for row in profile:
-        max_ts = row[0]
-
-    max_ts = pd.Timestamp(max_ts)
-
-    return (min_ts, max_ts, freq)
-
-
-def _validate_time_format(date, end_date=False):
-    """Validates that the given dates are valid,
-    and adds 23 hours if an end date is specified without hours.
-
-    :param str date: date string
-    :param bool end_date: whether or not this date is an end date
-    :return: (*pandas.Timestamp*) -- the valid date as a pandas timestamp
-    """
-    regex = "^\d{4}-\d{1,2}-\d{1,2}( (?P<hour>\d{1,2})(:\d{1,2})?(:\d{1,2})?)?$"
-    match = re.match(regex, date)
-
-    if match:
-        # if pandas won't convert the regex match, it's not a valid date (i.e. invalid month or date)
-        try:
-            valid_date = pd.Timestamp(date)
-        except ValueError:
-            raise InvalidDateArgument(f"{date} is not a valid timestamp.")
-
-        # if an end_date is given with no hours, assume date range is until the end of the day (23h)
-        if end_date and not match.group("hour"):
-            valid_date += pd.Timedelta(hours=23)
-
-    else:
-        err_str = f"'{date}' is an invalid date. It needs to be in the form YYYY-MM-DD."
-        raise InvalidDateArgument(err_str)
-
-    return valid_date
-
-
-def _validate_time_range(date, min_ts, max_ts):
-    """Validates that a date is within the given time range.
-
-    :param pandas.Timestamp date:
-    :param pandas.Timestamp date:
-    :param pandas.Timestamp date:
-    """
-    # make sure the dates are within the time frame we have data for
-    if date < min_ts or date > max_ts:
-        err_str = f"'{date}' is an invalid date. Valid dates are between {min_ts} and {max_ts}."
-        raise InvalidDateArgument(err_str)
-
 
 def launch_scenario(
     start_date, end_date, interval, input_dir, output_dir=None, threads=None
@@ -168,16 +97,17 @@ def launch_scenario(
     :return: (*int*) runtime of scenario in seconds
     """
     # extract time limits from 'demand.csv'
-    profile = open(os.path.join(input_dir, "demand.csv"))
-    min_ts, max_ts, freq = _extract_date_limits(profile)
+    with open(os.path.join(input_dir, "demand.csv")) as profile:
+        min_ts, max_ts, freq = extract_date_limits(profile)
+
     dates = pd.date_range(start=min_ts, end=max_ts, freq=freq)
 
-    start_ts = _validate_time_format(start_date)
-    end_ts = _validate_time_format(end_date)
+    start_ts = validate_time_format(start_date)
+    end_ts = validate_time_format(end_date, end_date=True)
 
     # make sure the dates are within the time frame we have data for
-    _validate_time_range(start_ts, min_ts, max_ts)
-    _validate_time_range(end_ts, min_ts, max_ts)
+    validate_time_range(start_ts, min_ts, max_ts)
+    validate_time_range(end_ts, min_ts, max_ts)
 
     if start_ts > end_ts:
         raise InvalidDateArgument(
