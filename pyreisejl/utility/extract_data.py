@@ -4,6 +4,7 @@ import glob
 import os
 import subprocess
 import time
+import argparse
 
 import numpy as np
 import pandas as pd
@@ -313,7 +314,7 @@ def _update_outputs_labels(outputs, start_date, end_date, freq, matfile):
         outputs[k].columns = outputs_id[k]
 
 
-def extract_scenario(execute_dir, start_date, end_date, scenario_id=None, output_dir=None, input_dir=None, freq="H"):
+def extract_scenario(execute_dir, start_date, end_date, scenario_id=None, output_dir=None, mat_dir=None, freq="H"):
     """Extracts data and save data as pickle files to the output directory
 
     :param str execute_dir: directory containing all of the result.mat files from REISE.jl
@@ -321,24 +322,24 @@ def extract_scenario(execute_dir, start_date, end_date, scenario_id=None, output
     :param str end_date: the end date of the simulation run
     :param str scenario_id: optional identifier for the scenario, used to label output files
     :param str output_dir: optional directory in which to store the outputs. defaults to the execute_dir
-    :param str input_dir: optional directory in which to store the converted grid.mat file. defaults to the execute_dir
+    :param str mat_dir: optional directory in which to store the converted grid.mat file. defaults to the execute_dir
     """
 
     # If output or input dir were not specified, default to the execute_dir
     output_dir = output_dir or execute_dir
-    input_dir = input_dir or execute_dir
+    mat_dir = mat_dir or execute_dir
 
     # Copy input.mat from REISE.jl and convert to .mat v7 for scipy compatibility
-    copy_input(execute_dir, input_dir)
+    copy_input(execute_dir, mat_dir)
 
     # Extract outputs, infeasibilities, cost
     outputs, infeasibilities, cost = extract_data(execute_dir)
 
     # Write infeasibilities
     print(infeasibilities)
-    # insert_in_file(
-    #     const.SCENARIO_LIST, scenario_info["id"], "16", "_".join(infeasibilities)
-    # )    
+    insert_in_file(
+        const.SCENARIO_LIST, scenario_info["id"], "16", "_".join(infeasibilities)
+    )    
     
     # Write log file with costs
     build_log(execute_dir, cost, output_dir, scenario_id)
@@ -359,14 +360,61 @@ def extract_scenario(execute_dir, start_date, end_date, scenario_id=None, output
     )
 
 
-    # insert_in_file(const.EXECUTE_LIST, scenario_info["id"], "2", "extracted")
-    # insert_in_file(const.SCENARIO_LIST, scenario_info["id"], "4", "analyze")
+    insert_in_file(const.EXECUTE_LIST, scenario_info["id"], "2", "extracted")
+    insert_in_file(const.SCENARIO_LIST, scenario_info["id"], "4", "analyze")
 
     print("deleting matfiles")
     delete_output(output_dir)
 
 
-# if __name__ == "__main__":
-#     import sys
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Extract data from the results of the REISE.jl simulation.")
 
-#     extract_scenario(sys.argv[1])
+    # Arguments needed to run REISE.jl
+    parser.add_argument(
+        "-s",
+        "--start-date",
+        help="The start date for the simulation in format 'YYYY-MM-DD HH:MM:SS'",
+    )
+    parser.add_argument(
+        "-e",
+        "--end-date",
+        help="The end date for the simulation in format 'YYYY-MM-DD HH:MM:SS'",
+    )
+    parser.add_argument(
+        "-x",
+        "--execute-dir",
+        help="The directory where the REISE.jl results are stored."
+    )
+    parser.add_argument(
+        "-o",
+        "--output-dir",
+        default=None,
+        help="The directory to store the results. This is optional and defaults "
+        "to the execute directory."
+    )
+    parser.add_argument(
+        "-m",
+        "--matlab-dir",
+        default=None,
+        help="The directory to store the modified case.mat used by the engine. This is optional and defaults "
+        "to the execute directory."
+    )    
+    parser.add_argument(
+        "-f",
+        "--frequency",
+        default="H",
+        help="The frequency of data points in the original profile csvs. This is optional and defaults to an hour."
+    )
+
+    # For backwards compatability with PowerSimData
+    parser.add_argument(
+        "scenario_id",
+        nargs="?",
+        default=None,
+        help="Scenario ID only if using PowerSimData. ",
+    )
+
+    args = parser.parse_args()
+
+    extract_scenario(args.execute_dir, args.start_date, args.end_date, args.scenario_id, args.output_dir, args.matlab_dir, args.freq)
