@@ -2,7 +2,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ..extract_data import calculate_averaged_congestion
+from ..extract_data import (
+    calculate_averaged_congestion,
+    _get_pkl_path,
+    _cast_keys_as_lists,
+    _update_outputs_labels,
+    result_num,
+)
 
 
 def test_calculate_averaged_congestion_first_arg_type():
@@ -58,3 +64,27 @@ def test_calculate_averaged_congestion_returned_df_values():
     congu = pd.DataFrame({"bart": [21, 22, 23, 24], "lisa": [30, 31, 32, 33]})
     mean_cong = calculate_averaged_congestion(congl, congu)
     assert np.array_equal(mean_cong.values, [[2.5, 22.5], [11.5, 31.5]])
+
+
+def test_get_pkl_path():
+    test_path = "/path/to/test/directory"
+    without_scenario = _get_pkl_path(test_path)
+    assert without_scenario("congu") == "/path/to/test/directory/CONGU.pkl"
+
+
+def test_get_pkl_path_with_scenario():
+    test_path = "/path/to/test/directory"
+    with_scenario = _get_pkl_path(test_path, "87")
+    assert with_scenario("congu") == "/path/to/test/directory/87_CONGU.pkl"
+
+
+def test_cast_keys_as_lists():
+    outputs = {"marge": 2, "homer": np.array([1, 2, 3, 4])}
+    expected_output = {"marge": [2], "homer": [1, 2, 3, 4]}
+    _cast_keys_as_lists(outputs)
+    assert outputs == expected_output
+
+
+def test_result_num():
+    result365 = "/path/to/test/result_365.mat"
+    assert result_num(result365) == 365

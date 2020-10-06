@@ -27,7 +27,7 @@ def sec2hms(seconds):
 
     :param int seconds: number of seconds
     :return: (*tuple*) -- first element is number of hour(s), second is number
-        od minutes(s) and third is number of second(s)
+        of minutes(s) and third is number of second(s)
     :raises TypeError: if argument is not an integer.
     """
     if not isinstance(seconds, int):
