@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ..extract_data import (
+from pyreisejl.utility.extract_data import (
     calculate_averaged_congestion,
     _get_pkl_path,
     _cast_keys_as_lists,

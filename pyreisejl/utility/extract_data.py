@@ -17,31 +17,8 @@ from pyreisejl.utility.helpers import (
     load_mat73,
     WrongNumberOfArguments,
     validate_time_format,
+    get_scenario
 )
-
-
-def _get_scenario(scenario_id):
-    """Returns scenario information.
-
-    :param str scenario_id: scenario index.
-    :return: (*tuple*) -- scenario start_date, end date, interval, input_dir, execute_dir
-    """
-    # Parses scenario info out of scenario list
-    scenario_list = pd.read_csv(const.SCENARIO_LIST, dtype=str)
-    scenario_list.fillna("", inplace=True)
-    scenario = scenario_list[scenario_list.id == scenario_id]
-    scenario_info = scenario.to_dict("records", into=OrderedDict)[0]
-
-    # Determine execute directory for data
-    execute_dir = os.path.join(
-        const.EXECUTE_DIR, "scenario_%s/output" % scenario_info["id"]
-    )
-
-    # Grab start and end date for scenario
-    start_date = scenario_info["start_date"]
-    end_date = scenario_info["end_date"]
-
-    return start_date, end_date, execute_dir
 
 
 def copy_input(execute_dir, mat_dir=None, scenario_id=None):
@@ -467,9 +444,7 @@ if __name__ == "__main__":
 
     # Get scenario info if using PowerSimData
     if args.scenario_id:
-        args.start_date, args.end_date, args.execute_dir = _get_scenario(
-            args.scenario_id
-        )
+        args.start_date, args.end_date, _, _, args.execute_dir = get_scenario(args.scenario_id)
 
         args.matlab_dir = const.INPUT_DIR
         args.output_dir = const.OUTPUT_DIR

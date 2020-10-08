@@ -15,36 +15,9 @@ from pyreisejl.utility.helpers import (
     extract_date_limits,
     validate_time_format,
     validate_time_range,
+    get_scenario
 )
 from pyreisejl.utility.extract_data import extract_scenario
-
-
-def _get_scenario(scenario_id):
-    """Returns scenario information.
-
-    :param str scenario_id: scenario index.
-    :return: (*tuple*) -- scenario start_date, end date, interval, input_dir, execute_dir
-    """
-    # Parses scenario info out of scenario list
-    scenario_list = pd.read_csv(const.SCENARIO_LIST, dtype=str)
-    scenario_list.fillna("", inplace=True)
-    scenario = scenario_list[scenario_list.id == scenario_id]
-    scenario_info = scenario.to_dict("records", into=OrderedDict)[0]
-
-    # Determine input and execute directory for data
-    input_dir = os.path.join(const.EXECUTE_DIR, "scenario_%s" % scenario_info["id"])
-    execute_dir = os.path.join(
-        const.EXECUTE_DIR, "scenario_%s/output" % scenario_info["id"]
-    )
-
-    # Grab start and end date for scenario
-    start_date = scenario_info["start_date"]
-    end_date = scenario_info["end_date"]
-
-    # Grab interval for scenario
-    interval = int(scenario_info["interval"].split("H", 1)[0])
-
-    return start_date, end_date, interval, input_dir, execute_dir
 
 
 def _record_scenario(scenario_id, runtime):
@@ -206,7 +179,9 @@ if __name__ == "__main__":
         "-k",
         "--keep-matlab",
         action="store_true",
-        help="The result.mat files found in the execute directory will be kept instead of deleted after extraction. This flag is only used if the the extract-data flag is not set. ",
+        help="The result.mat files found in the execute directory will be kept "
+        "instead of deleted after extraction. "
+        "This flag is only used if the the extract-data flag is not set. ",
     )
 
     # For backwards compatability with PowerSimData
@@ -228,7 +203,7 @@ if __name__ == "__main__":
 
     # Get scenario info if using PowerSimData
     if args.scenario_id:
-        scenario_args = _get_scenario(args.scenario_id)
+        scenario_args = get_scenario(args.scenario_id)
 
         args.start_date = scenario_args[0]
         args.end_date = scenario_args[1]
