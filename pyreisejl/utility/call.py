@@ -16,7 +16,7 @@ from pyreisejl.utility.helpers import (
     validate_time_format,
     validate_time_range,
     get_scenario,
-    insert_in_file
+    insert_in_file,
 )
 from pyreisejl.utility.extract_data import extract_scenario
 
@@ -32,11 +32,9 @@ def _record_scenario(scenario_id, runtime):
     _insert_in_file(const.EXECUTE_LIST, scenario_id, "2", "finished")
 
     hours, minutes, seconds = sec2hms(runtime)
-    insert_in_file(
-        const.SCENARIO_LIST, scenario_id, "15", "%d:%02d" % (hours, minutes)
-    )
+    insert_in_file(const.SCENARIO_LIST, scenario_id, "15", "%d:%02d" % (hours, minutes))
 
-    
+
 def launch_scenario(
     start_date, end_date, interval, input_dir, execute_dir=None, threads=None
 ):
@@ -52,6 +50,8 @@ def launch_scenario(
     execute folder that will be created in the input directory
     :param None/int threads: number of threads to use, None defaults to auto.
     :return: (*int*) runtime of scenario in seconds
+    :raises InvalidDateArgument: if start_date is posterior to end_date
+    :raises InvalidInterval: if the interval does not evently divide the given date range
     """
     # extract time limits from 'demand.csv'
     with open(os.path.join(input_dir, "demand.csv")) as profile:

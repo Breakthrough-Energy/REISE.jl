@@ -18,7 +18,7 @@ from pyreisejl.utility.helpers import (
     WrongNumberOfArguments,
     validate_time_format,
     get_scenario,
-    insert_in_file
+    insert_in_file,
 )
 
 
@@ -427,7 +427,9 @@ if __name__ == "__main__":
 
     # Get scenario info if using PowerSimData
     if args.scenario_id:
-        args.start_date, args.end_date, _, _, args.execute_dir = get_scenario(args.scenario_id)
+        args.start_date, args.end_date, _, _, args.execute_dir = get_scenario(
+            args.scenario_id
+        )
 
         args.matlab_dir = const.INPUT_DIR
         args.output_dir = const.OUTPUT_DIR

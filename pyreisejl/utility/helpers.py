@@ -113,21 +113,25 @@ def validate_time_format(date, end_date=False):
     """Validates that the given dates are valid,
     and adds 23 hours if an end date is specified without hours.
 
-    :param str date: date string
+    :param str date: date string as 'YYYY-MM-DD HH:MM:SS',
+    where HH, MM, and SS are optional.
     :param bool end_date: whether or not this date is an end date
     :return: (*pandas.Timestamp*) -- the valid date as a pandas timestamp
+    :raises InvalidDateArgument: if the date given is not one of the accepted formats
     """
     regex = r"^\d{4}-\d{1,2}-\d{1,2}( (?P<hour>\d{1,2})(:\d{1,2})?(:\d{1,2})?)?$"
     match = re.match(regex, date)
 
     if match:
-        # if pandas won't convert the regex match, it's not a valid date (i.e. invalid month or date)
+        # if pandas won't convert the regex match, it's not a valid date
+        # (i.e. invalid month or date)
         try:
             valid_date = pd.Timestamp(date)
         except ValueError:
             raise InvalidDateArgument(f"{date} is not a valid timestamp.")
 
-        # if an end_date is given with no hours, assume date range is until the end of the day (23h)
+        # if an end_date is given with no hours,
+        # assume date range is until the end of the day (23h)
         if end_date and not match.group("hour"):
             valid_date += pd.Timedelta(hours=23)
 
@@ -144,11 +148,14 @@ def validate_time_range(date, min_ts, max_ts):
     :param pandas.Timestamp date: date to validate
     :param pandas.Timestamp date: start date of time range
     :param pandas.Timestamp date: end date of time range
+    :raises InvalidDateArgument: if the date is not between
+    the minimum and maximum timestamps
     """
     # make sure the dates are within the time frame we have data for
     if date < min_ts or date > max_ts:
         err_str = f"'{date}' is an invalid date. Valid dates are between {min_ts} and {max_ts}."
         raise InvalidDateArgument(err_str)
+
 
 def get_scenario(scenario_id):
     """Returns scenario information.
@@ -164,9 +171,7 @@ def get_scenario(scenario_id):
 
     # Determine input and execute directory for data
     input_dir = os.path.join(const.EXECUTE_DIR, "scenario_%s" % scenario_info["id"])
-    execute_dir = os.path.join(
-        const.EXECUTE_DIR, f"scenario_{scenario_id}", "output"
-    )
+    execute_dir = os.path.join(const.EXECUTE_DIR, f"scenario_{scenario_id}", "output")
 
     # Grab start and end date for scenario
     start_date = scenario_info["start_date"]
@@ -176,6 +181,7 @@ def get_scenario(scenario_id):
     interval = int(scenario_info["interval"].split("H", 1)[0])
 
     return start_date, end_date, interval, input_dir, execute_dir
+
 
 def insert_in_file(filename, scenario_id, column_number, column_value):
     """Updates status in execute list on server.
@@ -193,4 +199,3 @@ def insert_in_file(filename, scenario_id, column_number, column_value):
     )
     command = "awk %s %s %s" % (options, program, filename)
     os.system(command)
-
