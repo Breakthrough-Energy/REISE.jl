@@ -176,4 +176,21 @@ def get_scenario(scenario_id):
     interval = int(scenario_info["interval"].split("H", 1)[0])
 
     return start_date, end_date, interval, input_dir, execute_dir
-    
+
+def insert_in_file(filename, scenario_id, column_number, column_value):
+    """Updates status in execute list on server.
+
+    :param str filename: path to execute or scenario list.
+    :param str scenario_id: scenario index.
+    :param str column_number: id of column (indexing starts at 1).
+    :param str column_value: value to insert.
+    """
+    options = "-F, -v OFS=',' -v INPLACE_SUFFIX=.bak -i inplace"
+    program = "'{if($1==%s) $%s=\"%s\"};1'" % (
+        scenario_id,
+        column_number,
+        column_value,
+    )
+    command = "awk %s %s %s" % (options, program, filename)
+    os.system(command)
+

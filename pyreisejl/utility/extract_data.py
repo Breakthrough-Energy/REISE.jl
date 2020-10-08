@@ -17,7 +17,8 @@ from pyreisejl.utility.helpers import (
     load_mat73,
     WrongNumberOfArguments,
     validate_time_format,
-    get_scenario
+    get_scenario,
+    insert_in_file
 )
 
 
@@ -177,24 +178,6 @@ def calculate_averaged_congestion(congl, congu):
     mean_congu.name = "CONGU"
 
     return pd.merge(mean_congl, mean_congu, left_index=True, right_index=True)
-
-
-def _insert_in_file(filename, scenario_id, column_number, column_value):
-    """Updates status in execute list on server.
-
-    :param str filename: path to execute or scenario list.
-    :param str scenario_id: scenario index.
-    :param str column_number: id of column (indexing starts at 1).
-    :param str column_value: value to insert.
-    """
-    options = "-F, -v OFS=',' -v INPLACE_SUFFIX=.bak -i inplace"
-    program = "'{for(i=1; i<=NF; i++){if($1==%s) $%s=\"%s\"}};1'" % (
-        scenario_id,
-        column_number,
-        column_value,
-    )
-    command = "awk %s %s %s" % (options, program, filename)
-    os.system(command)
 
 
 def _get_pkl_path(output_dir, scenario_id=None):
@@ -365,13 +348,13 @@ def extract_scenario(
 
     if scenario_id:
         # Record infeasibilities
-        _insert_in_file(
+        insert_in_file(
             const.SCENARIO_LIST, scenario_id, "16", "_".join(infeasibilities)
         )
 
         # Update execute and scenario list
-        _insert_in_file(const.EXECUTE_LIST, scenario_id, "2", "extracted")
-        _insert_in_file(const.SCENARIO_LIST, scenario_id, "4", "analyze")
+        insert_in_file(const.EXECUTE_LIST, scenario_id, "2", "extracted")
+        insert_in_file(const.SCENARIO_LIST, scenario_id, "4", "analyze")
 
     if delete_mat:
         print("deleting matfiles")

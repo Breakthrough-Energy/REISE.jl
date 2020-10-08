@@ -15,7 +15,8 @@ from pyreisejl.utility.helpers import (
     extract_date_limits,
     validate_time_format,
     validate_time_range,
-    get_scenario
+    get_scenario,
+    insert_in_file
 )
 from pyreisejl.utility.extract_data import extract_scenario
 
@@ -31,29 +32,11 @@ def _record_scenario(scenario_id, runtime):
     _insert_in_file(const.EXECUTE_LIST, scenario_id, "2", "finished")
 
     hours, minutes, seconds = sec2hms(runtime)
-    _insert_in_file(
+    insert_in_file(
         const.SCENARIO_LIST, scenario_id, "15", "%d:%02d" % (hours, minutes)
     )
 
-
-def _insert_in_file(filename, scenario_id, column_number, column_value):
-    """Updates status in execute list on server.
-
-    :param str filename: path to execute or scenario list.
-    :param str scenario_id: scenario index.
-    :param str column_number: id of column (indexing starts at 1).
-    :param str column_value: value to insert.
-    """
-    options = "-F, -v OFS=',' -v INPLACE_SUFFIX=.bak -i inplace"
-    program = "'{for(i=1; i<=NF; i++){if($1==%s) $%s=\"%s\"}};1'" % (
-        scenario_id,
-        column_number,
-        column_value,
-    )
-    command = "awk %s %s %s" % (options, program, filename)
-    os.system(command)
-
-
+    
 def launch_scenario(
     start_date, end_date, interval, input_dir, execute_dir=None, threads=None
 ):
@@ -213,7 +196,7 @@ if __name__ == "__main__":
         args.threads = args.powersim_threads
 
         # Update status in ExecuteList.csv on server
-        _insert_in_file(const.EXECUTE_LIST, args.scenario_id, "2", "running")
+        insert_in_file(const.EXECUTE_LIST, args.scenario_id, "2", "running")
 
     # Check to make sure all necessary arguments are there
     # (start_date, end_date, interval, input_dir)
