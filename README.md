@@ -1,3 +1,5 @@
+# REISE.jl
+
 ## Installation
 
 ### Julia package
@@ -85,19 +87,19 @@ definitions are all in the other files in the `src` folder.
 
 ### Sets
 
-- ![B](https://render.githubusercontent.com/render/math?math=B): 
+- ![B](https://render.githubusercontent.com/render/math?math=B):
 Set of buses, indexed by
 ![b](https://render.githubusercontent.com/render/math?math=b).
-- ![I](https://render.githubusercontent.com/render/math?math=I): 
+- ![I](https://render.githubusercontent.com/render/math?math=I):
 Set of generators, indexed by
 ![i](https://render.githubusercontent.com/render/math?math=i).
-- ![L](https://render.githubusercontent.com/render/math?math=L): 
+- ![L](https://render.githubusercontent.com/render/math?math=L):
 Set of transmission network branches, indexed by
 ![l](https://render.githubusercontent.com/render/math?math=l).
-- ![S](https://render.githubusercontent.com/render/math?math=S): 
+- ![S](https://render.githubusercontent.com/render/math?math=S):
 Set of generation cost curve segments, indexed by
 ![s](https://render.githubusercontent.com/render/math?math=s).
-- ![T](https://render.githubusercontent.com/render/math?math=T): 
+- ![T](https://render.githubusercontent.com/render/math?math=T):
 Set of time periods, indexed by
 ![t](https://render.githubusercontent.com/render/math?math=t).
 
@@ -118,7 +120,7 @@ at time ![t](https://render.githubusercontent.com/render/math?math=t).
 - ![f_{l,t}](https://render.githubusercontent.com/render/math?math=f_%7Bl%2Ct%7D):
 Power flowing on branch ![l](https://render.githubusercontent.com/render/math?math=l)
 at time ![t](https://render.githubusercontent.com/render/math?math=t).
-- ![g_{i,t}](https://render.githubusercontent.com/render/math?math=g_%7Bi%2Ct%7D): 
+- ![g_{i,t}](https://render.githubusercontent.com/render/math?math=g_%7Bi%2Ct%7D):
 Power injected by each generator ![i](https://render.githubusercontent.com/render/math?math=i)
 at time ![t](https://render.githubusercontent.com/render/math?math=t).
 - ![g_{i,s,t}](https://render.githubusercontent.com/render/math?math=g_%7Bi%2Cs%2Ct%7D):
@@ -169,7 +171,7 @@ Generator cost curve segment width.
 - ![J_{b}^{\text{max}}](https://render.githubusercontent.com/render/math?math=J_%7Bb%7D%5E%7B%5Ctext%7Bmax%7D%7D):
 Maximum charging/discharging power of energy storage devices at bus ![b](https://render.githubusercontent.com/render/math?math=b).
 - ![m_{l,b}^{\text{line}}](https://render.githubusercontent.com/render/math?math=m_%7Bl%2Cb%7D%5E%7B%5Ctext%7Bline%7D%7D):
-Mapping of branches to buses. 
+Mapping of branches to buses.
 ![m_{l,b}^{\text{line}} = 1](https://render.githubusercontent.com/render/math?math=m_%7Bl%2Cb%7D%5E%7B%5Ctext%7Bline%7D%7D%20%3D%201)
 if branch ![l](https://render.githubusercontent.com/render/math?math=l) 'starts'
 at bus ![b](https://render.githubusercontent.com/render/math?math=b),
