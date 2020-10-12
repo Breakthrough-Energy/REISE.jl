@@ -229,4 +229,5 @@ if __name__ == "__main__":
             scenario_id=args.scenario_id,
             output_dir=const.OUTPUT_DIR,
             mat_dir=const.INPUT_DIR,
+            keep_mat=args.keep_matlab,
         )

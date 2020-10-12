@@ -302,7 +302,7 @@ def extract_scenario(
     output_dir=None,
     mat_dir=None,
     freq="H",
-    delete_mat=True,
+    keep_mat=True,
 ):
     """Extracts data and save data as pickle files to the output directory
 
@@ -312,7 +312,7 @@ def extract_scenario(
     :param str scenario_id: optional identifier for the scenario, used to label output files
     :param str output_dir: optional directory in which to store the outputs. defaults to the execute_dir
     :param str mat_dir: optional directory in which to store the converted grid.mat file. defaults to the execute_dir
-    :param bool delete_mat: optional parameter to delete the large result*.mat files after the data has been extracted. Defaults to True.
+    :param bool keep_mat: optional parameter to keep the large result*.mat files after the data has been extracted. Defaults to True.
     """
 
     # If output or input dir were not specified, default to the execute_dir
@@ -356,7 +356,7 @@ def extract_scenario(
         insert_in_file(const.EXECUTE_LIST, scenario_id, "2", "extracted")
         insert_in_file(const.SCENARIO_LIST, scenario_id, "4", "analyze")
 
-    if delete_mat:
+    if not keep_mat:
         print("deleting matfiles")
         for matfile in mat_results:
             os.remove(matfile)
