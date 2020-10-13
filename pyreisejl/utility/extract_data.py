@@ -398,21 +398,23 @@ if __name__ == "__main__":
         "--matlab-dir",
         nargs="?",
         default=None,
-        help="The directory to store the modified case.mat used by the engine. This is optional and defaults "
-        "to the execute directory.",
+        help="The directory to store the modified case.mat used by the engine. "
+        "This is optional and defaults to the execute directory.",
     )
     parser.add_argument(
         "-f",
         "--frequency",
         nargs="?",
         default="H",
-        help="The frequency of data points in the original profile csvs. This is optional and defaults to an hour.",
+        help="The frequency of data points in the original profile csvs. "
+        "This is optional and defaults to an hour.",
     )
     parser.add_argument(
         "-k",
         "--keep-matlab",
         action="store_false",
-        help="If this flag is used, the result.mat files found in the execute directory will be kept instead of deleted.",
+        help="If this flag is used, the result.mat files found in the "
+        "execute directory will be kept instead of deleted.",
     )
 
     # For backwards compatability with PowerSimData
@@ -438,7 +440,7 @@ if __name__ == "__main__":
     # (start_date, end_date, execute_dir)
     if not (args.start_date and args.end_date and args.execute_dir):
         err_str = (
-            "The following arguments are required: " "start-date, end-date, execute-dir"
+            "The following arguments are required: start-date, end-date, execute-dir"
         )
         raise WrongNumberOfArguments(err_str)
 
