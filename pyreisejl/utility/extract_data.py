@@ -1,11 +1,11 @@
-from collections import OrderedDict
+import argparse
 import datetime as dt
 import glob
 import os
+import re
 import subprocess
 import time
-import re
-import argparse
+from collections import OrderedDict
 
 import numpy as np
 import pandas as pd
@@ -14,11 +14,11 @@ from tqdm import tqdm
 
 from pyreisejl.utility import const
 from pyreisejl.utility.helpers import (
-    load_mat73,
     WrongNumberOfArguments,
-    validate_time_format,
     get_scenario,
     insert_in_file,
+    load_mat73,
+    validate_time_format,
 )
 
 
