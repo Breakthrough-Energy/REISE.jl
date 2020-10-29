@@ -1,5 +1,5 @@
-import os
 import argparse
+import os
 from collections import OrderedDict
 from time import time
 
@@ -7,18 +7,18 @@ import numpy as np
 import pandas as pd
 
 from pyreisejl.utility import const
+from pyreisejl.utility.extract_data import extract_scenario
 from pyreisejl.utility.helpers import (
-    sec2hms,
-    WrongNumberOfArguments,
     InvalidDateArgument,
     InvalidInterval,
+    WrongNumberOfArguments,
     extract_date_limits,
-    validate_time_format,
-    validate_time_range,
     get_scenario,
     insert_in_file,
+    sec2hms,
+    validate_time_format,
+    validate_time_range,
 )
-from pyreisejl.utility.extract_data import extract_scenario
 
 
 def _record_scenario(scenario_id, runtime):
@@ -88,7 +88,6 @@ def launch_scenario(
     from julia.api import Julia
 
     jl = Julia(compiled_modules=False)
-    from julia import Main
     from julia import REISE
 
     start = time()

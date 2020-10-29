@@ -3,10 +3,10 @@ import pandas as pd
 import pytest
 
 from pyreisejl.utility.extract_data import (
-    calculate_averaged_congestion,
-    _get_pkl_path,
     _cast_keys_as_lists,
+    _get_pkl_path,
     _update_outputs_labels,
+    calculate_averaged_congestion,
     result_num,
 )
 
