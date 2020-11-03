@@ -187,13 +187,6 @@ if __name__ == "__main__":
         help="Scenario ID only if using PowerSimData. ",
     )
 
-    parser.add_argument(
-        "powersim_threads",
-        nargs="?",
-        type=int,
-        default=None,
-        help="Number of threads only if using PowerSimData. ",
-    )
     args = parser.parse_args()
 
     # Get scenario info if using PowerSimData
@@ -205,8 +198,6 @@ if __name__ == "__main__":
         args.interval = scenario_args[2]
         args.input_dir = scenario_args[3]
         args.execute_dir = scenario_args[4]
-        if not args.threads:
-            args.threads = args.powersim_threads
 
         # Update status in ExecuteList.csv on server
         insert_in_file(const.EXECUTE_LIST, args.scenario_id, "2", "running")
