@@ -1,11 +1,8 @@
 import argparse
-import datetime as dt
 import glob
 import os
 import re
-import subprocess
 import time
-from collections import OrderedDict
 
 import numpy as np
 import pandas as pd
@@ -74,7 +71,7 @@ def extract_data(results):
     outputs = {}
 
     tic = time.process_time()
-    for filename in tqdm(results):
+    for i, filename in tqdm(enumerate(results)):
         # For each result_#.mat file
         output = load_mat73(filename)
 

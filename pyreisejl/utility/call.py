@@ -1,9 +1,7 @@
 import argparse
 import os
-from collections import OrderedDict
 from time import time
 
-import numpy as np
 import pandas as pd
 
 from pyreisejl.utility import const
@@ -87,7 +85,7 @@ def launch_scenario(
     # Import these within function because there is a lengthy compilation step
     from julia.api import Julia
 
-    jl = Julia(compiled_modules=False)
+    Julia(compiled_modules=False)
     from julia import REISE
 
     start = time()

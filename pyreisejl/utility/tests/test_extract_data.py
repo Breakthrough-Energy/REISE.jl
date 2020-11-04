@@ -5,7 +5,6 @@ import pytest
 from pyreisejl.utility.extract_data import (
     _cast_keys_as_lists,
     _get_pkl_path,
-    _update_outputs_labels,
     calculate_averaged_congestion,
     result_num,
 )
