@@ -227,6 +227,8 @@ if __name__ == "__main__":
         args.output_dir = const.OUTPUT_DIR
 
     if args.extract_data:
+        if not args.execute_dir:
+            args.execute_dir = os.path.join(args.input_dir, "output")
 
         extract_scenario(
             args.execute_dir,
