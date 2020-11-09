@@ -409,7 +409,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-k",
         "--keep-matlab",
-        action="store_false",
+        action="store_true",
         help="If this flag is used, the result.mat files found in the "
         "execute directory will be kept instead of deleted.",
     )
