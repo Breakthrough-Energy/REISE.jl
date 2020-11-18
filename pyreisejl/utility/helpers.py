@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 from collections import OrderedDict
 
 import h5py
@@ -188,19 +189,16 @@ def get_scenario(scenario_id):
     return start_date, end_date, interval, input_dir, execute_dir
 
 
-def insert_in_file(filename, scenario_id, column_number, column_value):
+def insert_in_file(filename, scenario_id, column_name, column_value):
     """Updates status in execute list on server.
 
     :param str filename: path to execute or scenario list.
     :param str scenario_id: scenario index.
-    :param str column_number: id of column (indexing starts at 1).
+    :param str column_name: name of column to modify.
     :param str column_value: value to insert.
     """
-    options = "-F, -v OFS=',' -v INPLACE_SUFFIX=.bak -i inplace"
-    program = "'{if($1==%s) $%s=\"%s\"};1'" % (
-        scenario_id,
-        column_number,
-        column_value,
-    )
-    command = "awk %s %s %s" % (options, program, filename)
-    os.system(command)
+    _ = shutil.copyfile(filename, filename + ".bak")
+
+    table = pd.read_csv(filename, index_col=0)
+    table.loc[int(scenario_id), column_name] = column_value
+    table.to_csv(filename)
