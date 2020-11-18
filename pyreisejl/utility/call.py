@@ -30,7 +30,7 @@ def _record_scenario(scenario_id, runtime):
     insert_in_file(const.EXECUTE_LIST, scenario_id, "2", "finished")
 
     hours, minutes, seconds = sec2hms(runtime)
-    insert_in_file(const.SCENARIO_LIST, scenario_id, "15", "%d:%02d" % (hours, minutes))
+    insert_in_file(const.SCENARIO_LIST, scenario_id, "16", "%d:%02d" % (hours, minutes))
 
 
 def launch_scenario(
