@@ -166,7 +166,7 @@ def validate_time_range(date, min_ts, max_ts):
 def get_scenario(scenario_id):
     """Returns scenario information.
 
-    :param in/str scenario_id: scenario index.
+    :param int/str scenario_id: scenario index.
     :return: (*tuple*) -- scenario start_date, end date, interval, input_dir, execute_dir
     """
     # Parses scenario info out of scenario list
