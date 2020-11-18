@@ -346,7 +346,7 @@ def extract_scenario(
     if scenario_id:
         # Record infeasibilities
         insert_in_file(
-            const.SCENARIO_LIST, scenario_id, "16", "_".join(infeasibilities)
+            const.SCENARIO_LIST, scenario_id, "17", "_".join(infeasibilities)
         )
 
         # Update execute and scenario list
