@@ -31,7 +31,7 @@ backward-compatibility.
 This package is not registered. Therefore, it must be added to a Julia
 environment either directly from github:
 ```
-pkg> add https://github.com/intvenlab/REISE.jl#develop
+pkg> add https://github.com/Breakthrough-Energy/REISE.jl#develop
 ```
 or by cloning the repository locally and then specifying the path to the repo:
 ```
