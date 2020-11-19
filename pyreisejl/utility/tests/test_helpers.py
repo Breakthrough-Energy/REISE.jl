@@ -1,11 +1,17 @@
+import glob
+import os
+import pathlib
+import string
 from io import StringIO
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from pyreisejl.utility.helpers import (
     InvalidDateArgument,
     extract_date_limits,
+    insert_in_file,
     sec2hms,
     validate_time_format,
     validate_time_range,
@@ -101,3 +107,27 @@ def test_extract_date_limits():
         pd.Timestamp("2016-01-01 02:00:00"),
         "H",
     )
+
+
+def test_insert_in_file():
+    shape = (10, 100)
+    table = pd.DataFrame(
+        {
+            c: np.random.randint(0, 1000, size=shape[1])
+            for c, _ in zip(list(string.ascii_lowercase)[: shape[0]], range(shape[0]))
+        }
+    )
+    table.index.name = "id"
+
+    filename = os.path.join(
+        pathlib.Path(__file__).parent.absolute(), "test_insert_in_file.csv"
+    )
+
+    table.to_csv(filename)
+    cell = (np.random.choice(table.index), np.random.choice(table.columns))
+    try:
+        insert_in_file(filename, cell[0], cell[1], table.loc[cell])
+        assert table.equals(pd.read_csv(filename, index_col=0))
+    finally:
+        for f in glob.glob(filename + "*"):
+            os.remove(f)
