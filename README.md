@@ -46,6 +46,35 @@ REISE.run_scenario(;
     inputfolder=pwd(), num_segments=3)
 ```
 
+## Docker
+
+The easiest way to setup this engine is within a Docker image. There is an
+included `Dockerfile` that can be used to build the Docker image. With the
+Docker daemon installed and running, navigate to the `REISE.jl` folder
+containing the `Dockerfile` and build the image:
+
+```
+docker build . -t reisejl
+```
+
+To run the Docker image, you will need to mount two volumes; one containing the
+`Gurobi` license file and another containing the necessary input files for the
+engine. 
+
+```
+docker run -i -v /LOCAL/PATH/TO/GUROBI.LIC:/usr/share/gurobi_license -v /LOCAL/PATH/TO/DATA:/usr/share/data reisejl
+```
+
+Once the container is running, you can run a simulation using the `python`
+commands described above. For example:
+
+```
+python pyreisejl/utility/call.py -s '2016-01-01' -e '2016-01-07' -int 24 -i '/usr/share/data'
+```
+
+Note that loading the `REISE.jl` package can take up to a couple of minutes,
+so there may not be any output in this time.
+
 ## Package Structure
 `REISE.jl` contains only imports and includes. Individual type and function definitions are all in the other files in the `src` folder.
 
