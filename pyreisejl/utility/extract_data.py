@@ -346,12 +346,15 @@ def extract_scenario(
     if scenario_id:
         # Record infeasibilities
         insert_in_file(
-            const.SCENARIO_LIST, scenario_id, "16", "_".join(infeasibilities)
+            const.SCENARIO_LIST,
+            scenario_id,
+            "infeasibilities",
+            "_".join(infeasibilities),
         )
 
         # Update execute and scenario list
-        insert_in_file(const.EXECUTE_LIST, scenario_id, "2", "extracted")
-        insert_in_file(const.SCENARIO_LIST, scenario_id, "4", "analyze")
+        insert_in_file(const.EXECUTE_LIST, scenario_id, "status", "extracted")
+        insert_in_file(const.SCENARIO_LIST, scenario_id, "state", "analyze")
 
     if not keep_mat:
         print("deleting matfiles")

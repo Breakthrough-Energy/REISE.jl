@@ -1,92 +1,61 @@
 # REISE.jl
 
+
 ## Installation
-
 ### Julia package
+The most reliable way to install this package is by cloning the repo locally, navigating to the project folder, activating the project, and instantiating it. This approach will copy install all dependencies in the **exact** version as they were installed during package development. **Note**: If `Gurobi.jl` is not already installed in your Julia environment, then its build step will fail if it cannot find the Gurobi installation folder. To avoid this, you can specify an environment variable for `GUROBI_HOME`, pointing to the Gurobi `<installdir>`.
 
-The most reliable way to install this package is by cloning the repo locally,
-navigating to the project folder, activating the project, and instantiating it.
-This approach will copy install all dependencies in the **exact** version as
-they were installed during package development. **Note**: If `Gurobi.jl` is not
-already installed in your Julia environment, then its build step will fail if
-it cannot find the Gurobi installation folder. To avoid this, you can specify
-an environment variable for `GUROBI_HOME`, pointing to the Gurobi
-`<installdir>`.
 For more information, see https://github.com/JuliaOpt/Gurobi.jl#installation.
-To instantiate:
 
-```
+To instantiate:
+```julia
 pkg> activate .
 
 (REISE) pkg> instantiate
 ```
+Another way is to install the package using the list of dependencies specified in the `Project.toml` file, which will pull the most recent allowed version of the dependencies. Currently, this package is known to be compatible with JuMP v0.21.3; this is specified in the `Project.toml` file, but there may be other packages for which the latest version does not maintain backward-compatibility.
 
-Another way is to install the package using the list of dependencies specified
-in the `Project.toml` file, which will pull the most recent allowed version of
-the dependencies. Currently, this package is known to be compatible with JuMP
-v0.21.3; this is specified in the `Project.toml` file, but there
-may be other packages for which the latest version does not maintain
-backward-compatibility.
-
-This package is not registered. Therefore, it must be added to a Julia
-environment either directly from github:
+This package is not registered. Therefore, it must be added to a Julia environment either directly from GitHub:
 ```
 pkg> add https://github.com/Breakthrough-Energy/REISE.jl#develop
 ```
 or by cloning the repository locally and then specifying the path to the repo:
-```
+```julia
 pkg> add /YOUR_PATH_HERE/REISE.jl#develop
 ```
+Instead of calling `add PACKAGE`, it is also possible to call `dev PACKAGE`, which will always import the latest version of the code on your local machine. See the documentation for the Julia package manager for more information: https://julialang.github.io/Pkg.jl/v1/.
 
-Instead of calling `add PACKAGE`, it is also possible to call `dev PACKAGE`,
-which will always import the latest version of the code on your local machine.
-See the documentation for the Julia package manager for more information:
-https://julialang.github.io/Pkg.jl/v1/.
 
 ### Associated python scripts
+The dependencies of the python scripts contained in `pyreisejl/` are not automatically installed. See `requirements.txt` for details.
 
-The dependencies of the python scripts contained in `pyreisejl/` are not
-automatically installed. See `requirements.txt` for details.
-
-### Other tools
-
-Text file manipulation requires GNU `awk`, also known as `gawk`.
 
 ## Usage
+Installation registers a package named `REISE`. Following Julia naming conventions, the `.jl` is dropped. The package can be imported using: `import REISE` to call `REISE.run_scenario()`, or `using REISE` to call `run_scenario()`.
 
-Installation registers a package named `REISE`. Following Julia naming
-conventions, the `.jl` is dropped. The package can be imported using:
-`import REISE` to call `REISE.run_scenario()`, or `using REISE` to call
-`run_scenario()`.
-
-To run a scenario which starts at the `1`st hour of the year, runs in `3`
-intervals of `24` hours each, loading input data from your present working
-directory (`pwd()`) and depositing results in the folder `output`, call:
-```
+To run a scenario which starts at the `1`st hour of the year, runs in `3` intervals of `24` hours each, loading input data from your present working directory (`pwd()`) and depositing results in the folder `output`, call:
+```julia
 REISE.run_scenario(;
     interval=24, n_interval=3, start_index=1, outputfolder="output",
     inputfolder=pwd())
 ```
-An optional keyword argument `num_segments` controls the linearization of cost
-curves into piecewise-linear segments (default is 1). For example:
-```
+An optional keyword argument `num_segments` controls the linearization of cost curves into piecewise-linear segments (default is 1). For example:
+```julia
 REISE.run_scenario(;
     interval=24, n_interval=3, start_index=1, outputfolder="output",
     inputfolder=pwd(), num_segments=3)
 ```
 
 ## Package Structure
+`REISE.jl` contains only imports and includes. Individual type and function definitions are all in the other files in the `src` folder.
 
-`REISE.jl` contains only imports and includes. Individual type and function
-definitions are all in the other files in the `src` folder.
 
 ## Formulation
-
 [comment]: # (getting Github to display LaTeX via the approach in https://gist.github.com/a-rodin/fef3f543412d6e1ec5b6cf55bf197d7b)
 [comment]: # (Encoding LaTeX via https://www.urlencoder.org/)
 
-### Sets
 
+### Sets
 - ![B](https://render.githubusercontent.com/render/math?math=B):
 Set of buses, indexed by
 ![b](https://render.githubusercontent.com/render/math?math=b).
@@ -103,8 +72,8 @@ Set of generation cost curve segments, indexed by
 Set of time periods, indexed by
 ![t](https://render.githubusercontent.com/render/math?math=t).
 
-#### Subsets
 
+#### Subsets
 - ![I^{\text{H}}](https://render.githubusercontent.com/render/math?math=I%5E%7B%5Ctext%7BH%7D%7D):
 Set of hydro generators.
 - ![I^{\text{S}}](https://render.githubusercontent.com/render/math?math=I%5E%7B%5Ctext%7BS%7D%7D):
@@ -112,8 +81,8 @@ Set of solar generators.
 - ![I^{\text{W}}](https://render.githubusercontent.com/render/math?math=I%5E%7B%5Ctext%7BW%7D%7D):
 Set of wind generators.
 
-### Variables
 
+### Variables
 - ![E_{b,t}](https://render.githubusercontent.com/render/math?math=E_%7Bb%2Ct%7D):
 Energy available in energy storage devices at bus ![b](https://render.githubusercontent.com/render/math?math=b)
 at time ![t](https://render.githubusercontent.com/render/math?math=t).
@@ -143,8 +112,8 @@ at time ![t](https://render.githubusercontent.com/render/math?math=t).
 Voltage angle of bus ![b](https://render.githubusercontent.com/render/math?math=b)
 at time ![t](https://render.githubusercontent.com/render/math?math=t).
 
-### Parameters
 
+### Parameters
 - ![a^{\text{shed}}](https://render.githubusercontent.com/render/math?math=a%5E%7B%5Ctext%7Bshed%7D%7D):
 Binary parameter, whether load shedding is enabled.
 - ![a^{\text{viol}}](https://render.githubusercontent.com/render/math?math=a%5E%7B%5Ctext%7Bviol%7D%7D):

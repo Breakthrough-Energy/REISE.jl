@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 from collections import OrderedDict
 
 import h5py
@@ -165,18 +166,20 @@ def validate_time_range(date, min_ts, max_ts):
 def get_scenario(scenario_id):
     """Returns scenario information.
 
-    :param str scenario_id: scenario index.
+    :param int/str scenario_id: scenario index.
     :return: (*tuple*) -- scenario start_date, end date, interval, input_dir, execute_dir
     """
     # Parses scenario info out of scenario list
     scenario_list = pd.read_csv(const.SCENARIO_LIST, dtype=str)
     scenario_list.fillna("", inplace=True)
-    scenario = scenario_list[scenario_list.id == scenario_id]
+    scenario = scenario_list[scenario_list.id == str(scenario_id)]
     scenario_info = scenario.to_dict("records", into=OrderedDict)[0]
 
     # Determine input and execute directory for data
     input_dir = os.path.join(const.EXECUTE_DIR, "scenario_%s" % scenario_info["id"])
-    execute_dir = os.path.join(const.EXECUTE_DIR, f"scenario_{scenario_id}", "output")
+    execute_dir = os.path.join(
+        const.EXECUTE_DIR, f"scenario_{str(scenario_id)}", "output"
+    )
 
     # Grab start and end date for scenario
     start_date = scenario_info["start_date"]
@@ -188,19 +191,17 @@ def get_scenario(scenario_id):
     return start_date, end_date, interval, input_dir, execute_dir
 
 
-def insert_in_file(filename, scenario_id, column_number, column_value):
+def insert_in_file(filename, scenario_id, column_name, column_value):
     """Updates status in execute list on server.
 
     :param str filename: path to execute or scenario list.
-    :param str scenario_id: scenario index.
-    :param str column_number: id of column (indexing starts at 1).
+    :param int/str scenario_id: scenario index.
+    :param str column_name: name of column to modify.
     :param str column_value: value to insert.
     """
-    options = "-F, -v OFS=',' -v INPLACE_SUFFIX=.bak -i inplace"
-    program = "'{if($1==%s) $%s=\"%s\"};1'" % (
-        scenario_id,
-        column_number,
-        column_value,
-    )
-    command = "awk %s %s %s" % (options, program, filename)
-    os.system(command)
+    _ = shutil.copyfile(filename, filename + ".bak")
+
+    table = pd.read_csv(filename, dtype=str)
+    table.set_index("id", inplace=True)
+    table.loc[str(scenario_id), column_name] = column_value
+    table.to_csv(filename)

@@ -27,10 +27,12 @@ def _record_scenario(scenario_id, runtime):
     """
 
     # Update status in ExecuteList.csv on server
-    insert_in_file(const.EXECUTE_LIST, scenario_id, "2", "finished")
+    insert_in_file(const.EXECUTE_LIST, scenario_id, "status", "finished")
 
     hours, minutes, seconds = sec2hms(runtime)
-    insert_in_file(const.SCENARIO_LIST, scenario_id, "15", "%d:%02d" % (hours, minutes))
+    insert_in_file(
+        const.SCENARIO_LIST, scenario_id, "runtime", "%d:%02d" % (hours, minutes)
+    )
 
 
 def launch_scenario(
@@ -200,7 +202,7 @@ if __name__ == "__main__":
         args.execute_dir = scenario_args[4]
 
         # Update status in ExecuteList.csv on server
-        insert_in_file(const.EXECUTE_LIST, args.scenario_id, "2", "running")
+        insert_in_file(const.EXECUTE_LIST, args.scenario_id, "status", "running")
 
     # Check to make sure all necessary arguments are there
     # (start_date, end_date, interval, input_dir)
