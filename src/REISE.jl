@@ -67,7 +67,7 @@ function run_scenario(;
         interval_loop(env, model_kwargs, solver_kwargs, interval, n_interval,
                       start_index, inputfolder, outputfolder)
         GC.gc()
-        Gurobi.free_env(env)
+        Gurobi.finalize(env)
         println("Connection closed successfully!")
     end
 end
