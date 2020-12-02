@@ -1,6 +1,6 @@
 name = "REISE"
 uuid = "b654829c-3c70-409d-9aea-4c9c04976dc6"
-authors = ["Daniel Olsen <dolsen@intven.com>"]
+authors = ["Daniel Olsen <daniel.olsen@breakthroughenergy.org>"]
 version = "0.1.0"
 
 [deps]
@@ -16,4 +16,5 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]
 DataFrames = "0.21"
+Gurobi = "0.9"
 JuMP = "0.21.3"

@@ -46,8 +46,8 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 model_kwargs["storage_e0"] = storage.sd_table.InitialStorage
             end
             m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
-            s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
-            m = JuMP.direct_model(Gurobi.Optimizer(env; s_kwargs...))
+            m = JuMP.direct_model(Gurobi.Optimizer(env))
+            JuMP.set_optimizer_attributes(m, pairs(solver_kwargs)...)
             m, voi = _build_model(m; m_kwargs...)
         elseif i == 2
             # Build a model with an initial ramp constraint
@@ -57,8 +57,8 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 model_kwargs["storage_e0"] = storage_e0
             end
             m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
-            s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
-            m = JuMP.direct_model(Gurobi.Optimizer(env; s_kwargs...))
+            m = JuMP.direct_model(Gurobi.Optimizer(env))
+            JuMP.set_optimizer_attributes(m, pairs(solver_kwargs)...)
             m, voi = _build_model(m; m_kwargs...)
         else
             # Reassign right-hand-side of constraints to match profiles
@@ -129,9 +129,9 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 # if load shed not enabled, enable it and re-build the model
                 model_kwargs["load_shed_enabled"] = true
                 m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
-                s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
                 println("rebuild with load shed")
-                m = JuMP.direct_model(Gurobi.Optimizer(env; s_kwargs...))
+                m = JuMP.direct_model(Gurobi.Optimizer(env))
+                JuMP.set_optimizer_attributes(m, pairs(solver_kwargs)...)
                 m, voi = _build_model(m; m_kwargs...)
                 intervals_without_loadshed = 0
             elseif !("BarHomogeneous" in keys(solver_kwargs))
@@ -142,9 +142,9 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
             elseif !("load_shed_enabled" in keys(model_kwargs))
                 model_kwargs["load_shed_enabled"] = true
                 m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
-                s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
                 println("rebuild with load shed")
-                m = JuMP.direct_model(Gurobi.Optimizer(env; s_kwargs...))
+                m = JuMP.direct_model(Gurobi.Optimizer(env))
+                JuMP.set_optimizer_attributes(m, pairs(solver_kwargs)...)
                 m, voi = _build_model(m; m_kwargs...)
                 intervals_without_loadshed = 0
             else
@@ -167,13 +167,13 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 error("Unknown status code!")
             end
         end
-        
+
         # Save initial conditions for next interval
         pg0 = results.pg[:,end]
         if storage_enabled
             storage_e0 = results.storage_e[:,end]
         end
-        
+
         # Save results
         results_filename = "result_" * string(i-1) * ".mat"
         results_filepath = joinpath(outputfolder, results_filename)
@@ -194,8 +194,8 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 delete!(solver_kwargs, "BarHomogeneous")
                 delete!(model_kwargs, "load_shed_enabled")
                 m_kwargs = (; (Symbol(k) => v for (k,v) in model_kwargs)...)
-                s_kwargs = (; (Symbol(k) => v for (k,v) in solver_kwargs)...)
-                m = JuMP.direct_model(Gurobi.Optimizer(env; s_kwargs...))
+                m = JuMP.direct_model(Gurobi.Optimizer(env))
+                JuMP.set_optimizer_attributes(m, pairs(solver_kwargs)...)
                 m, voi = _build_model(m; m_kwargs...)
             end
         end
