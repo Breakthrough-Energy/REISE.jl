@@ -1,9 +1,20 @@
-# REISE.jl
+ # REISE.jl
+Renewable Energy Integration Simulation Engine.
+
+This repository contains, in the **src** folder, the Julia scripts to run the power-flow study in the U.S. electric grid. The simulation engine relies on [Gurobi] as the optimization solver.
+
+## Dependencies
+This package requires installations of the following
+- [Julia]
+- [Gurobi]
+- [Python]
+
+For sample data to use with the simulation, please visit [Zenodo].
 
 
 ## Installation
 ### Julia package
-The most reliable way to install this package is by cloning the repo locally, navigating to the project folder, activating the project, and instantiating it. This approach will copy install all dependencies in the **exact** version as they were installed during package development. **Note**: If `Gurobi.jl` is not already installed in your Julia environment, then its build step will fail if it cannot find the Gurobi installation folder. To avoid this, you can specify an environment variable for `GUROBI_HOME`, pointing to the Gurobi `<installdir>`.
+The most reliable way to install this package is by cloning the repo locally, navigating to the project folder, activating the project, and instantiating it. This approach will copy install all dependencies in the **exact** version as they were installed during package development. **Note**: if `Gurobi.jl` is not already installed in your Julia environment, then its build step will fail if it cannot find the Gurobi installation folder. To avoid this, you can specify an environment variable for `GUROBI_HOME`, pointing to the Gurobi `<installdir>`.
 
 For more information, see https://github.com/JuliaOpt/Gurobi.jl#installation.
 
@@ -16,7 +27,7 @@ pkg> activate .
 Another way is to install the package using the list of dependencies specified in the `Project.toml` file, which will pull the most recent allowed version of the dependencies. Currently, this package is known to be compatible with JuMP v0.21.3; this is specified in the `Project.toml` file, but there may be other packages for which the latest version does not maintain backward-compatibility.
 
 This package is not registered. Therefore, it must be added to a Julia environment either directly from GitHub:
-```
+```julia
 pkg> add https://github.com/Breakthrough-Energy/REISE.jl#develop
 ```
 or by cloning the repository locally and then specifying the path to the repo:
@@ -27,10 +38,17 @@ Instead of calling `add PACKAGE`, it is also possible to call `dev PACKAGE`, whi
 
 
 ### Associated python scripts
-The dependencies of the python scripts contained in `pyreisejl/` are not automatically installed. See `requirements.txt` for details.
+The dependencies of the python scripts contained in `pyreisejl` are not
+automatically installed. See `requirements.txt` for details. These requirements
+can be installed using pip:
+```bash
+pip install -r requirements.txt
+```
 
 
-## Usage
+
+
+## Usage (Julia)
 Installation registers a package named `REISE`. Following Julia naming conventions, the `.jl` is dropped. The package can be imported using: `import REISE` to call `REISE.run_scenario()`, or `using REISE` to call `run_scenario()`.
 
 To run a scenario which starts at the `1`st hour of the year, runs in `3` intervals of `24` hours each, loading input data from your present working directory (`pwd()`) and depositing results in the folder `output`, call:
@@ -45,6 +63,182 @@ REISE.run_scenario(;
     interval=24, n_interval=3, start_index=1, outputfolder="output",
     inputfolder=pwd(), num_segments=3)
 ```
+
+## Usage (Python)
+
+The python scripts included in `pyreisejl` perform some additional input validation for the Julia engine before running the simulation and extract data from  the resulting `.mat` files to `.pkl` files.
+
+There are two main python scripts included in `pyreisejl`:
+- `pyreisejl/utility/call.py`
+- `pyreisejl/utility/extract_data.py`
+
+The first of these scripts transforms more descriptive input parameters into the
+ones necessary for the Julia engine while also performing some additional input
+validation. The latter, which can be set to automatically occur after the
+simulation has completed, extracts key metrics from the resulting `.mat` files
+to `.pkl` files.
+
+For example, a simulation can be run as follows:
+```bash
+pyreisejl/utility/call.py -s '2016-01-01' -e '2016-01-07' -int 24 -i '/PATH/TO/INPUT/FILES'
+```
+
+After the simulation has completed, the extraction can be run using the same start and end date as were used to run the simulation:
+```bash
+pyreisejl/utility/extract_data.py -s '2016-01-01' -e '2016-01-07' -x '/PATH/TO/OUTPUT/FILES'
+```
+
+
+### Running a Simulation
+
+**Note** To see the available options for the `call.py` or `extract_data.py` script, use the `-h, --help` flag when calling the script.
+
+To run the `REISE.jl` simulation from python, run `call.py` with the following required options:
+```
+  -s, --start-date START_DATE
+                        The start date for the simulation in format
+			'YYYY-MM-DD'. 'YYYY-MM-DD HH'. 'YYYY-MM-DD HH:MM',
+			or 'YYYY-MM-DD HH:MM:SS'.
+  -e, --end-date END_DATE
+                        The end date for the simulation in format
+			'YYYY-MM-DD'. 'YYYY-MM-DD HH'. 'YYYY-MM-DD HH:MM',
+			or 'YYYY-MM-DD HH:MM:SS'. If only the date is specified
+			(without any hours), the entire end-date will be
+			included in the simulation.
+  -int, --interval INTERVAL
+                        The length of each interval in hours.
+  -i, --input-dir INPUT_DIR
+                        The directory containing the input data files. Required
+			files are 'case.mat', 'demand.csv', 'hydro.csv',
+			'solar.csv', and 'wind.csv'.
+```
+
+Note that the start and end dates need to match dates contained in the input
+profiles (demand, hydro, solar, wind).
+
+
+This python script will validate some of the inputs and translate them into the
+required Julia inputs listed below. By default, the Julia engine creates
+`result_*.mat` files in an `output` folder created in the given input directory.
+To save the matlab files to a different directory, there is an optional flag to
+specify the execute directory. If this directory already exists, any existing
+computations will be overwritten.
+```
+  -x EXECUTE_DIR, --execute-dir EXECUTE_DIR
+                        The directory to store the results. This is optional
+			and defaults to an execute folder that will be created
+			in the input directory if it does not exist.
+```
+
+There is another optional flag to specify the number of threads to use for the
+simulation run in `Gurobi`. If the number of threads specified is higher than
+the number of logical processor count available, the simulation will still run
+with a warning. Specifying zero threads defaults to Auto.
+```
+  -t THREADS, --threads THREADS
+                        The number of threads with which to run the simulation.
+			This is optional and defaults to Auto.
+```
+
+The documentation for these options can also been accessed by using the
+help flag:
+```
+  -h, --help            show this help message and exit
+```
+
+### Extracting Simulation Results
+
+The script `extract_data.py` extracts the following Pandas DataFrames from the
+matlab files generated by the Julia engine:
+
+* PF.pkl (power flow)
+* PG.pkl (power generated)
+* LMP.pkl (locational marginal price)
+* CONGU.pkl (congestion, upper flow limit)
+* CONGL.pkl (congestion, lower flow limit)
+* AVERAGED_CONG.pkl (time averaged congestion)
+
+If the simulation was run with the necessary input data, the following will
+also be extracted:
+
+* PF_DCLINE.pkl (power flow on DC lines)
+* STORAGE_PG.pkl (power generated by storage units)
+* STORAGE_E.pkl (energy state of charge)
+* LOAD_SHED.pkl (load shed profile for each load bus)
+
+The extraction process can be memory intensive, so it does not automatically
+happen after a simulation run by default. If resource constraints are not a
+concern, however, the below flag can be used with `call.py` to automatically
+extract the data after a simulation run without having to manually initiate it:
+
+```
+  -d, --extract-data    If this flag is used, the data generated by the
+      			simulation after the engine has finished running will be
+			automatically extracted into .pkl files, and the
+			result.mat files will be deleted. The extraction process
+			can be memory intensive. This is optional and defaults
+			to False if the flag is omitted.
+```
+
+To manually extract the data, run `extract_data.py` with the following options:
+
+```
+  -s START_DATE, --start-date START_DATE
+                        The start date as provided to run the simulation.
+			Supported formats are 'YYYY-MM-DD'. 'YYYY-MM-DD HH'.
+			'YYYY-MM-DD HH:MM', or 'YYYY-MM-DD HH:MM:SS'.
+  -e END_DATE, --end-date END_DATE
+                        The end date as provided to run the simulation.
+			Supported formats are 'YYYY-MM-DD'. 'YYYY-MM-DD HH'.
+			'YYYY-MM-DD HH:MM', or 'YYYY-MM-DD HH:MM:SS'.
+  -x EXECUTE_DIR, --execute-dir EXECUTE_DIR
+                        The directory where the REISE.jl results are stored.
+```
+
+When manually running the `extract_data` process, the script assumes the
+frequency of the input profile csv's are hourly and will construct the
+timestamps for the resulting data accordingly. If a different frequency was
+used for the input data, it can be specified with the following option:
+```
+  -f [FREQUENCY], --frequency [FREQUENCY]
+                        The frequency of data points in the original profile
+			csvs as a Pandas frequency string. This is optional
+			and defaults to an hour.
+```
+
+The following optional options are available to both `call.py` when using the
+automatic extraction flag and to `extract_data.py`:
+
+```
+  -o OUTPUT_DIR, --output-dir OUTPUT_DIR
+                        The directory to store the extracted data. This is
+			optional and defaults to the execute directory.
+			This flag is only used if the extract-data flag is set.
+  -m MATLAB_DIR, --matlab-dir MATLAB_DIR
+                        The directory to store the modified case.mat used by
+			the engine. This is optional and defaults to the execute
+			directory. This flag is only used if the extract-data
+			flag is set.
+  -k, --keep-matlab     The result.mat files found in the execute directory will
+      			be kept instead of deleted after extraction. This flag
+			is only used if the extract-data flag is set.
+```
+
+### Compatibility with PowerSimData
+
+Within the python code in this repo, there is some code to maintain
+compatibility with the `PowerSimData` framework.
+
+Both `call.py` and `extract_data.py` can be called using a positional
+argument that corresponds to a scenario id as generated by the
+`PowerSimData` framework. Using this invocation assumes the presence
+of the `PowerSimData` infrastructure including both a Scenario List
+Manager and Execute List Manager. This option is not intended for manual
+simulation runs.
+
+Note also the different naming convention for various directories by
+`PowerSimData` as compared to the options for the python scripts within
+this repository.
 
 ## Docker
 
@@ -74,6 +268,7 @@ python pyreisejl/utility/call.py -s '2016-01-01' -e '2016-01-07' -int 24 -i '/us
 
 Note that loading the `REISE.jl` package can take up to a couple of minutes,
 so there may not be any output in this time.
+
 
 ## Package Structure
 `REISE.jl` contains only imports and includes. Individual type and function definitions are all in the other files in the `src` folder.
@@ -258,3 +453,11 @@ Penalty for load shedding (if load shedding is enabled).
 Penalty for transmission line limit violations (if transmission violations are enabled).
 - ![p^{\text{e}} \sum_{\b \in B} [E_{b,0} - E_{b,|T|}]](https://render.githubusercontent.com/render/math?math=p%5E%7B%5Ctext%7Be%7D%7D%20%5Csum_%7B%5Cb%20%5Cin%20B%7D%20%5BE_%7Bb%2C0%7D%20-%20E_%7Bb%2C%7CT%7C%7D%5D):
 Penalty for ending the interval with less stored energy than the start, or reward for ending with more.
+
+[Gurobi]: https://www.gurobi.com
+[Download Gurobi]: https://www.gurobi.com/downloads/gurobi-optimizer-eula/
+[Gurobi Installation Guide]: https://www.gurobi.com/documentation/quickstart.html
+[Julia]: https://julialang.org/
+[Download Julia]: https://julialang.org/downloads/
+[Zenodo]: https://zenodo.org/record/3530898
+[Python]: https://www.python.org/

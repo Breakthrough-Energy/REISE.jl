@@ -407,7 +407,8 @@ if __name__ == "__main__":
         "--frequency",
         nargs="?",
         default="H",
-        help="The frequency of data points in the original profile csvs. "
+        help="The frequency of data points in the original profile csvs as a "
+        "Pandas frequency string. "
         "This is optional and defaults to an hour.",
     )
     parser.add_argument(
