@@ -157,7 +157,7 @@ if __name__ == "__main__":
         "has finished running will be automatically extracted into .pkl files, "
         "and the result.mat files will be deleted. "
         "The extraction process can be memory intensive. "
-        "This is optional and defaults to False.",
+        "This is optional and defaults to False if the flag is omitted.",
     )
     parser.add_argument(
         "-o",
