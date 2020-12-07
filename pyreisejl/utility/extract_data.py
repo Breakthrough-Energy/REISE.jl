@@ -243,10 +243,8 @@ def _get_outputs_from_converted(matfile):
         pass
 
     try:
-        if isinstance(case.Storage.UnitIdx, float):
-            num_storage = 1
-        else:
-            num_storage = len(case.Storage.UnitIdx)
+        storage_index = case.Storage.UnitIdx
+        num_storage = 1 if isinstance(storage_index, float) else len(storage_index)
         outputs_id["storage_pg"] = np.arange(num_storage)
         outputs_id["storage_e"] = np.arange(num_storage)
     except AttributeError:
