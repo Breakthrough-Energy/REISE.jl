@@ -27,12 +27,14 @@ function read_case(filepath)
         end
         case["dcline_from"] = convert(Array{Int,1}, mpc["dcline"][:,1])
         case["dcline_to"] = convert(Array{Int,1}, mpc["dcline"][:,2])
-        case["dcline_rating"] = mpc["dcline"][:,11]
+        case["dcline_pmin"] = mpc["dcline"][:,10]
+        case["dcline_pmax"] = mpc["dcline"][:,11]
     else
         case["dclineid"] = Int64[]
         case["dcline_from"] = Int64[]
         case["dcline_to"] = Int64[]
-        case["dcline_rating"] = Float64[]
+        case["dcline_pmin"] = Float64[]
+        case["dcline_pmax"] = Float64[]
     end
 
     # Buses
