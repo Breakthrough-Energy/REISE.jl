@@ -1,43 +1,236 @@
- # REISE.jl
+# REISE.jl
 Renewable Energy Integration Simulation Engine.
 
 This repository contains, in the **src** folder, the Julia scripts to run the power-flow study in the U.S. electric grid. The simulation engine relies on [Gurobi] as the optimization solver.
 
+## Table of Contents
+1. [Dependencies](#dependencies)
+2. [Installation (Local)](#installation-local)
+3. [Usage (Julia)](#usage-julia)
+4. [Usage (Python)](#usage-python)
+5. [Docker](#docker)
+6. [Package Structure](#package-structure)
+7. [Formulation](#formulation)
+
+
 ## Dependencies
-This package requires installations of the following
-- [Julia]
-- [Gurobi]
-- [Python]
+This package requires installations of the following, with recommended versions listed.
+- [Julia], version 1.5
+- [Gurobi], version 9.1
+- [Python], version 3.8
+
+This package can also be run using Docker, in which the following are required:
+- [Docker]
+- [Gurobi Cloud License] file
 
 For sample data to use with the simulation, please visit [Zenodo].
 
+### System Requirements
 
-## Installation
-### Julia package
-The most reliable way to install this package is by cloning the repo locally, navigating to the project folder, activating the project, and instantiating it. This approach will copy install all dependencies in the **exact** version as they were installed during package development. **Note**: if `Gurobi.jl` is not already installed in your Julia environment, then its build step will fail if it cannot find the Gurobi installation folder. To avoid this, you can specify an environment variable for `GUROBI_HOME`, pointing to the Gurobi `<installdir>`.
+Large simulations can require significant amounts of RAM. The amount of RAM necessary is proportional to both the size of the grid and the size of the interval with which to run the simulation.
 
-For more information, see https://github.com/JuliaOpt/Gurobi.jl#installation.
+As a general estimate, 1-2 GB of RAM is needed per hour in the interval in a simulation across the entire USA grid. For example, a 24-hour interval would require 24-48 GB of RAM; if only 16 GB of RAM is available, consider using a time interval of 8 hours or less as that would take 8-16 GB of RAM.
 
-To instantiate:
+The memory necessary would also be proportional to the size of grid used, so as the Western interconnect is roughly 8 times smaller than the entire USA grid, a simulation of just the Western interconnect with a 24-hour interval would require ~3-6 GB of RAM.
+
+## Installation (Local)   
+
+When installing this package locally, the below dependencies will need to be installed following the provider recommendation:
+- [Gurobi Installation Guide]
+- [Download Julia]
+- [Download Python]
+
+The package itself has two components that require installation:
+- [`Julia` package](#julia-package-installation) to run the simulation
+- optional [`python` scripts](#python-requirements-installation) for some additional pre- and post-processing
+
+Instead of installing locally, this package can also be used with the included [Docker](#Docker) image. 
+
+Detailed installation instructions for both the necessary applications and packages can be found below:
+1. [Gurobi Installation](#gurobi-installation)
+   1. [Gurobi Installation Example (Linux + Cloud License)](#gurobi-installation-example-linux-cloud-license)
+   2. [Gurobi Installation Verification](#gurobi-verification)
+2. [Julia Installation](#julia-installation)
+   1. [Julia Installation Example (Linux)](#julia-installation-example-linux)
+   2. [Julia Package Installation](#julia-package-installation)
+   3. [Julia Installation Verification](#julia-verification)
+3. [Python Installation](#python-installation)
+   1. [Python Requirements Installation](#python-requirements-installation)
+   2. [Python Installation Verification](#python-installation-verification)
+
+### Gurobi Installation
+Installation of `Gurobi` depends on both your operating system and license type. Detailed instructions can be found at the [Gurobi Installation Guide].
+
+#### Gurobi Installation Example (Linux + Cloud License)
+
+1. Choose a destination directory for `Gurobi`. For a shared installation, `/opt` is recommended.
+```bash
+cd /opt
+```
+
+2. Download and unzip the `Gurobi` package in the chosen directory.
+```bash
+wget https://packages.gurobi.com/9.1/gurobi9.1.0_linux64.tar.gz
+tar -xvfz gurobi9.1.0_linux64.tar.gz
+```
+This will create a subdirectory, `/opt/gurobi910/linux64` in which the complete distribution is located. This will be considered the `<installdir>` in the rest of this section.
+
+2. Set environmental variables for `Gurobi`:
+- `GUROBI_HOME` should be set to your `<installdir>`.
+- `PATH` should be extended to include `<installdir>/bin`.`
+- `LD_LIBRARY_PATH` should be extended to include <installdir>/lib. 
+
+For bash shell users, add the following to the `.bashrc` file:
+```bash
+export GUROBI_HOME="/opt/gurobi910/linux64"
+export PATH="${PATH}:${GUROBI_HOME}/bin"
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${GUROBI_HOME}/lib"
+```
+
+3. The `Gurobi` license needs to be download and installed. Download a copy of the [Gurobi Cloud License] from the account portal, and copy it to the parent directory of the `<installdir>`.
+
+```bash
+cp gurobi.lic /opt/gurobi910/gurobi.lic
+```
+
+#### Gurobi Verification
+
+To verify that Gurobi has installed properly, run `gurobi.sh` located in the `bin` folder of the Gurobi installation.
+```bash
+/usr/share/gurobi910/linux64/bin/gurobi.sh
+```
+
+An example of the expected output for this program:
+```
+This program should give the following output
+Python 3.7.4 (default, Oct 29 2019, 10:15:53) 
+[GCC 4.4.7 20120313 (Red Hat 4.4.7-18)] on linux
+Type "help", "copyright", "credits" or "license" for more information.
+Using license file /usr/share/gurobi_license/gurobi.lic
+Set parameter CloudAccessID
+Set parameter CloudSecretKey
+Set parameter LogFile to value gurobi.log
+Waiting for cloud server to start (pool default)...
+Starting...
+Starting...
+Starting...
+Starting...
+Compute Server job ID: 1eacfb69-3083-44e2-872e-58515b143b5d
+Capacity available on 'https://ip-10-0-55-163:61000' - connecting...
+Established HTTPS encrypted connection
+
+Gurobi Interactive Shell (linux64), Version 9.1.0
+Copyright (c) 2020, Gurobi Optimization, LLC
+Type "help()" for help
+
+gurobi> 
+```
+
+### Julia Installation
+
+[Download Julia] and install the version specific to your operating system.
+
+#### Julia Installation Example (Linux)
+
+1. Choose a destination directory for `Julia`. Again, `/opt` is recommended.
+```bash
+cd /opt
+```
+
+2. Download and unzip the `Julia` package in the chosen directory.
+```bash
+wget -q https://julialang-s3.julialang.org/bin/linux/x64/1.5/julia-1.5.3-linux-x86_64.tar.gz
+tar -xf julia-1.5.3-linux-x86_64.tar.gz
+```
+
+3. Add `Julia` to the `PATH` environmental variable.
+
+For bash shell users, add the following to the `.bashrc` file:
+```bash
+export PATH="$PATH:/opt/julia-1.5.3/bin"
+```
+
+
+#### Julia Package Installation
+**Note**: To install the `Gurobi.jl` part of this package, `Julia` will need
+to find the Gurobi installation folder. This is done by specifying an environment
+variable for `GUROBI_HOME` pointing to the Gurobi `<installdir>`.
+
+For more information, see the [Gurobi.jl] documentation.
+
+As this package is unregistered with Julia, the easiest way to use this package
+is to first clone the repo locally (be sure to avoid whitespace in the path):
+```bash
+git clone https://github.com/Breakthrough-Energy/REISE.jl
+```
+
+The package will need to be added to each user's default `Julia` environment.
+This can be done by opening up `Julia` and activiating the Pkg REPL (the
+built-in package manager) with `]`. To exit the Pkg REPL, use `backspace`.
+
 ```julia
-pkg> activate .
+   _       _ _(_)_     |  Documentation: https://docs.julialang.org
+  (_)     | (_) (_)    |
+   _ _   _| |_  __ _   |  Type "?" for help, "]?" for Pkg help.
+  | | | | | | |/ _` |  |
+  | | |_| | | | (_| |  |  Version 1.5.2 (2020-09-23)
+ _/ |\__'_|_|_|\__'_|  |  Official https://julialang.org/ release
+|__/                   |
+
+julia> ]
+
+pkg>
+```
+
+From here, there are many ways to add this package to `Julia`. Listed below are
+three different options:
+
+1. `add`ing a package allows a specific branch to be specified from the git
+repository. It will use the most recent allowed version of the dependencies
+specified in the `Project.toml` file. Currently, this package is known to be
+compatible with JuMP v0.21.3; this is specified in the `Project.toml` file,
+but there may be other packages for which the latest version does not maintain
+backward-compatibility.
+```julia
+pkg> add /PATH/TO/REISE.jl#develop
+```
+
+2. `dev`ing a package will always reflect the latest version of the code specified
+at the repository. If a branch other than `develop` is checked out, the code in
+that branch will be run. Like the above option, this method will also use the
+most recent allowed version of the dependencies for which backward-compatibility
+is not guaranteed.
+```julia
+pkg> dev /PATH/TO/REISE.jl
+```
+
+3. Using the specific environment specified in the project will use the exact
+dependency versions specified in the package. This will first have to be
+activated and instantiated to download and install all dependencies in `Julia`:
+
+```julia
+pkg> activate /PATH/TO/REISE.jl
+ Activating environment at `~/REISE.jl/Project.toml`
 
 (REISE) pkg> instantiate
 ```
-Another way is to install the package using the list of dependencies specified in the `Project.toml` file, which will pull the most recent allowed version of the dependencies. Currently, this package is known to be compatible with JuMP v0.21.3; this is specified in the `Project.toml` file, but there may be other packages for which the latest version does not maintain backward-compatibility.
+In order for the below `python` scripts to use this environment, set a
+`JULIA_PROJECT` environment variable to the path to `/PATH/TO/REISE.jl`.
 
-This package is not registered. Therefore, it must be added to a Julia environment either directly from GitHub:
+For more information about the different installation options, please see the
+documentation for the [Julia Package Manager].
+
+#### Verification and Troubleshooting
+
+To verify that the package has been successfully installed, open a new instance of `Julia` and verify that the `REISE` package can load without any errors with the following command:
+
 ```julia
-pkg> add https://github.com/Breakthrough-Energy/REISE.jl#develop
+using REISE
 ```
-or by cloning the repository locally and then specifying the path to the repo:
-```julia
-pkg> add /YOUR_PATH_HERE/REISE.jl#develop
-```
-Instead of calling `add PACKAGE`, it is also possible to call `dev PACKAGE`, which will always import the latest version of the code on your local machine. See the documentation for the Julia package manager for more information: https://julialang.github.io/Pkg.jl/v1/.
 
+### Python Packages
 
-### Associated python scripts
+#### Python Requirements Installation
 The dependencies of the python scripts contained in `pyreisejl` are not
 automatically installed. See `requirements.txt` for details. These requirements
 can be installed using pip:
@@ -45,8 +238,15 @@ can be installed using pip:
 pip install -r requirements.txt
 ```
 
+#### Python Installation Verification
+To verify that the included python scripts can successfully run `REISE`, open a python interpreter and run the following commands. They should return with no errors.
+```python
+from julia.api import Julia
+Julia(compiled_modules=False)
+from julia import REISE
+```
 
-
+Note that the final import of `REISE` may take a couple of minutes to complete.
 
 ## Usage (Julia)
 Installation registers a package named `REISE`. Following Julia naming conventions, the `.jl` is dropped. The package can be imported using: `import REISE` to call `REISE.run_scenario()`, or `using REISE` to call `run_scenario()`.
@@ -242,10 +442,9 @@ this repository.
 
 ## Docker
 
-The easiest way to setup this engine is within a Docker image. There is an
-included `Dockerfile` that can be used to build the Docker image. With the
-Docker daemon installed and running, navigate to the `REISE.jl` folder
-containing the `Dockerfile` and build the image:
+The easiest way to setup this engine is within a Docker image. Note, however, that the Docker image is currently configured to use a [Gurobi Cloud License] and not any of the other `Gurobi` licensing options.
+
+There is an included `Dockerfile` that can be used to build the Docker image. With the Docker daemon installed and running, navigate to the `REISE.jl` folder containing the `Dockerfile` and build the image:
 
 ```
 docker build . -t reisejl
@@ -256,11 +455,11 @@ To run the Docker image, you will need to mount two volumes; one containing the
 engine. 
 
 ```
-docker run -i -v /LOCAL/PATH/TO/GUROBI.LIC:/usr/share/gurobi_license -v /LOCAL/PATH/TO/DATA:/usr/share/data reisejl
+docker run -it -v /LOCAL/PATH/TO/GUROBI.LIC:/usr/share/gurobi_license -v /LOCAL/PATH/TO/DATA:/usr/share/data reisejl
 ```
 
-Once the container is running, you can run a simulation using the `python`
-commands described above. For example:
+The following command will start a bash shell session within the container,
+using the `python` commands described above.
 
 ```
 python pyreisejl/utility/call.py -s '2016-01-01' -e '2016-01-07' -int 24 -i '/usr/share/data'
@@ -455,9 +654,14 @@ Penalty for transmission line limit violations (if transmission violations are e
 Penalty for ending the interval with less stored energy than the start, or reward for ending with more.
 
 [Gurobi]: https://www.gurobi.com
-[Download Gurobi]: https://www.gurobi.com/downloads/gurobi-optimizer-eula/
 [Gurobi Installation Guide]: https://www.gurobi.com/documentation/quickstart.html
+[Gurobi Cloud License]: https://cloud.gurobi.com/manager/licenses
 [Julia]: https://julialang.org/
-[Download Julia]: https://julialang.org/downloads/
-[Zenodo]: https://zenodo.org/record/3530898
+[Download Julia]: https://julialang.org/downloads/#current_stable_release
 [Python]: https://www.python.org/
+[Download Python]: https://www.python.org/downloads/release/python-386/
+[Docker]: https://docs.docker.com/get-docker/
+[Zenodo]: https://zenodo.org/record/3530898
+
+[Gurobi.jl]: https://github.com/JuliaOpt/Gurobi.jl#installation
+[Julia Package Manager]: https://julialang.github.io/Pkg.jl/v1/managing-packages/
