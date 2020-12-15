@@ -1,7 +1,7 @@
 import argparse
 
 
-def parse_args():
+def parse_call_args():
     parser = argparse.ArgumentParser(description="Run REISE.jl simulation.")
 
     # Arguments needed to run REISE.jl
@@ -80,5 +80,71 @@ def parse_args():
         nargs="?",
         default=None,
         help="Scenario ID only if using PowerSimData. ",
+    )
+    return parser.parse_args()
+
+
+def parse_extract_args():
+    parser = argparse.ArgumentParser(
+        description="Extract data from the results of the REISE.jl simulation."
+    )
+
+    # Arguments needed to run REISE.jl
+    parser.add_argument(
+        "-s",
+        "--start-date",
+        help="The start date as provided to run the simulation. Supported formats are"
+        " 'YYYY-MM-DD', 'YYYY-MM-DD HH', 'YYYY-MM-DD HH:MM', or 'YYYY-MM-DD HH:MM:SS'.",
+    )
+    parser.add_argument(
+        "-e",
+        "--end-date",
+        help="The end date as provided to run the simulation. Supported formats are"
+        " 'YYYY-MM-DD', 'YYYY-MM-DD HH', 'YYYY-MM-DD HH:MM', or 'YYYY-MM-DD HH:MM:SS'.",
+    )
+    parser.add_argument(
+        "-x",
+        "--execute-dir",
+        help="The directory where the REISE.jl results are stored.",
+    )
+    parser.add_argument(
+        "-o",
+        "--output-dir",
+        nargs="?",
+        default=None,
+        help="The directory to store the results. This is optional and defaults "
+        "to the execute directory.",
+    )
+    parser.add_argument(
+        "-m",
+        "--matlab-dir",
+        nargs="?",
+        default=None,
+        help="The directory to store the modified case.mat used by the engine. "
+        "This is optional and defaults to the execute directory.",
+    )
+    parser.add_argument(
+        "-f",
+        "--frequency",
+        nargs="?",
+        default="H",
+        help="The frequency of data points in the original profile csvs as a "
+        "Pandas frequency string. "
+        "This is optional and defaults to an hour.",
+    )
+    parser.add_argument(
+        "-k",
+        "--keep-matlab",
+        action="store_true",
+        help="If this flag is used, the result.mat files found in the "
+        "execute directory will be kept instead of deleted.",
+    )
+
+    # For backwards compatability with PowerSimData
+    parser.add_argument(
+        "scenario_id",
+        nargs="?",
+        default=None,
+        help="Scenario ID only if using PowerSimData.",
     )
     return parser.parse_args()
