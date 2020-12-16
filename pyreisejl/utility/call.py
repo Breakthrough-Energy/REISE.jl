@@ -107,8 +107,7 @@ def launch_scenario(
     return runtime
 
 
-if __name__ == "__main__":
-    args = parser.parse_call_args()
+def main(args):
 
     # Get scenario info if using PowerSimData
     if args.scenario_id:
@@ -160,3 +159,7 @@ if __name__ == "__main__":
             mat_dir=args.matlab_dir,
             keep_mat=args.keep_matlab,
         )
+
+
+if __name__ == "__main__":
+    main(parser.parse_call_args())
