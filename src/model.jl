@@ -94,15 +94,15 @@ function _make_sets(case::Case, storage::Union{Storage,Nothing})::Sets
     # Positional indices from mpc.gencost
     MODEL = 1
     NCOST = 4
-    # Buses
+    # Sets - Buses
     num_bus = length(case.busid)
     bus_idx = 1:num_bus
     bus_id2idx = Dict(case.busid .=> bus_idx)
     load_bus_idx = findall(case.bus_demand .> 0)
     num_load_bus = length(load_bus_idx)
     # Sets - branches
-    branch_rating = vcat(case.branch_rating, case.dcline_rating)
-    branch_rating[branch_rating .== 0] .= Inf
+    ac_branch_rating = replace(case.branch_rating, 0=>Inf)
+    branch_rating = vcat(ac_branch_rating, case.dcline_pmax)
     num_branch_ac = length(case.branchid)
     num_branch = num_branch_ac + length(case.dclineid)
     branch_idx = 1:num_branch
@@ -196,7 +196,8 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
     segment_slope = _build_segment_slope(case, sets.segment_idx, segment_width)
     # Branch connectivity matrix
     branch_map = _make_branch_map(case)
-    branch_rating = vcat(case.branch_rating, case.dcline_rating)
+    branch_pmin = vcat(-1 * case.branch_rating, case.dcline_pmin)
+    branch_pmax = vcat(case.branch_rating, case.dcline_pmax)
     # Demand by bus
     bus_demand = _make_bus_demand(case, start_index, end_index)
     bus_demand *= demand_scaling
@@ -321,21 +322,24 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
         pg[i, h] == case.gen_pmin[i] + sum(pg_seg[i, :, h]))
 
     if trans_viol_enabled
-        JuMP.@expression(m,
-            branch_limit, branch_rating + trans_viol)
+        JuMP.@expression(m, branch_limit_pmin, branch_pmin - trans_viol)
+        JuMP.@expression(m, branch_limit_pmax, branch_pmax + trans_viol)
     else
         JuMP.@expression(m,
-            branch_limit[br in sets.branch_idx, h in hour_idx],
-            branch_rating[br])
+            branch_limit_pmin[br in sets.branch_idx, h in hour_idx],
+            branch_pmin[br])
+        JuMP.@expression(m,
+            branch_limit_pmax[br in sets.branch_idx, h in hour_idx],
+            branch_pmax[br])
     end
     println("branch_min, branch_max: ", Dates.now())
     JuMP.@constraint(m,
         branch_min[br in sets.noninf_branch_idx, h in hour_idx],
-        -1 * branch_limit[br, h] <= pf[br, h])
+        branch_limit_pmin[br, h] <= pf[br, h])
     println("branch_max: ", Dates.now())
     JuMP.@constraint(m,
         branch_max[br in sets.noninf_branch_idx, h in hour_idx],
-        pf[br, h] <= branch_limit[br, h])
+        pf[br, h] <= branch_limit_pmax[br, h])
 
     println("branch_angle: ", Dates.now())
     # Explicit numbering here so that we constrain AC branches but not DC
