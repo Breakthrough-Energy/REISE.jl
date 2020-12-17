@@ -205,3 +205,8 @@ def insert_in_file(filename, scenario_id, column_name, column_value):
     table.set_index("id", inplace=True)
     table.loc[str(scenario_id), column_name] = column_value
     table.to_csv(filename)
+
+
+def get_scenario_status(scenario_id):
+    table = pd.read_csv(const.EXECUTE_LIST, index_col="id")
+    return table.loc[scenario_id, "status"]

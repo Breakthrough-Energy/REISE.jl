@@ -108,7 +108,6 @@ def launch_scenario(
 
 
 def main(args):
-
     # Get scenario info if using PowerSimData
     if args.scenario_id:
         scenario_args = get_scenario(args.scenario_id)
@@ -162,4 +161,10 @@ def main(args):
 
 
 if __name__ == "__main__":
-    main(parser.parse_call_args())
+    args = parser.parse_call_args()
+    try:
+        main(args)
+    except Exception as ex:
+        print(ex)  # sent to redirected stdout/stderr
+        if args.scenario_id:
+            insert_in_file(const.EXECUTE_LIST, args.scenario_id, "status", "failed")
