@@ -1,9 +1,9 @@
 from pathlib import Path
-from subprocess import Popen
+from subprocess import PIPE, Popen
 
 from flask import Flask, jsonify
 
-from pyreisejl.utility.helpers import get_scenario_status
+from pyreisejl.utility.state import ApplicationState, ScenarioState
 
 app = Flask(__name__)
 
@@ -16,8 +16,7 @@ curl http://localhost:5000/status/1234
 """
 
 
-# scenario_id -> pid
-ongoing = {}
+state = ApplicationState()
 
 
 def get_script_path():
@@ -26,26 +25,24 @@ def get_script_path():
     return str(path_to_script)
 
 
-# TODO pipe stdout to in memory object
-@app.route("/launch/<scenario_id>", methods=["POST"])
+@app.route("/launch/<int:scenario_id>", methods=["POST"])
 def launch_simulation(scenario_id):
-    cmd_call = ["python3", "-u", get_script_path(), scenario_id]
-    pid = Popen(cmd_call).pid
-    ongoing[scenario_id] = pid
-    return jsonify({"pid": pid})
+    cmd_call = ["python3", "-u", get_script_path(), str(scenario_id)]
+    proc = Popen(cmd_call, stdout=PIPE, stderr=PIPE)
+
+    info = ScenarioState(scenario_id, proc)
+    state.add(scenario_id, info)
+    return jsonify(info.as_dict())
 
 
-# TODO remove pid when process complete
 @app.route("/list")
 def list_ongoing():
-    return jsonify(ongoing)
+    return jsonify(state.as_dict())
 
 
-# TODO append details from redirected io
 @app.route("/status/<int:scenario_id>")
 def get_status(scenario_id):
-    status = get_scenario_status(scenario_id)
-    return jsonify(status)
+    return jsonify(state.get(scenario_id))
 
 
 if __name__ == "__main__":

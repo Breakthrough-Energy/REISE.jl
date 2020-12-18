@@ -208,5 +208,8 @@ def insert_in_file(filename, scenario_id, column_name, column_value):
 
 
 def get_scenario_status(scenario_id):
-    table = pd.read_csv(const.EXECUTE_LIST, index_col="id")
-    return table.loc[scenario_id, "status"]
+    try:
+        table = pd.read_csv(const.EXECUTE_LIST, index_col="id")
+        return table.loc[scenario_id, "status"]
+    except KeyError:
+        return None
