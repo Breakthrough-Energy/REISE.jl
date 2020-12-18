@@ -27,6 +27,9 @@ def get_script_path():
 
 @app.route("/launch/<int:scenario_id>", methods=["POST"])
 def launch_simulation(scenario_id):
+    if state.is_running(scenario_id):
+        return jsonify("Scenario is already in progress")
+
     cmd_call = ["python3", "-u", get_script_path(), str(scenario_id)]
     proc = Popen(cmd_call, stdout=PIPE, stderr=PIPE)
 
