@@ -26,19 +26,13 @@ class ScenarioState:
 class ApplicationState:
     ongoing: Dict[int, ScenarioState] = field(default_factory=dict)
 
-    def add(self, scenario_id, state):
-        self.ongoing[int(scenario_id)] = state
+    def add(self, state):
+        self.ongoing[int(state.scenario_id)] = state
 
     def get(self, scenario_id):
         if scenario_id not in self.ongoing:
             return None
         return self.ongoing[scenario_id].as_dict()
-
-    def is_running(self, scenario_id):
-        entry = self.get(scenario_id)
-        if entry is not None:
-            return entry["status"] == "running"
-        return False
 
     def as_dict(self):
         return {k: v.as_dict() for k, v in self.ongoing.items()}

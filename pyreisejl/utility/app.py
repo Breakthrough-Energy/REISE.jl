@@ -27,14 +27,11 @@ def get_script_path():
 
 @app.route("/launch/<int:scenario_id>", methods=["POST"])
 def launch_simulation(scenario_id):
-    if state.is_running(scenario_id):
-        return jsonify("Scenario is already in progress")
-
     cmd_call = ["python3", "-u", get_script_path(), str(scenario_id)]
     proc = Popen(cmd_call, stdout=PIPE, stderr=PIPE)
 
     info = ScenarioState(scenario_id, proc)
-    state.add(scenario_id, info)
+    state.add(info)
     return jsonify(info.as_dict())
 
 
@@ -45,7 +42,8 @@ def list_ongoing():
 
 @app.route("/status/<int:scenario_id>")
 def get_status(scenario_id):
-    return jsonify(state.get(scenario_id))
+    entry = state.get(scenario_id)
+    return jsonify(entry), 200 if entry is not None else 404
 
 
 if __name__ == "__main__":

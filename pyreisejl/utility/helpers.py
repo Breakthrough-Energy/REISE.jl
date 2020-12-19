@@ -213,3 +213,5 @@ def get_scenario_status(scenario_id):
         return table.loc[scenario_id, "status"]
     except KeyError:
         return None
+    except Exception:
+        print("Failed to read csv")
