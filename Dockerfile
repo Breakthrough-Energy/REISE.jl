@@ -7,7 +7,7 @@ RUN wget -q https://julialang-s3.julialang.org/bin/linux/x64/1.5/julia-1.5.3-lin
 
 WORKDIR /build/gurobi_installer
 
-RUN wget -q https://packages.gurobi.com/9.1/gurobi9.1.0_linux64.tar.gz &&\
+RUN wget -q https://packages.gurobi.com/9.1/gurobi9.1.0_linux64.tar.gz && \
     tar -xf gurobi9.1.0_linux64.tar.gz -C /usr/share
 
 ENV PATH="$PATH:/usr/share/julia-1.5.3/bin" \
@@ -15,16 +15,14 @@ ENV PATH="$PATH:/usr/share/julia-1.5.3/bin" \
     GUROBI_HOME='/usr/share/gurobi910/linux64' \
     GRB_LICENSE_FILE='/usr/share/gurobi_license/gurobi.lic' \
     JULIA_PROJECT='/app' \
-    PYTHONPATH=/app/pyreisejl:${PYTHONPATH}
+    PYTHONPATH=/app/pyreisejl:${PYTHONPATH} \
+    FLASK_APP=pyreisejl/utility/app.py
 
 WORKDIR /app
 COPY . .
 
-RUN julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate(), using REISE' &&\
+RUN julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate(), using REISE' && \
     pip install -r requirements.txt
 
 
-
-
-WORKDIR /app
-ENTRYPOINT ["bash"]
+CMD ["flask", "run", "--host", "0.0.0.0"]
