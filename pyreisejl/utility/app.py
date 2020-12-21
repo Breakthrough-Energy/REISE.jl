@@ -30,9 +30,9 @@ def launch_simulation(scenario_id):
     cmd_call = ["python3", "-u", get_script_path(), str(scenario_id)]
     proc = Popen(cmd_call, stdout=PIPE, stderr=PIPE)
 
-    info = ScenarioState(scenario_id, proc)
-    state.add(info)
-    return jsonify(info.as_dict())
+    entry = ScenarioState(scenario_id, proc)
+    state.add(entry)
+    return jsonify(entry.as_dict())
 
 
 @app.route("/list")

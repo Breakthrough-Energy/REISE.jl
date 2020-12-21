@@ -89,6 +89,18 @@ def launch_scenario(
     Julia(compiled_modules=False)
     from julia import REISE
 
+    print("Validation complete! Launching scenario with parameters:")
+    print(
+        {
+            "interval": interval,
+            "n_interval": n_interval,
+            "start_index": start_index,
+            "input_dir": input_dir,
+            "execute_dir": execute_dir,
+            "threads": threads,
+        }
+    )
+
     start = time()
     REISE.run_scenario(
         interval=interval,
