@@ -28,7 +28,7 @@ def get_script_path():
 @app.route("/launch/<int:scenario_id>", methods=["POST"])
 def launch_simulation(scenario_id):
     cmd_call = ["python3", "-u", get_script_path(), str(scenario_id)]
-    proc = Popen(cmd_call, stdout=PIPE, stderr=PIPE)
+    proc = Popen(cmd_call, stdout=PIPE, stderr=PIPE, start_new_session=True)
 
     entry = ScenarioState(scenario_id, proc)
     state.add(entry)
