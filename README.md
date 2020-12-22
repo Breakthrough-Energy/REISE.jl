@@ -446,7 +446,7 @@ The easiest way to setup this engine is within a Docker image. Note, however, th
 
 There is an included `Dockerfile` that can be used to build the Docker image. With the Docker daemon installed and running, navigate to the `REISE.jl` folder containing the `Dockerfile` and build the image:
 
-```
+```bash
 docker build . -t reisejl
 ```
 
@@ -454,14 +454,14 @@ To run the Docker image, you will need to mount two volumes; one containing the
 `Gurobi` license file and another containing the necessary input files for the
 engine. 
 
-```
+```bash
 docker run -i -v /LOCAL/PATH/TO/GUROBI.LIC:/usr/share/gurobi_license -v /LOCAL/PATH/TO/DATA:/usr/share/data reisejl bash
 ```
 
 The following command will start a bash shell session within the container,
 using the `python` commands described above.
 
-```
+```bash
 python pyreisejl/utility/call.py -s '2016-01-01' -e '2016-01-07' -int 24 -i '/usr/share/data'
 ```
 
