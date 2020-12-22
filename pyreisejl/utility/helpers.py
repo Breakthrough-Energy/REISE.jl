@@ -208,10 +208,16 @@ def insert_in_file(filename, scenario_id, column_name, column_value):
 
 
 def get_scenario_status(scenario_id):
+    """Get the status of the scenario.
+
+    :param int scenario_id: scenario index
+    :return: (*str*) -- the status, e.g. running, finished, etc, or None
+    """
     try:
         table = pd.read_csv(const.EXECUTE_LIST, index_col="id")
         return table.loc[scenario_id, "status"]
     except KeyError:
         return None
-    except Exception:
-        print("Failed to read csv")
+    except Exception as ex:
+        print("Failed to read execute list. It's likely the file does not exist.")
+        print(f"Exception message: {ex}")
