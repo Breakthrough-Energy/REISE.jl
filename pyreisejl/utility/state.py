@@ -5,7 +5,7 @@ from pyreisejl.utility.helpers import get_scenario_status
 
 
 @dataclass
-class ScenarioState:
+class SimulationState:
     scenario_id: int
     proc: Any = field(default=None, repr=False, compare=False, hash=False)
     output: str = field(default="", repr=False, compare=False, hash=False)
@@ -32,12 +32,12 @@ class ScenarioState:
 
 @dataclass
 class ApplicationState:
-    ongoing: Dict[int, ScenarioState] = field(default_factory=dict)
+    ongoing: Dict[int, SimulationState] = field(default_factory=dict)
 
     def add(self, entry):
         """Add entry for scenario to current state
 
-        :param ScenarioState entry: object to track a given scenario
+        :param SimulationState entry: object to track a given scenario
         """
         self.ongoing[int(entry.scenario_id)] = entry
 
@@ -53,7 +53,7 @@ class ApplicationState:
 
     def as_dict(self):
         """Custom dict implementation which utilizes the similar method from
-        ScenarioState
+        SimulationState
 
         :return: (*dict*) -- dict of the instance attributes
         """

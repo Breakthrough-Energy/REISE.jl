@@ -3,7 +3,7 @@ from subprocess import PIPE, Popen
 
 from flask import Flask, jsonify
 
-from pyreisejl.utility.state import ApplicationState, ScenarioState
+from pyreisejl.utility.state import ApplicationState, SimulationState
 
 app = Flask(__name__)
 
@@ -30,7 +30,7 @@ def launch_simulation(scenario_id):
     cmd_call = ["python3", "-u", get_script_path(), str(scenario_id)]
     proc = Popen(cmd_call, stdout=PIPE, stderr=PIPE, start_new_session=True)
 
-    entry = ScenarioState(scenario_id, proc)
+    entry = SimulationState(scenario_id, proc)
     state.add(entry)
     return jsonify(entry.as_dict())
 

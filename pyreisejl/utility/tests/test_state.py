@@ -1,4 +1,4 @@
-from pyreisejl.utility.state import ApplicationState, ScenarioState
+from pyreisejl.utility.state import ApplicationState, SimulationState
 
 
 class FakeIOStream:
@@ -17,7 +17,7 @@ class FakeProcess:
 
 
 def test_scenario_state_refresh():
-    entry = ScenarioState(1234, FakeProcess())
+    entry = SimulationState(1234, FakeProcess())
     entry.as_dict()
     assert entry.output == "1"
     assert entry.errors == "1"
@@ -27,7 +27,7 @@ def test_scenario_state_refresh():
 
 
 def test_scenario_state_serializable():
-    entry = ScenarioState(1234, FakeProcess())
+    entry = SimulationState(1234, FakeProcess())
     assert "proc" not in entry.as_dict().keys()
 
 
@@ -35,7 +35,7 @@ def test_app_state_get():
     state = ApplicationState()
     assert len(state.ongoing) == 0
 
-    entry = ScenarioState(1234, FakeProcess())
+    entry = SimulationState(1234, FakeProcess())
     state.add(entry)
     assert len(state.ongoing) == 1
     assert state.get(1234) is not None
