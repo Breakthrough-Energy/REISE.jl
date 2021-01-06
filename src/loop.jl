@@ -118,6 +118,12 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 f = JuMP.objective_value(m)
                 results = get_results(f, voi, model_kwargs["case"])
                 break
+            elseif ((status == JuMP.MOI.LOCALLY_SOLVED)
+                    & ("load_shed_enabled" in keys(model_kwargs)))
+                # if load shedding is enabled, we'll accept 'suboptimal'
+                f = JuMP.objective_value(m)
+                results = get_results(f, voi, model_kwargs["case"])
+                break
             elseif ((status in numeric_statuses)
                     & !("BarHomogeneous" in keys(solver_kwargs)))
                 # if BarHomogeneous is not enabled, enable it and re-build
