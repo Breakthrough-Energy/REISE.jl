@@ -455,7 +455,7 @@ To run the Docker image, you will need to mount two volumes; one containing the
 engine. 
 
 ```bash
-docker run -i -v /LOCAL/PATH/TO/GUROBI.LIC:/usr/share/gurobi_license -v /LOCAL/PATH/TO/DATA:/usr/share/data reisejl bash
+docker run -it -v /LOCAL/PATH/TO/GUROBI.LIC:/usr/share/gurobi_license -v /LOCAL/PATH/TO/DATA:/usr/share/data reisejl bash
 ```
 
 The following command will start a bash shell session within the container,
