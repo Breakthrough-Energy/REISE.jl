@@ -28,7 +28,7 @@ def get_script_path():
 
 @app.route("/launch/<int:scenario_id>", methods=["POST"])
 def launch_simulation(scenario_id):
-    cmd_call = ["python3", "-u", get_script_path(), str(scenario_id)]
+    cmd_call = ["python3", "-u", get_script_path(), str(scenario_id), "--extract-data"]
     threads = request.args.get("threads", None)
 
     if threads is not None:

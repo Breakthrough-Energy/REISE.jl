@@ -201,6 +201,7 @@ def build_log(mat_results, costs, output_dir, scenario_id=None):
     # Create log name
     log_filename = scenario_id + "_log.csv" if scenario_id else "log.csv"
 
+    os.makedirs(output_dir, exist_ok=True)
     with open(os.path.join(output_dir, log_filename), "w") as log:
         # Write headers
         log.write(",cost,filesize,write_datetime\n")
