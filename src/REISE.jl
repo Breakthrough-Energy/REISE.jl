@@ -29,15 +29,18 @@ Run a scenario consisting of several intervals.
 'n_interval' specifies the number of intervals in a scenario.
 'start_index' specifies the starting hour of the first interval, to determine
     which time-series data should be loaded into each intervals.
-'outputfolder' specifies where to store the results. This folder will be
-    created if it does not exist at runtime.
 'inputfolder' specifies where to load the relevant data from. Required files
     are 'case.mat', 'demand.csv', 'hydro.csv', 'solar.csv', and 'wind.csv'.
+'outputfolder' specifies where to store the results. Defaults to an `output`
+    subdirectory of inputfolder. This folder will be created if it does not exist at
+    runtime.
+'optimizer_factory' is the solver used for optimization. If not specified, Gurobi is
+    used by default.
 """
 function run_scenario(;
         num_segments::Int=1, interval::Int, n_interval::Int, start_index::Int,
         inputfolder::String, outputfolder::Union{String, Nothing}=nothing,
-        threads::Union{Int, Nothing}=nothing)
+        threads::Union{Int, Nothing}=nothing, optimizer_factory=nothing)
     # Setup things that build once
     # If outputfolder not given, by default assign it inside inputfolder
     isnothing(outputfolder) && (outputfolder = joinpath(inputfolder, "output"))
@@ -45,7 +48,12 @@ function run_scenario(;
     isdir(outputfolder) || mkdir(outputfolder)
     stdout_filepath = joinpath(outputfolder, "stdout.log")
     stderr_filepath = joinpath(outputfolder, "stderr.err")
-    env = Gurobi.Env()
+    if isnothing(optimizer_factory)
+        optimizer_factory = Gurobi.Env()
+        solver_kwargs = Dict("Method" => 2, "Crossover" => 0)
+    else
+        solver_kwargs = Dict()
+    end
     case = read_case(inputfolder)
     storage = read_storage(inputfolder)
     println("All scenario files loaded!")
@@ -56,7 +64,6 @@ function run_scenario(;
         "storage" => storage,
         "interval_length" => interval,
         )
-    solver_kwargs = Dict("Method" => 2, "Crossover" => 0)
     # If a number of threads is specified, add to solver settings dict
     isnothing(threads) || (solver_kwargs["Threads"] = threads)
     println("All preparation complete!")
@@ -64,11 +71,13 @@ function run_scenario(;
     println("Redirecting outputs, see stdout.log & stderr.err in outputfolder")
     redirect_stdout_stderr(stdout_filepath, stderr_filepath) do
         # Loop through intervals
-        interval_loop(env, model_kwargs, solver_kwargs, interval, n_interval,
-                      start_index, inputfolder, outputfolder)
+        interval_loop(optimizer_factory, model_kwargs, solver_kwargs, interval,
+                      n_interval, start_index, inputfolder, outputfolder)
         GC.gc()
-        Gurobi.finalize(env)
-        println("Connection closed successfully!")
+        if isa(optimizer_factory, Gurobi.Env)
+            Gurobi.finalize(optimizer_factory)
+            println("Connection closed successfully!")
+        end
     end
 end
 

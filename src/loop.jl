@@ -4,12 +4,22 @@ function symbolize(d::Dict{String,Any})::NamedTuple
 end
 
 
+function new_model(factory_like)::Union{JuMP.Model, JuMP.MOI.AbstractOptimizer}
+    if isa(factory_like, Gurobi.Env)
+        return JuMP.direct_model(Gurobi.Optimizer(factory_like))
+    else
+        return JuMP.Model(factory_like)
+    end
+end
+
+
 """
-    interval_loop(env, model_kwargs, solver_kwargs, interval, n_interval,
+    interval_loop(factory_like, model_kwargs, solver_kwargs, interval, n_interval,
                   start_index, inputfolder, outputfolder)
 
 Given:
-- a Gurobi environment `env`
+- optimizer instantiation object `factory_like`:
+    either a Gurobi environment or something that can be passed to JuMP.Model
 - a dictionary of model keyword arguments `model_kwargs`
 - a dictionary of solver keyword arguments `solver_kwargs`
 - an interval length `interval` (hours)
@@ -21,7 +31,7 @@ Given:
 Build a model, and run through the intervals, re-building the model and/or
 re-setting constraint right-hand-side values as necessary.
 """
-function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
+function interval_loop(factory_like, model_kwargs::Dict,
                        solver_kwargs::Dict, interval::Int,
                        n_interval::Int, start_index::Int,
                        inputfolder::String, outputfolder::String)
@@ -51,7 +61,7 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
             if storage_enabled
                 model_kwargs["storage_e0"] = storage.sd_table.InitialStorage
             end
-            m = JuMP.direct_model(Gurobi.Optimizer(env))
+            m = new_model(factory_like)
             JuMP.set_optimizer_attributes(m, pairs(solver_kwargs)...)
             m, voi = _build_model(m; symbolize(model_kwargs)...)
         elseif i == 2
@@ -61,7 +71,7 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
             if storage_enabled
                 model_kwargs["storage_e0"] = storage_e0
             end
-            m = JuMP.direct_model(Gurobi.Optimizer(env))
+            m = new_model(factory_like)
             JuMP.set_optimizer_attributes(m, pairs(solver_kwargs)...)
             m, voi = _build_model(m; symbolize(model_kwargs)...)
         else
@@ -129,8 +139,9 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 results = get_results(f, voi, model_kwargs["case"])
                 break
             elseif ((status in numeric_statuses)
+                    & isa(factory_like, Gurobi.Env)
                     & !("BarHomogeneous" in keys(solver_kwargs)))
-                # if BarHomogeneous is not enabled, enable it and re-build
+                # if Gurobi, and BarHomogeneous is not enabled, enable it and re-solve
                 solver_kwargs["BarHomogeneous"] = 1
                 println("enable BarHomogeneous")
                 JuMP.set_optimizer_attribute(m, "BarHomogeneous", 1)
@@ -139,19 +150,20 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 # if load shed not enabled, enable it and re-build the model
                 model_kwargs["load_shed_enabled"] = true
                 println("rebuild with load shed")
-                m = JuMP.direct_model(Gurobi.Optimizer(env))
+                m = new_model(factory_like)
                 JuMP.set_optimizer_attributes(m, pairs(solver_kwargs)...)
                 m, voi = _build_model(m; symbolize(model_kwargs)...)
                 intervals_without_loadshed = 0
-            elseif !("BarHomogeneous" in keys(solver_kwargs))
-                # if BarHomogeneous is not enabled, enable it and re-build
+            elseif (isa(factory_like, Gurobi.Env)
+                    & !("BarHomogeneous" in keys(solver_kwargs)))
+                # if Gurobi, and BarHomogeneous is not enabled, enable it and re-solve
                 solver_kwargs["BarHomogeneous"] = 1
                 println("enable BarHomogeneous")
                 JuMP.set_optimizer_attribute(m, "BarHomogeneous", 1)
             elseif !("load_shed_enabled" in keys(model_kwargs))
                 model_kwargs["load_shed_enabled"] = true
                 println("rebuild with load shed")
-                m = JuMP.direct_model(Gurobi.Optimizer(env))
+                m = new_model(factory_like)
                 JuMP.set_optimizer_attributes(m, pairs(solver_kwargs)...)
                 m, voi = _build_model(m; symbolize(model_kwargs)...)
                 intervals_without_loadshed = 0
@@ -201,7 +213,7 @@ function interval_loop(env::Gurobi.Env, model_kwargs::Dict,
                 # delete! will work here even if the key is not present
                 delete!(solver_kwargs, "BarHomogeneous")
                 delete!(model_kwargs, "load_shed_enabled")
-                m = JuMP.direct_model(Gurobi.Optimizer(env))
+                m = new_model(factory_like)
                 JuMP.set_optimizer_attributes(m, pairs(solver_kwargs)...)
                 m, voi = _build_model(m; symbolize(model_kwargs)...)
             end
