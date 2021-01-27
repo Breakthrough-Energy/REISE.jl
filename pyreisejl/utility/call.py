@@ -89,6 +89,18 @@ def launch_scenario(
     Julia(compiled_modules=False)
     from julia import REISE
 
+    print("Validation complete! Launching scenario with parameters:")
+    print(
+        {
+            "interval": interval,
+            "n_interval": n_interval,
+            "start_index": start_index,
+            "input_dir": input_dir,
+            "execute_dir": execute_dir,
+            "threads": threads,
+        }
+    )
+
     start = time()
     REISE.run_scenario(
         interval=interval,
@@ -107,9 +119,7 @@ def launch_scenario(
     return runtime
 
 
-if __name__ == "__main__":
-    args = parser.parse_call_args()
-
+def main(args):
     # Get scenario info if using PowerSimData
     if args.scenario_id:
         scenario_args = get_scenario(args.scenario_id)
@@ -160,3 +170,13 @@ if __name__ == "__main__":
             mat_dir=args.matlab_dir,
             keep_mat=args.keep_matlab,
         )
+
+
+if __name__ == "__main__":
+    args = parser.parse_call_args()
+    try:
+        main(args)
+    except Exception as ex:
+        print(ex)  # sent to redirected stdout/stderr
+        if args.scenario_id:
+            insert_in_file(const.EXECUTE_LIST, args.scenario_id, "status", "failed")
