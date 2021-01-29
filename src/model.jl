@@ -275,7 +275,7 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
         JuMP.@constraint(m,
             soc_tracking[i in 1:sets.num_storage, h in 1:(num_hour-1)],
             storage_soc[i, h+1] == (
-                storage_soc[i, h]
+                storage_soc[i, h] * (1 - storage.sd_table.LossFactor[i])
                 + storage.sd_table.InEff[i] * storage_chg[i, h+1]
                 - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, h+1]),
             container=Array)
