@@ -47,7 +47,7 @@ function _make_bus_demand(case::Case, start_index::Int, end_index::Int)::Matrix
     bus_df = DataFrames.DataFrame(
         name=case.busid, load=case.bus_demand, zone=case.bus_zone)
     zone_demand = DataFrames.combine(
-		DataFrames.groupby(bus_df, :zone), :load => sum)
+        DataFrames.groupby(bus_df, :zone), :load => sum)
     zone_list = sort(collect(Set(case.bus_zone)))
     num_zones = length(zone_list)
     zone_idx = 1:num_zones
@@ -275,7 +275,7 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
         JuMP.@constraint(m,
             soc_tracking[i in 1:sets.num_storage, h in 1:(num_hour-1)],
             storage_soc[i, h+1] == (
-                storage_soc[i, h]
+                storage_soc[i, h] * (1 - storage.sd_table.LossFactor[i])
                 + storage.sd_table.InEff[i] * storage_chg[i, h+1]
                 - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, h+1]),
             container=Array)
@@ -286,6 +286,16 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
                 storage_e0[i]
                 + storage.sd_table.InEff[i] * storage_chg[i, 1]
                 - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, 1]),
+            container=Array)
+        println("storage final_soc_min: ", Dates.now())
+        JuMP.@constraint(m,
+            soc_terminal_min[i in 1:sets.num_storage],
+            storage_soc[i, num_hour] >= storage.sd_table.ExpectedTerminalStorageMin[i],
+            container=Array)
+        println("storage final_soc_max: ", Dates.now())
+        JuMP.@constraint(m,
+            soc_terminal_max[i in 1:sets.num_storage],
+            storage_soc[i, num_hour] <= storage.sd_table.ExpectedTerminalStorageMax[i],
             container=Array)
     end
 
