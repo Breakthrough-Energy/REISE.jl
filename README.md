@@ -263,6 +263,14 @@ REISE.run_scenario(;
     interval=24, n_interval=3, start_index=1, outputfolder="output",
     inputfolder=pwd(), num_segments=3)
 ```
+If another solver is desired, it can be passed via the `optimizer_factory` argument, e.g.:
+```julia
+import GLPK
+REISE.run_scenario(;
+    interval=24, n_interval=3, start_index=1, outputfolder="output",
+    inputfolder=pwd(), optimizer_factory=GLPK.Optimizer)
+```
+Be sure to pass the factory itself (e.g. `GLPK.Optimizer`) rather than an instance (e.g. `GLPK.Optimizer()`). See the [JuMP.Model documentation] for more information.
 
 ## Usage (Python)
 
@@ -665,3 +673,4 @@ Penalty for ending the interval with less stored energy than the start, or rewar
 
 [Gurobi.jl]: https://github.com/JuliaOpt/Gurobi.jl#installation
 [Julia Package Manager]: https://julialang.github.io/Pkg.jl/v1/managing-packages/
+[JuMP.Model documentation]: https://jump.dev/JuMP.jl/stable/solvers/#JuMP.Model-Tuple{Any}
