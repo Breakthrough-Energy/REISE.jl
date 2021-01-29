@@ -31,8 +31,8 @@ function save_input_mat(case::Case, storage::Storage, inputfolder::String,
         num_storage = size(storage.gen, 1)
         # Add fuel types for storage 'generators'. ESS = energy storage system
         mpc["genfuel"] = [mpc["genfuel"] ; repeat(["ess"], num_storage)]
-        # Save storage modifications to gen table (with extra zeros for MUs)
-        mpc["gen"] = [mpc["gen"] ; hcat(storage.gen, zeros(num_storage, 4))]
+        # Save storage modifications to gen table
+        mpc["gen"] = [mpc["gen"] ; storage.gen]
         # Save storage modifications to gencost
         #@show case.gencost[:, gencost_MODEL]
         segment_indices = findall(case.gencost[:, gencost_MODEL] .== 1)
