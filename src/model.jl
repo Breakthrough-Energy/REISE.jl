@@ -287,6 +287,16 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
                 + storage.sd_table.InEff[i] * storage_chg[i, 1]
                 - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, 1]),
             container=Array)
+        println("storage final_soc_min: ", Dates.now())
+        JuMP.@constraint(m,
+            soc_terminal_min[i in 1:sets.num_storage],
+            storage_soc[i, num_hour] >= storage.sd_table.ExpectedTerminalStorageMin[i],
+            container=Array)
+        println("storage final_soc_max: ", Dates.now())
+        JuMP.@constraint(m,
+            soc_terminal_max[i in 1:sets.num_storage],
+            storage_soc[i, num_hour] <= storage.sd_table.ExpectedTerminalStorageMax[i],
+            container=Array)
     end
 
     noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
