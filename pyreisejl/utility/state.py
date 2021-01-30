@@ -6,32 +6,36 @@ from typing import Any, Dict, List
 from pyreisejl.utility.helpers import get_scenario_status
 
 
-def _enqueue_output(stream, queue):
-    for line in iter(stream.readline, b""):
-        queue.put(line)
-    stream.close()
+class Listener:
+    def __init__(self, stream):
+        self.stream = stream
+        self.queue = Queue()
 
+    def start(self):
+        t = Thread(target=self._enqueue_output)
+        t.daemon = True
+        t.start()
+        return self
 
-def _start_thread(stream, queue):
-    t = Thread(target=_enqueue_output, args=(stream, queue))
-    t.daemon = True
-    t.start()
+    def _enqueue_output(self):
+        for line in iter(self.stream.readline, b""):
+            self.queue.put(line)
+        self.stream.close()
 
-
-def _read_stream(q):
-    result = []
-    try:
-        while True:
-            line = q.get_nowait()
-            result.append(line.decode().strip())
-    except Empty:  # noqa
-        pass
-    return result
+    def poll(self):
+        result = []
+        try:
+            while True:
+                line = self.queue.get_nowait()
+                result.append(line.decode().strip())
+        except Empty:  # noqa
+            pass
+        return result
 
 
 @dataclass
 class SimulationState:
-    _EXCLUDE = ["proc", "q_out", "q_err"]
+    _EXCLUDE = ["proc", "out_listener", "err_listener"]
 
     scenario_id: int
     proc: Any = field(default=None, repr=False, compare=False, hash=False)
@@ -40,18 +44,16 @@ class SimulationState:
     status: str = None
 
     def __post_init__(self):
-        self.q_out = Queue()
-        self.q_err = Queue()
-        _start_thread(self.proc.stdout, self.q_out)
-        _start_thread(self.proc.stderr, self.q_err)
+        self.out_listener = Listener(self.proc.stdout).start()
+        self.err_listener = Listener(self.proc.stderr).start()
 
     def _refresh(self):
         """Set the latest status and append the latest output from standard
         streams.
         """
         self.status = get_scenario_status(self.scenario_id)
-        self.output += _read_stream(self.q_out)
-        self.errors += _read_stream(self.q_err)
+        self.output += self.out_listener.poll()
+        self.errors += self.err_listener.poll()
 
     def as_dict(self):
         """Return custom dict which omits the process attribute which is not
