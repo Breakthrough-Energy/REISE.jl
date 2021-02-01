@@ -4,12 +4,8 @@ function symbolize(d::Dict{String,Any})::NamedTuple
 end
 
 
-function new_model(factory_like)::Union{JuMP.Model, JuMP.MOI.AbstractOptimizer}
-    if isa(factory_like, Gurobi.Env)
-        return JuMP.direct_model(Gurobi.Optimizer(factory_like))
-    else
-        return JuMP.Model(factory_like)
-    end
+function new_model(optimizer_factory)::JuMP.Model
+    return JuMP.Model(optimizer_factory)
 end
 
 
@@ -19,7 +15,7 @@ end
 
 Given:
 - optimizer instantiation object `factory_like`:
-    either a Gurobi environment or something that can be passed to JuMP.Model
+    something that can be passed to new_model (goes to JuMP.Model by default)
 - a dictionary of model keyword arguments `model_kwargs`
 - a dictionary of solver keyword arguments `solver_kwargs`
 - an interval length `interval` (hours)
@@ -139,7 +135,7 @@ function interval_loop(factory_like, model_kwargs::Dict,
                 results = get_results(f, voi, model_kwargs["case"])
                 break
             elseif ((status in numeric_statuses)
-                    & isa(factory_like, Gurobi.Env)
+                    & JuMP.solver_name(m) == "Gurobi"
                     & !("BarHomogeneous" in keys(solver_kwargs)))
                 # if Gurobi, and BarHomogeneous is not enabled, enable it and re-solve
                 solver_kwargs["BarHomogeneous"] = 1
@@ -154,7 +150,7 @@ function interval_loop(factory_like, model_kwargs::Dict,
                 JuMP.set_optimizer_attributes(m, pairs(solver_kwargs)...)
                 m, voi = _build_model(m; symbolize(model_kwargs)...)
                 intervals_without_loadshed = 0
-            elseif (isa(factory_like, Gurobi.Env)
+            elseif (JuMP.solver_name(m) == "Gurobi"
                     & !("BarHomogeneous" in keys(solver_kwargs)))
                 # if Gurobi, and BarHomogeneous is not enabled, enable it and re-solve
                 solver_kwargs["BarHomogeneous"] = 1
@@ -219,4 +215,6 @@ function interval_loop(factory_like, model_kwargs::Dict,
             end
         end
     end
+
+    return m
 end
