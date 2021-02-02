@@ -1,55 +1,36 @@
+from subprocess import PIPE, Popen
+
 import pytest
 
 from pyreisejl.utility.state import ApplicationState, SimulationState
 
 
-class FakeIOStream:
-    def __init__(self):
-        self.counter = 0
-        self.limit = 5
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self.counter > self.limit:
-            return b""
-        self.counter += 1
-        return bytes(str(self.counter).encode())
-
-    def readline(self):
-        pass
+@pytest.fixture
+def test_proc():
+    cmd = ["echo", "foo"]
+    proc = Popen(cmd, stdout=PIPE, stderr=PIPE, start_new_session=True)
+    return proc
 
 
-class FakeProcess:
-    def __init__(self):
-        self.stdout = FakeIOStream()
-        self.stderr = FakeIOStream()
-
-
-@pytest.mark.skip
-def test_scenario_state_refresh():
-    entry = SimulationState(1234, FakeProcess())
+def test_scenario_state_refresh(test_proc):
+    entry = SimulationState(123, test_proc)
     entry.as_dict()
-    assert entry.output == "1"
-    assert entry.errors == "1"
-    entry.as_dict()
-    assert entry.output == "12"
-    assert entry.errors == "12"
+    assert entry.output == ["foo"]
+    assert entry.errors == []
 
 
-@pytest.mark.skip
-def test_scenario_state_serializable():
-    entry = SimulationState(1234, FakeProcess())
-    assert "proc" not in entry.as_dict().keys()
+def test_scenario_state_serializable(test_proc):
+    entry = SimulationState(123, test_proc)
+    keys = entry.as_dict().keys()
+    assert "proc" not in keys
+    assert all(["listener" not in k for k in keys])
 
 
-@pytest.mark.skip
-def test_app_state_get():
+def test_app_state_get(test_proc):
     state = ApplicationState()
     assert len(state.ongoing) == 0
 
-    entry = SimulationState(1234, FakeProcess())
+    entry = SimulationState(123, test_proc)
     state.add(entry)
     assert len(state.ongoing) == 1
-    assert state.get(1234) is not None
+    assert state.get(123) is not None
