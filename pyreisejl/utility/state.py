@@ -7,15 +7,18 @@ from pyreisejl.utility.helpers import get_scenario_status
 
 
 class Listener:
+    """Runs in the background to read from stdout/stderr of a long lived
+    process"""
+
     def __init__(self, stream):
         self.stream = stream
         self.queue = Queue()
+        self._start()
 
-    def start(self):
+    def _start(self):
         t = Thread(target=self._enqueue_output)
         t.daemon = True
         t.start()
-        return self
 
     def _enqueue_output(self):
         for line in iter(self.stream.readline, b""):
@@ -23,6 +26,10 @@ class Listener:
         self.stream.close()
 
     def poll(self):
+        """Get the latest output from the stream
+
+        :return: (*list*) -- list of lines since previous poll
+        """
         result = []
         try:
             while True:
@@ -35,6 +42,8 @@ class Listener:
 
 @dataclass
 class SimulationState:
+    """Track the state of an ongoing simulation"""
+
     _EXCLUDE = ["proc", "out_listener", "err_listener"]
 
     scenario_id: int
@@ -44,8 +53,8 @@ class SimulationState:
     status: str = None
 
     def __post_init__(self):
-        self.out_listener = Listener(self.proc.stdout).start()
-        self.err_listener = Listener(self.proc.stderr).start()
+        self.out_listener = Listener(self.proc.stdout)
+        self.err_listener = Listener(self.proc.stderr)
 
     def _refresh(self):
         """Set the latest status and append the latest output from standard
@@ -67,6 +76,8 @@ class SimulationState:
 
 @dataclass
 class ApplicationState:
+    """Tracks all simulations during the lifetime of the application"""
+
     ongoing: Dict[int, SimulationState] = field(default_factory=dict)
 
     def add(self, entry):
