@@ -4,8 +4,8 @@ import CSV
 import DataFrames
 import Dates
 import JuMP
-import Gurobi
 import MAT
+import Requires
 import SparseArrays: sparse, SparseMatrixCSC
 
 
@@ -17,6 +17,13 @@ include("model.jl")         # Defines _build_model (used in interval_loop)
 include("loop.jl")          # Defines interval_loop
 include("query.jl")         # Defines get_results (used in interval_loop)
 include("save.jl")          # Defines save_input_mat, save_results
+
+
+function __init__()
+    Requires.@require Gurobi="2e9cd046-0924-5485-92f1-d5272153d98b" begin
+        include(joinpath("solver_specific", "gurobi.jl"))
+    end
+end
 
 
 """
@@ -40,20 +47,18 @@ Run a scenario consisting of several intervals.
 function run_scenario(;
         num_segments::Int=1, interval::Int, n_interval::Int, start_index::Int,
         inputfolder::String, outputfolder::Union{String, Nothing}=nothing,
-        threads::Union{Int, Nothing}=nothing, optimizer_factory=nothing)
+        threads::Union{Int, Nothing}=nothing, optimizer_factory=nothing,
+        solver_kwargs::Union{Dict, Nothing}=nothing)
+    isnothing(optimizer_factory) && error("optimizer_factory must be specified")
     # Setup things that build once
+    # If no solver kwargs passed, instantiate an empty dict
+    solver_kwargs = something(solver_kwargs, Dict())
     # If outputfolder not given, by default assign it inside inputfolder
     isnothing(outputfolder) && (outputfolder = joinpath(inputfolder, "output"))
     # If outputfolder doesn't exist (isdir evaluates false) create it (mkdir)
     isdir(outputfolder) || mkdir(outputfolder)
     stdout_filepath = joinpath(outputfolder, "stdout.log")
     stderr_filepath = joinpath(outputfolder, "stderr.err")
-    if isnothing(optimizer_factory)
-        optimizer_factory = Gurobi.Env()
-        solver_kwargs = Dict("Method" => 2, "Crossover" => 0)
-    else
-        solver_kwargs = Dict()
-    end
     case = read_case(inputfolder)
     storage = read_storage(inputfolder)
     println("All scenario files loaded!")
@@ -71,14 +76,10 @@ function run_scenario(;
     println("Redirecting outputs, see stdout.log & stderr.err in outputfolder")
     redirect_stdout_stderr(stdout_filepath, stderr_filepath) do
         # Loop through intervals
-        interval_loop(optimizer_factory, model_kwargs, solver_kwargs, interval,
-                      n_interval, start_index, inputfolder, outputfolder)
-        GC.gc()
-        if isa(optimizer_factory, Gurobi.Env)
-            Gurobi.finalize(optimizer_factory)
-            println("Connection closed successfully!")
-        end
+        m = interval_loop(optimizer_factory, model_kwargs, solver_kwargs, interval,
+                          n_interval, start_index, inputfolder, outputfolder)
     end
+    return m
 end
 
 # Module end
