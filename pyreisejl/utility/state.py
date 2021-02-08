@@ -21,8 +21,10 @@ class Listener:
         t.start()
 
     def _enqueue_output(self):
-        for line in iter(self.stream.readline, b""):
-            self.queue.put(line)
+        for line in self.stream:
+            s = line.decode().strip()
+            if len(s) > 0:
+                self.queue.put(s)
         self.stream.close()
 
     def poll(self):
@@ -34,7 +36,7 @@ class Listener:
         try:
             while True:
                 line = self.queue.get_nowait()
-                result.append(line.decode().strip())
+                result.append(line)
         except Empty:  # noqa
             pass
         return result
