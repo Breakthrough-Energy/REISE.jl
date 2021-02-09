@@ -135,7 +135,7 @@ function interval_loop(factory_like, model_kwargs::Dict,
                 results = get_results(f, voi, model_kwargs["case"])
                 break
             elseif ((status in numeric_statuses)
-                    & JuMP.solver_name(m) == "Gurobi"
+                    & (JuMP.solver_name(m) == "Gurobi")
                     & !("BarHomogeneous" in keys(solver_kwargs)))
                 # if Gurobi, and BarHomogeneous is not enabled, enable it and re-solve
                 solver_kwargs["BarHomogeneous"] = 1
@@ -150,7 +150,7 @@ function interval_loop(factory_like, model_kwargs::Dict,
                 JuMP.set_optimizer_attributes(m, pairs(solver_kwargs)...)
                 m, voi = _build_model(m; symbolize(model_kwargs)...)
                 intervals_without_loadshed = 0
-            elseif (JuMP.solver_name(m) == "Gurobi"
+            elseif ((JuMP.solver_name(m) == "Gurobi")
                     & !("BarHomogeneous" in keys(solver_kwargs)))
                 # if Gurobi, and BarHomogeneous is not enabled, enable it and re-solve
                 solver_kwargs["BarHomogeneous"] = 1
