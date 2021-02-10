@@ -253,26 +253,38 @@ Note that the final import of `REISE` may take a couple of minutes to complete.
 ## Usage (Julia)
 Installation registers a package named `REISE`. Following Julia naming conventions, the `.jl` is dropped. The package can be imported using: `import REISE` to call `REISE.run_scenario()`, or `using REISE` to call `run_scenario()`.
 
-To run a scenario which starts at the `1`st hour of the year, runs in `3` intervals of `24` hours each, loading input data from your present working directory (`pwd()`) and depositing results in the folder `output`, call:
-```julia
-REISE.run_scenario(;
-    interval=24, n_interval=3, start_index=1, outputfolder="output",
-    inputfolder=pwd())
-```
-An optional keyword argument `num_segments` controls the linearization of cost curves into piecewise-linear segments (default is 1). For example:
-```julia
-REISE.run_scenario(;
-    interval=24, n_interval=3, start_index=1, outputfolder="output",
-    inputfolder=pwd(), num_segments=3)
-```
-If another solver is desired, it can be passed via the `optimizer_factory` argument, e.g.:
-```julia
-import GLPK
-REISE.run_scenario(;
-    interval=24, n_interval=3, start_index=1, outputfolder="output",
-    inputfolder=pwd(), optimizer_factory=GLPK.Optimizer)
-```
+Running a scenario requires the following inputs:
+- `interval`: the length of each simulation interval (hours).
+- `n_interval`: the number of simulation intervals.
+- `start_index`: the hour to start the simulation, representing the row of the time-series profiles in `demand.csv`, `hydro.csv`, `solar.csv`, and `wind.csv`.
+Note that unlike some other programming languages, Julia is 1-indexed, so the first index is `1`.
+- `inputfolder`: the directory from which to load input files.
+- `optimizer_factory`: an argument which can be passed to `JuMP.Model` to create a new model instance with an attached solver.
 Be sure to pass the factory itself (e.g. `GLPK.Optimizer`) rather than an instance (e.g. `GLPK.Optimizer()`). See the [JuMP.Model documentation] for more information.
+
+As an example, to run a scenario which starts at the `1`st hour of the year, runs in `3` intervals of `24` hours each, loading input data from your present working directory (`pwd()`), using the `GLPK` solver, call:
+```julia
+REISE.run_scenario(;
+    interval=24, n_interval=3, start_index=1, inputfolder=pwd(), optimizer_factory=GLPK.Optimizer
+)
+```
+
+Optional arguments include:
+- `num_segments`: the number of piecewise linear segments to use when linearizing polynomial cost curves (default is 1).
+- `outputfolder`: a directory in which to store results files. The default is a subdirectory `"output"` within the input directory (created if it does not already exist).
+- `threads`: the number of threads to be used by the solver. The default is to let the solver decide.
+- `solver_kwargs`: a dictionary of `String => value` pairs to be passed to the solver.
+
+Default settings for running using Gurobi can be accessed if `Gurobi.jl` has already been imported using the `REISE.run_scenario_gurobi` function:
+```julia
+import REISE
+import Gurobi
+REISE.run_scenario_gurobi(;
+    interval=24, n_interval=3, start_index=1, inputfolder=pwd(),
+)
+```
+
+Optional arguments for `REISE.run_scenario` can still be passed as desired.
 
 ## Usage (Python)
 
@@ -678,5 +690,5 @@ Penalty for ending the interval with less stored energy than the start, or rewar
 
 [Gurobi.jl]: https://github.com/JuliaOpt/Gurobi.jl#installation
 [Julia Package Manager]: https://julialang.github.io/Pkg.jl/v1/managing-packages/
-[JuMP.Model documentation]: https://jump.dev/JuMP.jl/stable/solvers/#JuMP.Model-Tuple{Any}
+[JuMP.Model documentation]: https://jump.dev/JuMP.jl/v0.21.1/solvers/#JuMP.Model-Tuple{Any}
 [compatible with JuMP]: https://jump.dev/JuMP.jl/stable/installation/#Supported-solvers
