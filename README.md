@@ -264,6 +264,8 @@ Be sure to pass the factory itself (e.g. `GLPK.Optimizer`) rather than an instan
 
 As an example, to run a scenario which starts at the `1`st hour of the year, runs in `3` intervals of `24` hours each, loading input data from your present working directory (`pwd()`), using the `GLPK` solver, call:
 ```julia
+import REISE
+import GLPK
 REISE.run_scenario(;
     interval=24, n_interval=3, start_index=1, inputfolder=pwd(), optimizer_factory=GLPK.Optimizer
 )
