@@ -16,12 +16,12 @@ This repository contains, in the **src** folder, the Julia scripts to run the po
 ## Dependencies
 This package requires installations of the following, with recommended versions listed.
 - [Julia], version 1.5
-- [Gurobi], version 9.1
 - [Python], version 3.8
 
-This package can also be run using Docker, in which the following are required:
-- [Docker]
-- [Gurobi Cloud License] file
+An external solver is required to run optimizations. We recommend [Gurobi] (version 9.1), though any other solver that is [compatible with JuMP] can be used.
+Note: as Gurobi is a commercial solver, a [Gurobi license file] is required. This may be either a local license or a [Gurobi Cloud license]. [Free licenses for academic use] are available.
+
+This package can also be run using [Docker], which will automatically handle the installation of Julia, Python, and all dependencies. Gurobi is also installed, although as before a [Gurobi license file] is still required to use Gurobi as a solver; other solvers can also be used.
 
 For sample data to use with the simulation, please visit [Zenodo].
 
@@ -663,7 +663,9 @@ Penalty for ending the interval with less stored energy than the start, or rewar
 
 [Gurobi]: https://www.gurobi.com
 [Gurobi Installation Guide]: https://www.gurobi.com/documentation/quickstart.html
-[Gurobi Cloud License]: https://cloud.gurobi.com/manager/licenses
+[Gurobi license file]: https://www.gurobi.com/downloads/
+[Gurobi Cloud license]: https://cloud.gurobi.com/manager/licenses
+[Free licenses for academic use]: https://www.gurobi.com/academia/academic-program-and-licenses/
 [Julia]: https://julialang.org/
 [Download Julia]: https://julialang.org/downloads/#current_stable_release
 [Python]: https://www.python.org/
@@ -674,3 +676,4 @@ Penalty for ending the interval with less stored energy than the start, or rewar
 [Gurobi.jl]: https://github.com/JuliaOpt/Gurobi.jl#installation
 [Julia Package Manager]: https://julialang.github.io/Pkg.jl/v1/managing-packages/
 [JuMP.Model documentation]: https://jump.dev/JuMP.jl/stable/solvers/#JuMP.Model-Tuple{Any}
+[compatible with JuMP]: https://jump.dev/JuMP.jl/stable/installation/#Supported-solvers
