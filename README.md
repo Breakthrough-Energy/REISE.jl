@@ -35,10 +35,12 @@ The memory necessary would also be proportional to the size of grid used, so as 
 
 ## Installation (Local)   
 
-When installing this package locally, the below dependencies will need to be installed following the provider recommendation:
-- [Gurobi Installation Guide]
+When installing this package locally, the below dependencies will need to be installed following the provider recommendations:
 - [Download Julia]
 - [Download Python]
+
+If Gurobi is to be used as the solver, this will need to be installed as well:
+- [Gurobi Installation Guide]
 
 The package itself has two components that require installation:
 - [`Julia` package](#julia-package-installation) to run the simulation
@@ -87,7 +89,7 @@ export PATH="${PATH}:${GUROBI_HOME}/bin"
 export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${GUROBI_HOME}/lib"
 ```
 
-3. The `Gurobi` license needs to be download and installed. Download a copy of the [Gurobi Cloud License] from the account portal, and copy it to the parent directory of the `<installdir>`.
+3. The `Gurobi` license needs to be download and installed. Download a copy of your Gurobi license from the account portal, and copy it to the parent directory of the `<installdir>`.
 
 ```bash
 cp gurobi.lic /opt/gurobi910/gurobi.lic
@@ -100,7 +102,7 @@ To verify that Gurobi has installed properly, run `gurobi.sh` located in the `bi
 /usr/share/gurobi910/linux64/bin/gurobi.sh
 ```
 
-An example of the expected output for this program:
+An example of the expected output for this program (using a cloud license):
 ```
 This program should give the following output
 Python 3.7.4 (default, Oct 29 2019, 10:15:53) 
