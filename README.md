@@ -16,12 +16,12 @@ This repository contains, in the **src** folder, the Julia scripts to run the po
 ## Dependencies
 This package requires installations of the following, with recommended versions listed.
 - [Julia], version 1.5
-- [Gurobi], version 9.1
 - [Python], version 3.8
 
-This package can also be run using Docker, in which the following are required:
-- [Docker]
-- [Gurobi Cloud License] file
+An external solver is required to run optimizations. We recommend [Gurobi] (version 9.1), though any other solver that is [compatible with JuMP] can be used.
+Note: as Gurobi is a commercial solver, a [Gurobi license file] is required. This may be either a local license or a [Gurobi Cloud license]. [Free licenses for academic use] are available.
+
+This package can also be run using [Docker], which will automatically handle the installation of Julia, Python, and all dependencies. Gurobi is also installed, although as before a [Gurobi license file] is still required to use Gurobi as a solver; other solvers can also be used.
 
 For sample data to use with the simulation, please visit [Zenodo].
 
@@ -35,10 +35,12 @@ The memory necessary would also be proportional to the size of grid used, so as 
 
 ## Installation (Local)   
 
-When installing this package locally, the below dependencies will need to be installed following the provider recommendation:
-- [Gurobi Installation Guide]
+When installing this package locally, the below dependencies will need to be installed following the provider recommendations:
 - [Download Julia]
 - [Download Python]
+
+If Gurobi is to be used as the solver, this will need to be installed as well:
+- [Gurobi Installation Guide]
 
 The package itself has two components that require installation:
 - [`Julia` package](#julia-package-installation) to run the simulation
@@ -87,7 +89,7 @@ export PATH="${PATH}:${GUROBI_HOME}/bin"
 export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${GUROBI_HOME}/lib"
 ```
 
-3. The `Gurobi` license needs to be download and installed. Download a copy of the [Gurobi Cloud License] from the account portal, and copy it to the parent directory of the `<installdir>`.
+3. The `Gurobi` license needs to be download and installed. Download a copy of your Gurobi license from the account portal, and copy it to the parent directory of the `<installdir>`.
 
 ```bash
 cp gurobi.lic /opt/gurobi910/gurobi.lic
@@ -100,7 +102,7 @@ To verify that Gurobi has installed properly, run `gurobi.sh` located in the `bi
 /usr/share/gurobi910/linux64/bin/gurobi.sh
 ```
 
-An example of the expected output for this program:
+An example of the expected output for this program (using a cloud license):
 ```
 This program should give the following output
 Python 3.7.4 (default, Oct 29 2019, 10:15:53) 
@@ -251,26 +253,40 @@ Note that the final import of `REISE` may take a couple of minutes to complete.
 ## Usage (Julia)
 Installation registers a package named `REISE`. Following Julia naming conventions, the `.jl` is dropped. The package can be imported using: `import REISE` to call `REISE.run_scenario()`, or `using REISE` to call `run_scenario()`.
 
-To run a scenario which starts at the `1`st hour of the year, runs in `3` intervals of `24` hours each, loading input data from your present working directory (`pwd()`) and depositing results in the folder `output`, call:
+Running a scenario requires the following inputs:
+- `interval`: the length of each simulation interval (hours).
+- `n_interval`: the number of simulation intervals.
+- `start_index`: the hour to start the simulation, representing the row of the time-series profiles in `demand.csv`, `hydro.csv`, `solar.csv`, and `wind.csv`.
+Note that unlike some other programming languages, Julia is 1-indexed, so the first index is `1`.
+- `inputfolder`: the directory from which to load input files.
+- `optimizer_factory`: an argument which can be passed to `JuMP.Model` to create a new model instance with an attached solver.
+Be sure to pass the factory itself (e.g. `GLPK.Optimizer`) rather than an instance (e.g. `GLPK.Optimizer()`). See the [JuMP.Model documentation] for more information.
+
+As an example, to run a scenario which starts at the `1`st hour of the year, runs in `3` intervals of `24` hours each, loading input data from your present working directory (`pwd()`), using the `GLPK` solver, call:
 ```julia
-REISE.run_scenario(;
-    interval=24, n_interval=3, start_index=1, outputfolder="output",
-    inputfolder=pwd())
-```
-An optional keyword argument `num_segments` controls the linearization of cost curves into piecewise-linear segments (default is 1). For example:
-```julia
-REISE.run_scenario(;
-    interval=24, n_interval=3, start_index=1, outputfolder="output",
-    inputfolder=pwd(), num_segments=3)
-```
-If another solver is desired, it can be passed via the `optimizer_factory` argument, e.g.:
-```julia
+import REISE
 import GLPK
 REISE.run_scenario(;
-    interval=24, n_interval=3, start_index=1, outputfolder="output",
-    inputfolder=pwd(), optimizer_factory=GLPK.Optimizer)
+    interval=24, n_interval=3, start_index=1, inputfolder=pwd(), optimizer_factory=GLPK.Optimizer
+)
 ```
-Be sure to pass the factory itself (e.g. `GLPK.Optimizer`) rather than an instance (e.g. `GLPK.Optimizer()`). See the [JuMP.Model documentation] for more information.
+
+Optional arguments include:
+- `num_segments`: the number of piecewise linear segments to use when linearizing polynomial cost curves (default is 1).
+- `outputfolder`: a directory in which to store results files. The default is a subdirectory `"output"` within the input directory (created if it does not already exist).
+- `threads`: the number of threads to be used by the solver. The default is to let the solver decide.
+- `solver_kwargs`: a dictionary of `String => value` pairs to be passed to the solver.
+
+Default settings for running using Gurobi can be accessed if `Gurobi.jl` has already been imported using the `REISE.run_scenario_gurobi` function:
+```julia
+import REISE
+import Gurobi
+REISE.run_scenario_gurobi(;
+    interval=24, n_interval=3, start_index=1, inputfolder=pwd(),
+)
+```
+
+Optional arguments for `REISE.run_scenario` can still be passed as desired.
 
 ## Usage (Python)
 
@@ -301,7 +317,7 @@ pyreisejl/utility/extract_data.py -s '2016-01-01' -e '2016-01-07' -x '/PATH/TO/O
 
 **Note** To see the available options for the `call.py` or `extract_data.py` script, use the `-h, --help` flag when calling the script.
 
-To run the `REISE.jl` simulation from python, run `call.py` with the following required options:
+To run the `REISE.jl` simulation from python, using Gurobi as the solver, run `call.py` with the following required options:
 ```
   -s, --start-date START_DATE
                         The start date for the simulation in format
@@ -366,12 +382,13 @@ matlab files generated by the Julia engine:
 * CONGL.pkl (congestion, lower flow limit)
 * AVERAGED_CONG.pkl (time averaged congestion)
 
-If the simulation was run with the necessary input data, the following will
-also be extracted:
+If the grid used in the simulation contains DC lines and/or energy storage devices, the following files will also be extracted as necessary:
 
 * PF_DCLINE.pkl (power flow on DC lines)
 * STORAGE_PG.pkl (power generated by storage units)
 * STORAGE_E.pkl (energy state of charge)
+
+If one or more intervals of the simulation were found to be infeasible without shedding load, the following file will also be extracted:
 * LOAD_SHED.pkl (load shed profile for each load bus)
 
 The extraction process can be memory intensive, so it does not automatically
@@ -663,7 +680,9 @@ Penalty for ending the interval with less stored energy than the start, or rewar
 
 [Gurobi]: https://www.gurobi.com
 [Gurobi Installation Guide]: https://www.gurobi.com/documentation/quickstart.html
-[Gurobi Cloud License]: https://cloud.gurobi.com/manager/licenses
+[Gurobi license file]: https://www.gurobi.com/downloads/
+[Gurobi Cloud license]: https://cloud.gurobi.com/manager/licenses
+[Free licenses for academic use]: https://www.gurobi.com/academia/academic-program-and-licenses/
 [Julia]: https://julialang.org/
 [Download Julia]: https://julialang.org/downloads/#current_stable_release
 [Python]: https://www.python.org/
@@ -673,4 +692,5 @@ Penalty for ending the interval with less stored energy than the start, or rewar
 
 [Gurobi.jl]: https://github.com/JuliaOpt/Gurobi.jl#installation
 [Julia Package Manager]: https://julialang.github.io/Pkg.jl/v1/managing-packages/
-[JuMP.Model documentation]: https://jump.dev/JuMP.jl/stable/solvers/#JuMP.Model-Tuple{Any}
+[JuMP.Model documentation]: https://jump.dev/JuMP.jl/v0.21.1/solvers/#JuMP.Model-Tuple{Any}
+[compatible with JuMP]: https://jump.dev/JuMP.jl/stable/installation/#Supported-solvers
