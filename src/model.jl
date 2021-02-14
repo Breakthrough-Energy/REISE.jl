@@ -46,12 +46,13 @@ function _make_bus_demand(case::Case, start_index::Int, end_index::Int)::Matrix
     bus_idx = 1:length(case.busid)
     bus_df = DataFrames.DataFrame(
         name=case.busid, load=case.bus_demand, zone=case.bus_zone)
-    zone_demand = DataFrames.by(bus_df, :zone, :load => sum)
+    zone_demand = DataFrames.combine(
+        DataFrames.groupby(bus_df, :zone), :load => sum)
     zone_list = sort(collect(Set(case.bus_zone)))
     num_zones = length(zone_list)
     zone_idx = 1:num_zones
     zone_id2idx = Dict(zone_list .=> zone_idx)
-    bus_df_with_zone_load = join(bus_df, zone_demand, on = :zone)
+    bus_df_with_zone_load = DataFrames.innerjoin(bus_df, zone_demand, on=:zone)
     bus_share = bus_df[:, :load] ./ bus_df_with_zone_load[:, :load_sum]
     bus_zone_idx = Int64[zone_id2idx[z] for z in case.bus_zone]
     zone_to_bus_shares = sparse(
@@ -93,15 +94,15 @@ function _make_sets(case::Case, storage::Union{Storage,Nothing})::Sets
     # Positional indices from mpc.gencost
     MODEL = 1
     NCOST = 4
-    # Buses
+    # Sets - Buses
     num_bus = length(case.busid)
     bus_idx = 1:num_bus
     bus_id2idx = Dict(case.busid .=> bus_idx)
     load_bus_idx = findall(case.bus_demand .> 0)
     num_load_bus = length(load_bus_idx)
     # Sets - branches
-    branch_rating = vcat(case.branch_rating, case.dcline_rating)
-    branch_rating[branch_rating .== 0] .= Inf
+    ac_branch_rating = replace(case.branch_rating, 0=>Inf)
+    branch_rating = vcat(ac_branch_rating, case.dcline_pmax)
     num_branch_ac = length(case.branchid)
     num_branch = num_branch_ac + length(case.dclineid)
     branch_idx = 1:num_branch
@@ -195,7 +196,8 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
     segment_slope = _build_segment_slope(case, sets.segment_idx, segment_width)
     # Branch connectivity matrix
     branch_map = _make_branch_map(case)
-    branch_rating = vcat(case.branch_rating, case.dcline_rating)
+    branch_pmin = vcat(-1 * case.branch_rating, case.dcline_pmin)
+    branch_pmax = vcat(case.branch_rating, case.dcline_pmax)
     # Demand by bus
     bus_demand = _make_bus_demand(case, start_index, end_index)
     bus_demand *= demand_scaling
@@ -225,7 +227,7 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
     end)
     if load_shed_enabled
         JuMP.@variable(m,
-            0 <= load_shed[i in 1:sets.num_load_bus, j in hour_idx]
+            0 <= load_shed[i in 1:sets.num_load_bus, j in 1:interval_length]
             <= bus_demand[sets.load_bus_idx[i], j],
             container=Array)
     end
@@ -271,19 +273,29 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
     if storage_enabled
         println("storage soc_tracking: ", Dates.now())
         JuMP.@constraint(m,
-            soc_tracking[i in sets.storage_idx, h in 1:(num_hour-1)],
+            soc_tracking[i in 1:sets.num_storage, h in 1:(num_hour-1)],
             storage_soc[i, h+1] == (
-                storage_soc[i, h]
+                storage_soc[i, h] * (1 - storage.sd_table.LossFactor[i])
                 + storage.sd_table.InEff[i] * storage_chg[i, h+1]
                 - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, h+1]),
             container=Array)
         println("storage initial_soc: ", Dates.now())
         JuMP.@constraint(m,
-            initial_soc[i in sets.storage_idx],
+            initial_soc[i in 1:sets.num_storage],
             storage_soc[i, 1] == (
                 storage_e0[i]
                 + storage.sd_table.InEff[i] * storage_chg[i, 1]
                 - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, 1]),
+            container=Array)
+        println("storage final_soc_min: ", Dates.now())
+        JuMP.@constraint(m,
+            soc_terminal_min[i in 1:sets.num_storage],
+            storage_soc[i, num_hour] >= storage.sd_table.ExpectedTerminalStorageMin[i],
+            container=Array)
+        println("storage final_soc_max: ", Dates.now())
+        JuMP.@constraint(m,
+            soc_terminal_max[i in 1:sets.num_storage],
+            storage_soc[i, num_hour] <= storage.sd_table.ExpectedTerminalStorageMax[i],
             container=Array)
     end
 
@@ -320,21 +332,24 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
         pg[i, h] == case.gen_pmin[i] + sum(pg_seg[i, :, h]))
 
     if trans_viol_enabled
-        JuMP.@expression(m,
-            branch_limit, branch_rating + trans_viol)
+        JuMP.@expression(m, branch_limit_pmin, branch_pmin - trans_viol)
+        JuMP.@expression(m, branch_limit_pmax, branch_pmax + trans_viol)
     else
         JuMP.@expression(m,
-            branch_limit[br in sets.branch_idx, h in hour_idx],
-            branch_rating[br])
+            branch_limit_pmin[br in sets.branch_idx, h in hour_idx],
+            branch_pmin[br])
+        JuMP.@expression(m,
+            branch_limit_pmax[br in sets.branch_idx, h in hour_idx],
+            branch_pmax[br])
     end
     println("branch_min, branch_max: ", Dates.now())
     JuMP.@constraint(m,
         branch_min[br in sets.noninf_branch_idx, h in hour_idx],
-        -1 * branch_limit[br, h] <= pf[br, h])
+        branch_limit_pmin[br, h] <= pf[br, h])
     println("branch_max: ", Dates.now())
     JuMP.@constraint(m,
         branch_max[br in sets.noninf_branch_idx, h in hour_idx],
-        pf[br, h] <= branch_limit[br, h])
+        pf[br, h] <= branch_limit_pmax[br, h])
 
     println("branch_angle: ", Dates.now())
     # Explicit numbering here so that we constrain AC branches but not DC

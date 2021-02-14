@@ -1,9 +1,6 @@
-from collections import OrderedDict
-import datetime as dt
 import glob
-import io
 import os
-import subprocess
+import re
 import time
 
 import numpy as np
@@ -11,195 +8,142 @@ import pandas as pd
 from scipy.io import loadmat, savemat
 from tqdm import tqdm
 
-from pyreisejl.utility import const
-from pyreisejl.utility.helpers import load_mat73
+from pyreisejl.utility import const, parser
+from pyreisejl.utility.helpers import (
+    WrongNumberOfArguments,
+    get_scenario,
+    insert_in_file,
+    load_mat73,
+    validate_time_format,
+)
 
 
-def get_scenario(scenario_id):
-    """Returns scenario information.
+def copy_input(execute_dir, mat_dir=None, scenario_id=None):
+    """Copies Julia-saved input matfile (input.mat), converting matfile from v7.3 to v7 on the way.
 
-    :param str scenario_id: scenario index.
-    :return: (*dict*) -- scenario information.
+    :param str execute_dir: the directory containing the original input file
+    :param str mat_dir: the optional directory to which to save the converted input file, Defaults to execute_dir
+    :param str filename: optional name for the copied input.mat file. Defaults to "grid.mat"
     """
-    scenario_list = pd.read_csv(const.SCENARIO_LIST, dtype=str)
-    scenario_list.fillna('', inplace=True)
-    scenario = scenario_list[scenario_list.id == scenario_id]
+    if not mat_dir:
+        mat_dir = execute_dir
 
-    return scenario.to_dict('records', into=OrderedDict)[0]
+    src = os.path.join(execute_dir, "input.mat")
+
+    filename = scenario_id + "_grid.mat" if scenario_id else "grid.mat"
+    dst = os.path.join(mat_dir, filename)
+    print("loading and parsing input.mat")
+    input_mpc = load_mat73(src)
+    print(f"saving converted input.mat as {filename}")
+    savemat(dst, input_mpc, do_compression=True)
+
+    return dst
 
 
-def insert_in_file(filename, scenario_id, column_number, column_value):
-    """Updates status in execute list on server.
+def result_num(filename):
+    """Parses the number out of a filename in the format *result_{number}.mat
 
-    :param str filename: path to execute or scenario list.
-    :param str scenario_id: scenario index.
-    :param str column_number: id of column (indexing starts at 1).
-    :param str column_value: value to insert.
+    :param str filename: the filename from which to extract the result number
+    :return: (*int*) the result number
     """
-    options = "-F, -v OFS=',' -v INPLACE_SUFFIX=.bak -i inplace"
-    program = ("'{for(i=1; i<=NF; i++){if($1==%s) $%s=\"%s\"}};1'" %
-               (scenario_id, column_number, column_value))
-    command = "awk %s %s %s" % (options, program, filename)
-    os.system(command)
+    match = re.match(r".*?result_(?P<num>\d+)\.mat$", filename)
+
+    return int(match.group("num"))
 
 
-def _get_outputs_id(folder):
-    """Get output id for each applicate output.
-
-    :param str folder: path to folder with input case files.
-    :return: (*dict*) -- dictionary of {output_name: column_indices}
-    """
-    case = loadmat(os.path.join(folder, 'case.mat'), squeeze_me=True,
-                   struct_as_record=False)
-
-    outputs_id = {'pg': case['mpc'].genid,
-                  'pf': case['mpc'].branchid,
-                  'lmp': case['mpc'].bus[:, 0].astype(np.int64),
-                  'load_shed': case['mpc'].bus[:, 0].astype(np.int64),
-                  'congu': case['mpc'].branchid,
-                  'congl': case['mpc'].branchid}
-    try:
-        outputs_id['pf_dcline'] = case['mpc'].dclineid
-    except AttributeError:
-        pass
-    try:
-        case_storage = loadmat(
-            os.path.join(folder, 'case_storage'), squeeze_me=True,
-            struct_as_record=False)
-        num_storage = len(case_storage['storage'].gen)
-        outputs_id['storage_pg'] = np.arange(num_storage)
-        outputs_id['storage_e'] = np.arange(num_storage)
-    except FileNotFoundError:
-        pass
-
-    return outputs_id
-
-
-def extract_data(scenario_info):
+def extract_data(results):
     """Builds data frames of {PG, PF, LMP, CONGU, CONGL} from Julia simulation
         output binary files produced by REISE.jl.
 
-    :param dict scenario_info: scenario information.
-    :return: (*pandas.DataFrame*) -- data frames of:
-        PG, PF, LMP, CONGU, CONGL, LOAD_SHED.
+    :param list results: list of result files
+    :return: (*tuple*) -- first element is a dictionary of Pandas data frames of:
+        PG, PF, LMP, CONGU, CONGL, LOAD_SHED, second is a list of strings of infeasibilities,
+        and the third element is a list of numpy.float64 costs for each file in the input results list
     """
+
     infeasibilities = []
     cost = []
-    setup_time = []
-    solve_time = []
-    optimize_time = []
 
-    extraction_vars = {'pf', 'pg', 'lmp', 'congu', 'congl'}
-    sparse_extraction_vars = {'congu', 'congl', 'load_shed'}
+    extraction_vars = {"pf", "pg", "lmp", "congu", "congl"}
+    sparse_extraction_vars = {"congu", "congl", "load_shed"}
     temps = {}
     outputs = {}
 
-    folder = os.path.join(const.EXECUTE_DIR,
-                          'scenario_%s' % scenario_info['id'])
-    end_index = len(glob.glob(os.path.join(folder, 'output', 'result_*.mat')))
-
     tic = time.process_time()
-    for i in tqdm(range(end_index)):
-        filename = 'result_' + str(i) + '.mat'
+    for i, filename in tqdm(enumerate(results)):
+        # For each result_#.mat file
+        output = load_mat73(filename)
 
-        output = load_mat73(os.path.join(folder, 'output', filename))
-
+        # Record cost for this mat file
         try:
-            cost.append(output['mdo_save']['results']['f'][0][0])
+            cost.append(output["mdo_save"]["results"]["f"][0][0])
         except KeyError:
             pass
 
-        demand_scaling = output['mdo_save']['demand_scaling'][0][0]
+        # Check for infeasibilities
+        demand_scaling = output["mdo_save"]["demand_scaling"][0][0]
         if demand_scaling < 1:
             demand_change = round(100 * (1 - demand_scaling))
-            infeasibilities.append('%s:%s' % (str(i), str(demand_change)))
-        output_mpc = output['mdo_save']['flow']['mpc']
-        temps['pg'] = output_mpc['gen']['PG'].T
-        temps['pf'] = output_mpc['branch']['PF'].T
-        temps['lmp'] = output_mpc['bus']['LAM_P'].T
-        temps['congu'] = output_mpc['branch']['MU_SF'].T
-        temps['congl'] = output_mpc['branch']['MU_ST'].T
+            infeasibilities.append(f"{i}:{demand_change}")
+
+        # Extract various variables
+        output_mpc = output["mdo_save"]["flow"]["mpc"]
+
+        temps["pg"] = output_mpc["gen"]["PG"].T
+        temps["pf"] = output_mpc["branch"]["PF"].T
+        temps["lmp"] = output_mpc["bus"]["LAM_P"].T
+        temps["congu"] = output_mpc["branch"]["MU_SF"].T
+        temps["congl"] = output_mpc["branch"]["MU_ST"].T
+
+        # Extract optional variables (not present in all scenarios)
         try:
-            temps['pf_dcline'] = output_mpc['dcline']['PF_dcline'].T
-            extraction_vars |= {'pf_dcline'}
+            temps["pf_dcline"] = output_mpc["dcline"]["PF_dcline"].T
+            extraction_vars |= {"pf_dcline"}
+        except KeyError:
+            pass
+
+        try:
+            temps["storage_pg"] = output_mpc["storage"]["PG"].T
+            temps["storage_e"] = output_mpc["storage"]["Energy"].T
+            extraction_vars |= {"storage_pg", "storage_e"}
         except KeyError:
             pass
         try:
-            temps['storage_pg'] = output_mpc['storage']['PG'].T
-            temps['storage_e'] = output_mpc['storage']['Energy'].T
-            extraction_vars |= {'storage_pg', 'storage_e'}
+            temps["load_shed"] = output_mpc["load_shed"]["load_shed"].T
+            extraction_vars |= {"load_shed"}
         except KeyError:
             pass
-        try:
-            temps['load_shed'] = output_mpc['load_shed']['load_shed'].T
-            extraction_vars |= {'load_shed'}
-        except KeyError:
-            pass
+
+        # Extract which number result currently being processed
+        i = result_num(filename)
+
         for v in extraction_vars:
+            # Determine start, end indices of the outputs where this iteration belongs
+            interval_length, n_columns = temps[v].shape
+            start_hour, end_hour = (i * interval_length), ((i + 1) * interval_length)
+            # If this extraction variables hasn't been seen yet, initialize all zeros
             if v not in outputs:
-                interval_length, n_columns = temps[v].shape
-                total_length = end_index * interval_length
+                total_length = len(results) * interval_length
                 outputs[v] = pd.DataFrame(np.zeros((total_length, n_columns)))
-                outputs[v].name = str(scenario_info['id']) + '_' + v.upper()
-            start_hour, end_hour = (i*interval_length), ((i+1)*interval_length)
+            # Update the output variables for the time frame with the extracted data
             outputs[v].iloc[start_hour:end_hour, :] = temps[v]
 
-    print(extraction_vars)
-
+    # Record time to read all the data
     toc = time.process_time()
-    print('Reading time ' + str(round(toc-tic)) + 's')
+    print("Reading time " + str((toc - tic)) + "s")
 
-    # Write infeasibilities
-    insert_in_file(const.SCENARIO_LIST, scenario_info['id'], '16',
-                   '_'.join(infeasibilities))
-
-    # Build log: costs from matfiles, file attributes from ls/awk
-    log = pd.DataFrame(data={'cost': cost})
-    file_filter = os.path.join(folder, 'output', 'result_*.mat')
-    ls_options = '-lrt --time-style="+%Y-%m-%d %H:%M:%S" ' + file_filter
-    awk_options = "-v OFS=','"
-    awk_program = (
-        "'BEGIN{print \"filesize,datetime,filename\"}; "
-        "NR >0 {print $5, $6\" \"$7, $8}'")
-    ls_call = "ls %s | awk %s %s" % (ls_options, awk_options, awk_program)
-    ls_output = subprocess.Popen(ls_call, shell=True, stdout=subprocess.PIPE)
-    utf_ls_output = io.StringIO(ls_output.communicate()[0].decode('utf-8'))
-    properties_df = pd.read_csv(utf_ls_output, sep=',', dtype=str)
-    log['filesize'] = properties_df.filesize
-    log['write_datetime'] = properties_df.datetime
-    # Write log
-    log_filename = scenario_info['id'] + '_log.csv'
-    log.to_csv(os.path.join(const.OUTPUT_DIR, log_filename), header=True)
-
-    # Set index of data frame
-    date_range = pd.date_range(scenario_info['start_date'],
-                               scenario_info['end_date'],
-                               freq='H')
-
-    for v in extraction_vars:
-        outputs[v].index = date_range
-        outputs[v].index.name = 'UTC'
-
-    # Get/set index column name of data frame
-    outputs_id = _get_outputs_id(folder)
-    for k in outputs:
-        index = outputs_id[k]
-        if isinstance(index, int):
-            outputs[k].columns = [index]
-        else:
-            outputs[k].columns = index.tolist()
-
-    print('converting to float32')
-    for v in extraction_vars:
+    # Convert everything except sparse variables to float32
+    for v in extraction_vars - sparse_extraction_vars:
         outputs[v] = outputs[v].astype(np.float32)
 
     # Convert outputs with many zero or near-zero values to sparse dtype
-    to_sparsify = set(extraction_vars) & sparse_extraction_vars
-    print('sparsifying', to_sparsify)
+    # As identified in sparse_extraction_vars
+    to_sparsify = extraction_vars & sparse_extraction_vars
+    print("sparsifying", to_sparsify)
     for v in to_sparsify:
         outputs[v] = outputs[v].round(6).astype(pd.SparseDtype("float", 0))
 
-    return outputs
+    return outputs, infeasibilities, cost
 
 
 def calculate_averaged_congestion(congl, congu):
@@ -213,81 +157,239 @@ def calculate_averaged_congestion(congl, congu):
     :raises TypeError: if arguments are not data frame.
     :raises ValueError: if shape or indices of data frames differ.
     """
+
     for k, v in locals().items():
         if not isinstance(v, pd.DataFrame):
-            raise TypeError('%s must be a pandas data frame' % k)
+            raise TypeError(f"{k} must be a pandas data frame")
 
     if congl.shape != congu.shape:
-        raise ValueError('%data frame must have same shape')
+        raise ValueError("Data frames congu and congl must have same shape")
 
     if not all(congl.columns == congu.columns):
-        raise ValueError('%data frame must have same indices')
+        raise ValueError("Data frames congu and congl must have same indices")
 
     mean_congl = congl.mean()
-    mean_congl.name = 'CONGL'
+    mean_congl.name = "CONGL"
     mean_congu = congu.mean()
-    mean_congu.name = 'CONGU'
+    mean_congu.name = "CONGU"
 
     return pd.merge(mean_congl, mean_congu, left_index=True, right_index=True)
 
 
-def copy_input(scenario_id):
-    """Copies input file, converting matfile from v7.3 to v7 on the way.
+def _get_pkl_path(output_dir, scenario_id=None):
+    """Generates a function to create the path for a .pkl file given
 
-    :param str scenario_id: scenario id
+    :param str output_dir: the directory to save all the .pkl files
+    :param str scenario_id: optional scenario ID number to prepend to each pickle file. Defaults to None.
+    :return: (*func*) a function that take a (*str*) attribute name
+    and returns a (*str*) path to the .pkl where it should be saved
     """
-    src = os.path.join(const.EXECUTE_DIR,
-                       'scenario_%s' % scenario_id,
-                       'output',
-                       'input.mat')
-    dst = os.path.join(const.INPUT_DIR,
-                       '%s_grid.mat' % scenario_id)
-    print('loading and parsing input.mat')
-    input_mpc = load_mat73(src)
-    print('saving converted input.mat as %s_grid.mat' % scenario_id)
-    savemat(dst, input_mpc, do_compression=True)
+    prepend = scenario_id + "_" if scenario_id else ""
+
+    return lambda x: os.path.join(output_dir, prepend + x.upper() + ".pkl")
 
 
-def delete_output(scenario_id):
-    """Deletes output MAT-files.
+def build_log(mat_results, costs, output_dir, scenario_id=None):
+    """Build log recording the cost, filesize, and time for each mat file
 
-    :param str scenario_id: scenario id.
-    """
-    folder = os.path.join(const.EXECUTE_DIR,
-                          'scenario_%s' % scenario_id,
-                          'output')
-    files = glob.glob(os.path.join(folder, 'result_*.mat'))
-    for f in files:
-        os.remove(f)
-
-
-def extract_scenario(scenario_id):
-    """Extracts data and save data as pickle files.
-
-    :param str scenario_id: scenario id.
+    :param list mat_results: list of filenames for which to log information
+    :param list costs: list of costs from extract_data corresponding to the mat files
+    :param str output_dir: directory to save the log file
+    :param str scenario_id: optional scenario ID number to prepend to the log
     """
 
-    scenario_info = get_scenario(scenario_id)
+    # Create log name
+    log_filename = scenario_id + "_log.csv" if scenario_id else "log.csv"
 
-    copy_input(scenario_id)
+    os.makedirs(output_dir, exist_ok=True)
+    with open(os.path.join(output_dir, log_filename), "w") as log:
+        # Write headers
+        log.write(",cost,filesize,write_datetime\n")
+        for i in range(len(costs)):
+            result = mat_results[i]
+            # Get filesize
+            filesize = str(os.stat(result).st_size)
+            # Get formatted ctime
+            write_datetime = os.stat(result).st_ctime
+            write_datetime = time.strftime(
+                "%Y-%m-%d %H:%M:%S", time.localtime(write_datetime)
+            )
 
-    outputs = extract_data(scenario_info)
-    print('saving pickles')
+            log_vals = [i, costs[i], filesize, write_datetime]
+            log.write(",".join([str(val) for val in log_vals]) + "\n")
+
+
+def _get_outputs_from_converted(matfile):
+    """Get output id for each applicate output.
+
+    :param dict matfile: dictionary representing the converted input.mat file outputted by REISE.jl
+    :return: (*dict*) -- dictionary of {output_name: column_indices}
+    """
+
+    case = matfile["mdi"]
+
+    outputs_id = {
+        "pg": case.mpc.genid,
+        "pf": case.mpc.branchid,
+        "lmp": case.mpc.bus[:, 0].astype(np.int64),
+        "load_shed": case.mpc.bus[:, 0].astype(np.int64),
+        "congu": case.mpc.branchid,
+        "congl": case.mpc.branchid,
+    }
+
+    try:
+        outputs_id["pf_dcline"] = case.mpc.dclineid
+    except AttributeError:
+        pass
+
+    try:
+        storage_index = case.Storage.UnitIdx
+        num_storage = 1 if isinstance(storage_index, float) else len(storage_index)
+        outputs_id["storage_pg"] = np.arange(num_storage)
+        outputs_id["storage_e"] = np.arange(num_storage)
+    except AttributeError:
+        pass
+
+    _cast_keys_as_lists(outputs_id)
+
+    return outputs_id
+
+
+def _cast_keys_as_lists(dictionary):
+    """Converts dictionary with values that are ints or numpy arrays to lists.
+
+    :param dict dictionary: dictionary with values that are ints or numpy arrays
+    :return: (*dict*) -- the same dictionary where the values are lists
+    """
+    for key, value in dictionary.items():
+        if type(value) == int:
+            dictionary[key] = [value]
+        else:
+            dictionary[key] = value.tolist()
+
+
+def _update_outputs_labels(outputs, start_date, end_date, freq, matfile):
+    """Updates outputs with the correct date index and column names
+
+    :param dict outputs: dictionary of pandas.DataFrames outputted by extract_data
+    :param str start_date: start date used for the simulation
+    :param str end_date: end date used for the simulation
+    :param str freq: the frequency of timestamps in the input profiles as a pandas frequency alias
+    :param dict matfile: dictionary representing the converted input.mat file outputted by REISE.jl
+    """
+    # Set index of data frame
+    start_ts = validate_time_format(start_date)
+    end_ts = validate_time_format(end_date, end_date=True)
+
+    date_range = pd.date_range(start_ts, end_ts, freq=freq)
+
+    outputs_id = _get_outputs_from_converted(matfile)
+
+    for k in outputs:
+        outputs[k].index = date_range
+        outputs[k].index.name = "UTC"
+
+        outputs[k].columns = outputs_id[k]
+
+
+def extract_scenario(
+    execute_dir,
+    start_date,
+    end_date,
+    scenario_id=None,
+    output_dir=None,
+    mat_dir=None,
+    freq="H",
+    keep_mat=True,
+):
+    """Extracts data and save data as pickle files to the output directory
+
+    :param str execute_dir: directory containing all of the result.mat files from REISE.jl
+    :param str start_date: the start date of the simulation run
+    :param str end_date: the end date of the simulation run
+    :param str scenario_id: optional identifier for the scenario, used to label output files
+    :param str output_dir: optional directory in which to store the outputs. defaults to the execute_dir
+    :param str mat_dir: optional directory in which to store the converted grid.mat file. defaults to the execute_dir
+    :param bool keep_mat: optional parameter to keep the large result*.mat files after the data has been extracted. Defaults to True.
+    """
+
+    # If output or input dir were not specified, default to the execute_dir
+    output_dir = output_dir or execute_dir
+    mat_dir = mat_dir or execute_dir
+
+    # Copy input.mat from REISE.jl and convert to .mat v7 for scipy compatibility
+    converted_mat_path = copy_input(execute_dir, mat_dir, scenario_id)
+
+    # Extract outputs, infeasibilities, cost
+    mat_results = glob.glob(os.path.join(execute_dir, "result_*.mat"))
+    mat_results = sorted(mat_results, key=result_num)
+
+    outputs, infeasibilities, cost = extract_data(mat_results)
+
+    # Write log file with costs for each result*.mat file
+    build_log(mat_results, cost, output_dir, scenario_id)
+
+    # Update outputs with date indices from the copied input.mat file
+    matfile = loadmat(converted_mat_path, squeeze_me=True, struct_as_record=False)
+    _update_outputs_labels(outputs, start_date, end_date, freq, matfile)
+
+    # Save pickles
+    pkl_path = _get_pkl_path(output_dir, scenario_id)
+
     for k, v in outputs.items():
-        pickle_filename = scenario_info['id'] + '_' + k.upper() + '.pkl'
-        v.to_pickle(os.path.join(const.OUTPUT_DIR, pickle_filename))
+        v.to_pickle(pkl_path(k.upper()))
 
-    calculate_averaged_congestion(
-        outputs['congl'], outputs['congu']).to_pickle(os.path.join(
-            const.OUTPUT_DIR, scenario_info['id'] + '_AVERAGED_CONG.pkl'))
+    # Calculate and save averaged congestion
+    calculate_averaged_congestion(outputs["congl"], outputs["congu"]).to_pickle(
+        pkl_path("AVERAGED_CONG")
+    )
 
-    insert_in_file(const.EXECUTE_LIST, scenario_info['id'], '2', 'extracted')
-    insert_in_file(const.SCENARIO_LIST, scenario_info['id'], '4', 'analyze')
+    if scenario_id:
+        # Record infeasibilities
+        insert_in_file(
+            const.SCENARIO_LIST,
+            scenario_id,
+            "infeasibilities",
+            "_".join(infeasibilities),
+        )
 
-    print('deleting matfiles')
-    delete_output(scenario_id)
+        # Update execute and scenario list
+        insert_in_file(const.EXECUTE_LIST, scenario_id, "status", "extracted")
+        insert_in_file(const.SCENARIO_LIST, scenario_id, "state", "analyze")
+
+    if not keep_mat:
+        print("deleting matfiles")
+        for matfile in mat_results:
+            os.remove(matfile)
 
 
 if __name__ == "__main__":
-    import sys
-    extract_scenario(sys.argv[1])
+    args = parser.parse_extract_args()
+
+    # Get scenario info if using PowerSimData
+    if args.scenario_id:
+        args.start_date, args.end_date, _, _, args.execute_dir = get_scenario(
+            args.scenario_id
+        )
+
+        args.matlab_dir = const.INPUT_DIR
+        args.output_dir = const.OUTPUT_DIR
+
+    # Check to make sure all necessary arguments are there
+    # (start_date, end_date, execute_dir)
+    if not (args.start_date and args.end_date and args.execute_dir):
+        err_str = (
+            "The following arguments are required: start-date, end-date, execute-dir"
+        )
+        raise WrongNumberOfArguments(err_str)
+
+    extract_scenario(
+        args.execute_dir,
+        args.start_date,
+        args.end_date,
+        args.scenario_id,
+        args.output_dir,
+        args.matlab_dir,
+        args.frequency,
+        args.keep_matlab,
+    )

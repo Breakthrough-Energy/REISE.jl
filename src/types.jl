@@ -11,7 +11,8 @@ Base.@kwdef struct Case
     dclineid::Array{Int64,1}
     dcline_from::Array{Int64,1}
     dcline_to::Array{Int64,1}
-    dcline_rating::Array{Float64,1}
+    dcline_pmin::Array{Float64,1}
+    dcline_pmax::Array{Float64,1}
 
     busid::Array{Int64,1}
     bus_demand::Array{Float64,1}

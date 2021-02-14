@@ -1,130 +1,201 @@
-from pyreisejl.utility import const
-from pyreisejl.utility.helpers import sec2hms
-
-import numpy as np
 import os
-import pandas as pd
-
-from collections import OrderedDict
-from multiprocessing import Process
 from time import time
 
+import pandas as pd
 
-def get_scenario(scenario_id):
-    """Returns scenario information.
-
-    :param str scenario_id: scenario index.
-    :return: (*dict*) -- scenario information.
-    """
-    scenario_list = pd.read_csv(const.SCENARIO_LIST, dtype=str)
-    scenario_list.fillna('', inplace=True)
-    scenario = scenario_list[scenario_list.id == scenario_id]
-
-    return scenario.to_dict('records', into=OrderedDict)[0]
-
-
-def insert_in_file(filename, scenario_id, column_number, column_value):
-    """Updates status in execute list on server.
-
-    :param str filename: path to execute or scenario list.
-    :param str scenario_id: scenario index.
-    :param str column_number: id of column (indexing starts at 1).
-    :param str column_value: value to insert.
-    """
-    options = "-F, -v OFS=',' -v INPLACE_SUFFIX=.bak -i inplace"
-    program = ("'{for(i=1; i<=NF; i++){if($1==%s) $%s=\"%s\"}};1'" %
-               (scenario_id, column_number, column_value))
-    command = "awk %s %s %s" % (options, program, filename)
-    os.system(command)
+from pyreisejl.utility import const, parser
+from pyreisejl.utility.extract_data import extract_scenario
+from pyreisejl.utility.helpers import (
+    InvalidDateArgument,
+    InvalidInterval,
+    WrongNumberOfArguments,
+    extract_date_limits,
+    get_scenario,
+    insert_in_file,
+    sec2hms,
+    validate_time_format,
+    validate_time_range,
+)
 
 
-def launch_scenario_performance(scenario_id, n_parallel_call=1):
-    """Launches the scenario.
+def _record_scenario(scenario_id, runtime):
+    """Updates execute and scenario list on server after simulation.
 
     :param str scenario_id: scenario index.
-    :param int n_parallel_call: number of parallel runs. This function calls
-        :func:scenario_julia_call.
+    :param int runtime: runtime of simulation in seconds.
     """
-
-    scenario_info = get_scenario(scenario_id)
-
-    min_ts = pd.Timestamp('2016-01-01 00:00:00')
-    max_ts = pd.Timestamp('2016-12-31 23:00:00')
-    dates = pd.date_range(start=min_ts, end=max_ts, freq='1H')
-
-    start_ts = pd.Timestamp(scenario_info['start_date'])
-    end_ts = pd.Timestamp(scenario_info['end_date'])
-
-    # Julia starts at 1
-    start_index = dates.get_loc(start_ts) + 1
-    end_index = dates.get_loc(end_ts) + 1
-
-    # Create save data folder if does not exist
-    output_dir = os.path.join(const.EXECUTE_DIR,
-                              'scenario_%s/output' % scenario_info['id'])
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
 
     # Update status in ExecuteList.csv on server
-    insert_in_file(const.EXECUTE_LIST, scenario_info['id'], '2', 'running')
+    insert_in_file(const.EXECUTE_LIST, scenario_id, "status", "finished")
 
-    # Split the index into n_parallel_call parts
-    parallel_call_list = np.array_split(range(start_index, end_index + 1),
-                                        n_parallel_call)
-    proc = []
-    start = time()
-    for i in parallel_call_list:
-        p = Process(target=scenario_julia_call,
-                    args=(scenario_info, int(i[0]), int(i[-1]),))
-        p.start()
-        proc.append(p)
-    for p in proc:
-        p.join()
-    end = time()
-
-    # Update status in ExecuteList.csv on server
-    insert_in_file(const.EXECUTE_LIST, scenario_info['id'], '2', 'finished')
-
-    runtime = round(end - start)
-    print('Run time: %s' % str(runtime))
     hours, minutes, seconds = sec2hms(runtime)
-    insert_in_file(const.SCENARIO_LIST, scenario_info['id'], '15',
-                   '%d:%02d' % (hours, minutes))
+    insert_in_file(
+        const.SCENARIO_LIST, scenario_id, "runtime", "%d:%02d" % (hours, minutes)
+    )
 
 
-def scenario_julia_call(scenario_info, start_index, end_index):
+class Launcher:
+    """Parent class for solver-specific scenario launchers.
+
+    :param str start_date: start date of simulation as 'YYYY-MM-DD HH:MM:SS',
+        where HH, MM, and SS are optional.
+    :param str end_date: end date of simulation as 'YYYY-MM-DD HH:MM:SS',
+        where HH, MM, and SS are optional.
+    :param int interval: length of each interval in hours
+    :param str input_dir: directory with input data
+    :raises InvalidDateArgument: if start_date is posterior to end_date
+    :raises InvalidInterval: if the interval doesn't evently divide the given date range
     """
-    Starts a Julia engine, runs the add_path file to load Julia code.
-    Then, loads the data path and runs the scenario.
 
-    :param dict scenario_info: scenario information.
-    :param int start_index: start index.
-    :param int end_index: end index.
-    """
+    def __init__(self, start_date, end_date, interval, input_dir):
+        """Constructor."""
+        # extract time limits from 'demand.csv'
+        with open(os.path.join(input_dir, "demand.csv")) as profile:
+            min_ts, max_ts, freq = extract_date_limits(profile)
 
-    from julia.api import Julia
-    jl = Julia(compiled_modules=False)
-    from julia import Main
-    from julia import REISE
+        dates = pd.date_range(start=min_ts, end=max_ts, freq=freq)
 
-    interval = int(scenario_info['interval'].split('H', 1)[0])
-    n_interval = int((end_index - start_index + 1) / interval)
+        start_ts = validate_time_format(start_date)
+        end_ts = validate_time_format(end_date, end_date=True)
 
-    input_dir = os.path.join(const.EXECUTE_DIR,
-                             'scenario_%s' % scenario_info['id'])
-    output_dir = os.path.join(const.EXECUTE_DIR,
-                              'scenario_%s/output/' % scenario_info['id'])
+        # make sure the dates are within the time frame we have data for
+        validate_time_range(start_ts, min_ts, max_ts)
+        validate_time_range(end_ts, min_ts, max_ts)
 
-    REISE.run_scenario(
-        interval=interval,
-        n_interval=n_interval,
-        start_index=start_index,
-        inputfolder=input_dir,
-        outputfolder=output_dir)
-    Main.eval('exit()')
+        if start_ts > end_ts:
+            raise InvalidDateArgument(
+                f"The start date ({start_ts}) cannot be after the end date ({end_ts})."
+            )
+
+        # Julia starts at 1
+        start_index = dates.get_loc(start_ts) + 1
+        end_index = dates.get_loc(end_ts) + 1
+
+        # Calculate number of intervals
+        ts_range = end_index - start_index + 1
+        if ts_range % interval > 0:
+            raise InvalidInterval(
+                "This interval does not evenly divide the given date range."
+            )
+        self.start_index = start_index
+        self.interval = interval
+        self.n_interval = int(ts_range / interval)
+        self.input_dir = input_dir
+        print("Validation complete!")
+
+    def _print_settings(self):
+        print("Launching scenario with parameters:")
+        print(
+            {
+                "interval": self.interval,
+                "n_interval": self.n_interval,
+                "start_index": self.start_index,
+                "input_dir": self.input_dir,
+                "execute_dir": self.execute_dir,
+                "threads": self.threads,
+            }
+        )
+
+    def launch_scenario(self):
+        # This should be defined in sub-classes
+        raise NotImplementedError
+
+
+class GurobiLauncher(Launcher):
+    def launch_scenario(self, execute_dir=None, threads=None, solver_kwargs=None):
+        """Launches the scenario.
+
+        :param None/str execute_dir: directory for execute data. None defaults to an
+            execute folder that will be created in the input directory
+        :param None/int threads: number of threads to use.
+        :param None/dict solver_kwargs: keyword arguments to pass to solver (if any).
+        :return: (*int*) runtime of scenario in seconds
+        """
+        self.execute_dir = execute_dir
+        self.threads = threads
+        self._print_settings()
+        # Import these within function because there is a lengthy compilation step
+        from julia.api import Julia
+
+        Julia(compiled_modules=False)
+        from julia import Gurobi  # noqa: F401
+        from julia import REISE
+
+        start = time()
+        REISE.run_scenario_gurobi(
+            interval=self.interval,
+            n_interval=self.n_interval,
+            start_index=self.start_index,
+            inputfolder=self.input_dir,
+            outputfolder=self.execute_dir,
+            threads=self.threads,
+        )
+        end = time()
+
+        runtime = round(end - start)
+        hours, minutes, seconds = sec2hms(runtime)
+        print(f"Run time: {hours}:{minutes:02d}:{seconds:02d}")
+
+        return runtime
+
+
+def main(args):
+    # Get scenario info if using PowerSimData
+    if args.scenario_id:
+        scenario_args = get_scenario(args.scenario_id)
+
+        args.start_date = scenario_args[0]
+        args.end_date = scenario_args[1]
+        args.interval = scenario_args[2]
+        args.input_dir = scenario_args[3]
+        args.execute_dir = scenario_args[4]
+
+        # Update status in ExecuteList.csv on server
+        insert_in_file(const.EXECUTE_LIST, args.scenario_id, "status", "running")
+
+    # Check to make sure all necessary arguments are there
+    # (start_date, end_date, interval, input_dir)
+    if not (args.start_date and args.end_date and args.interval and args.input_dir):
+        err_str = (
+            "The following arguments are required: "
+            "start-date, end-date, interval, input-dir"
+        )
+        raise WrongNumberOfArguments(err_str)
+
+    launcher = GurobiLauncher(
+        args.start_date,
+        args.end_date,
+        args.interval,
+        args.input_dir,
+    )
+    runtime = launcher.launch_scenario(args.execute_dir, args.threads)
+
+    # If using PowerSimData, record the runtime
+    if args.scenario_id:
+        _record_scenario(args.scenario_id, runtime)
+        args.matlab_dir = const.INPUT_DIR
+        args.output_dir = const.OUTPUT_DIR
+
+    if args.extract_data:
+        if not args.execute_dir:
+            args.execute_dir = os.path.join(args.input_dir, "output")
+
+        extract_scenario(
+            args.execute_dir,
+            args.start_date,
+            args.end_date,
+            scenario_id=args.scenario_id,
+            output_dir=args.output_dir,
+            mat_dir=args.matlab_dir,
+            keep_mat=args.keep_matlab,
+        )
 
 
 if __name__ == "__main__":
-    import sys
-
-    launch_scenario_performance(sys.argv[1])
+    args = parser.parse_call_args()
+    try:
+        main(args)
+    except Exception as ex:
+        print(ex)  # sent to redirected stdout/stderr
+        if args.scenario_id:
+            insert_in_file(const.EXECUTE_LIST, args.scenario_id, "status", "failed")
