@@ -467,7 +467,7 @@ this repository.
 
 ## Docker
 
-The easiest way to setup this engine is within a Docker image. Note, however, that the Docker image is currently configured to use a [Gurobi Cloud License] and not any of the other `Gurobi` licensing options.
+The easiest way to setup this engine is within a Docker image.
 
 There is an included `Dockerfile` that can be used to build the Docker image. With the Docker daemon installed and running, navigate to the `REISE.jl` folder containing the `Dockerfile` and build the image:
 
