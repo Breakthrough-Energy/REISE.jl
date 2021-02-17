@@ -91,8 +91,8 @@ class GLPKLauncher(Launcher):
         :return: (*int*) runtime of scenario in seconds
         """
         self.execute_dir = execute_dir
-        self.threads = threads
         self._print_settings()
+        print("INFO: threads not supported by GLPK, ignoring")
 
         from julia.api import Julia
 
@@ -107,7 +107,6 @@ class GLPKLauncher(Launcher):
             start_index=self.start_index,
             inputfolder=self.input_dir,
             outputfolder=self.execute_dir,
-            threads=self.threads,
             optimizer_factory=GLPK.Optimizer,
         )
         end = time()
