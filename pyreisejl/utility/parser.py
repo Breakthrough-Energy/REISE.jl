@@ -73,6 +73,10 @@ def parse_call_args():
         "instead of deleted after extraction. "
         "This flag is only used if the extract-data flag is set.",
     )
+    parser.add_argument(
+        "--solver",
+        help="Specify the solver to run the optimization. Will default to gurobi",
+    )
 
     # For backwards compatability with PowerSimData
     parser.add_argument(

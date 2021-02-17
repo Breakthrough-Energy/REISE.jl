@@ -30,9 +30,13 @@ def get_script_path():
 def launch_simulation(scenario_id):
     cmd_call = ["python3", "-u", get_script_path(), str(scenario_id), "--extract-data"]
     threads = request.args.get("threads", None)
+    solver = request.args.get("solver", None)
 
     if threads is not None:
         cmd_call.extend(["--threads", str(threads)])
+
+    if solver is not None:
+        cmd_call.extend(["--solver", solver])
 
     proc = Popen(cmd_call, stdout=PIPE, stderr=PIPE, start_new_session=True)
     entry = SimulationState(scenario_id, proc)

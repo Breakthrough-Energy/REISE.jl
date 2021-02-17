@@ -101,6 +101,38 @@ class Launcher:
         raise NotImplementedError
 
 
+class GLPKLauncher(Launcher):
+    def launch_scenario(self, execute_dir=None, threads=None, solver_kwargs=None):
+
+        self.execute_dir = execute_dir
+        self.threads = threads
+        self._print_settings()
+
+        from julia.api import Julia
+
+        Julia(compiled_modules=False)
+        from julia import GLPK  # noqa: F401
+        from julia import REISE
+
+        start = time()
+        REISE.run_scenario(
+            interval=self.interval,
+            n_interval=self.n_interval,
+            start_index=self.start_index,
+            inputfolder=self.input_dir,
+            outputfolder=self.execute_dir,
+            threads=self.threads,
+            optimizer_factory=GLPK.Optimizer,
+        )
+        end = time()
+
+        runtime = round(end - start)
+        hours, minutes, seconds = sec2hms(runtime)
+        print(f"Run time: {hours}:{minutes:02d}:{seconds:02d}")
+
+        return runtime
+
+
 class GurobiLauncher(Launcher):
     def launch_scenario(self, execute_dir=None, threads=None, solver_kwargs=None):
         """Launches the scenario.
@@ -162,7 +194,14 @@ def main(args):
         )
         raise WrongNumberOfArguments(err_str)
 
-    launcher = GurobiLauncher(
+    launch_map = {"gurobi": GurobiLauncher, "glpk": GLPKLauncher}
+    solver = args.solver
+    if solver:
+        _launcher = launch_map[solver]
+    else:
+        _launcher = GLPKLauncher
+
+    launcher = _launcher(
         args.start_date,
         args.end_date,
         args.interval,
