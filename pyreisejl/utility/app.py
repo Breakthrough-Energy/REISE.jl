@@ -12,7 +12,7 @@ app = Flask(__name__)
 Example request:
 
 curl -XPOST http://localhost:5000/launch/1234
-curl -XPOST http://localhost:5000/launch/1234?threads=42
+curl -XPOST http://localhost:5000/launch/1234?threads=4&solver=glpk
 curl http://localhost:5000/status/1234
 """
 
