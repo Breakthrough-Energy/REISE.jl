@@ -27,6 +27,18 @@ def _record_scenario(scenario_id, runtime):
     )
 
 
+def _get_launcher(solver):
+    """Determine the launcher type given value from command line
+
+    :param str solver: user provided solver name
+    :return: (*type*) -- the launcher type, which can be instantiated
+    """
+    launch_map = {"gurobi": GurobiLauncher, "glpk": GLPKLauncher}
+    if solver is None:
+        return GurobiLauncher
+    return launch_map[solver]
+
+
 def main(args):
     # Get scenario info if using PowerSimData
     if args.scenario_id:
@@ -50,14 +62,7 @@ def main(args):
         )
         raise WrongNumberOfArguments(err_str)
 
-    launch_map = {"gurobi": GurobiLauncher, "glpk": GLPKLauncher}
-    solver = args.solver
-    if solver:
-        _launcher = launch_map[solver]
-    else:
-        _launcher = GLPKLauncher
-
-    launcher = _launcher(
+    launcher = _get_launcher(args.solver)(
         args.start_date,
         args.end_date,
         args.interval,
