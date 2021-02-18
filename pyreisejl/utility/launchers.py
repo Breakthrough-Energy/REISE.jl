@@ -154,3 +154,18 @@ class GurobiLauncher(Launcher):
         print(f"Run time: {hours}:{minutes:02d}:{seconds:02d}")
 
         return runtime
+
+
+_launch_map = {"gurobi": GurobiLauncher, "glpk": GLPKLauncher}
+
+
+def get_available_solvers():
+    return list(_launch_map.keys())
+
+
+def get_launcher(solver):
+    if solver is None:
+        return GurobiLauncher
+    if solver.lower() not in _launch_map.keys():
+        raise ValueError("Invalid solver")
+    return _launch_map[solver]

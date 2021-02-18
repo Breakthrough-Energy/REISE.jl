@@ -1,5 +1,7 @@
 import argparse
 
+from pyreisejl.utility.launchers import get_available_solvers
+
 
 def parse_call_args():
     parser = argparse.ArgumentParser(description="Run REISE.jl simulation.")
@@ -73,9 +75,12 @@ def parse_call_args():
         "instead of deleted after extraction. "
         "This flag is only used if the extract-data flag is set.",
     )
+
+    solvers = ",".join(get_available_solvers())
     parser.add_argument(
         "--solver",
-        help="Specify the solver to run the optimization. Will default to gurobi",
+        help="Specify the solver to run the optimization. Will default to gurobi. "
+        f"Current solvers available are {solvers}.",
     )
 
     # For backwards compatability with PowerSimData

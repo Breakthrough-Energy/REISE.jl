@@ -8,7 +8,7 @@ from pyreisejl.utility.helpers import (
     insert_in_file,
     sec2hms,
 )
-from pyreisejl.utility.launchers import GLPKLauncher, GurobiLauncher
+from pyreisejl.utility.launchers import get_launcher
 
 
 def _record_scenario(scenario_id, runtime):
@@ -25,18 +25,6 @@ def _record_scenario(scenario_id, runtime):
     insert_in_file(
         const.SCENARIO_LIST, scenario_id, "runtime", "%d:%02d" % (hours, minutes)
     )
-
-
-def _get_launcher(solver):
-    """Determine the launcher type given value from command line
-
-    :param str solver: user provided solver name
-    :return: (*type*) -- the launcher type, which can be instantiated
-    """
-    launch_map = {"gurobi": GurobiLauncher, "glpk": GLPKLauncher}
-    if solver is None:
-        return GurobiLauncher
-    return launch_map[solver]
 
 
 def main(args):
@@ -62,7 +50,7 @@ def main(args):
         )
         raise WrongNumberOfArguments(err_str)
 
-    launcher = _get_launcher(args.solver)(
+    launcher = get_launcher(args.solver)(
         args.start_date,
         args.end_date,
         args.interval,
