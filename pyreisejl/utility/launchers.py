@@ -91,6 +91,7 @@ class GLPKLauncher(Launcher):
         :return: (*int*) runtime of scenario in seconds
         """
         self.execute_dir = execute_dir
+        self.threads = threads
         self._print_settings()
         print("INFO: threads not supported by GLPK, ignoring")
 
