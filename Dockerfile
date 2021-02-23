@@ -21,7 +21,14 @@ ENV PATH="$PATH:/usr/share/julia-1.5.3/bin" \
 WORKDIR /app
 COPY . .
 
-RUN julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate(); Pkg.add("Gurobi"); import Gurobi; using REISE' && \
+RUN julia -e 'using Pkg; \
+	Pkg.activate("."); \
+	Pkg.instantiate(); \
+	Pkg.add("Gurobi"); \
+	import Gurobi; \
+	Pkg.add("GLPK"); \
+	import GLPK; \
+	using REISE' && \
     pip install -r requirements.txt
 
 
