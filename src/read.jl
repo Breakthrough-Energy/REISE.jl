@@ -97,3 +97,27 @@ function read_storage(filepath)::Storage
     # Convert NamedTuple to Storage
     storage = Storage(; storage...)
 end
+
+
+"""Load flexibility profile(s) from .csv files into DataFrame(s)."""
+function read_demand_flexibility(filepath)::Flexibility
+    # Initialize flexibility
+    flexibility = Dict()
+
+    # Try loading demand flexibility profiles. Otherwise, create a DataFrame of zeros
+    try
+        println("...loading flexibility profiles")
+        flexibility["flex_amt"] = CSV.File(
+            joinpath(filepath, "flexibility.csv")
+        ) |> DataFrames.DataFrame
+    catch e
+        println("Flexibility profiles not found in " * filepath)
+        println("Generating a flexibility profile comprised solely of zeros.")
+        demand = CSV.File(joinpath(filepath, "demand.csv")) |> DataFrames.DataFrame
+        flexibility["flex_amt"] = DataFrames.DataFrame()
+        flexibility["flex_amt"][:, names(demand)[1]] = demand[:, "Local Time"]
+        for c in names(demand)[2:end]
+            flexibility["flex_amt"][:, c] = zeros(DataFrames.nrow(demand))
+        end
+    end
+end

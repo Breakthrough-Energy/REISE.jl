@@ -42,6 +42,11 @@ Base.@kwdef struct Storage
 end
 
 
+Base.@kwdef struct Flexibility
+    flex_amt::DataFrames.DataFrame
+end
+
+
 Base.@kwdef struct Results
     # We create a struct to hold case results in a type-declared format
     pg::Array{Float64,2}
