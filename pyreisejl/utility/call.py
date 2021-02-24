@@ -58,6 +58,7 @@ def main(args):
         execute_dir=args.execute_dir,
         threads=args.threads,
         julia_env=args.julia_env,
+        num_segments=args.linearization_segments,
     )
     runtime = launcher.launch_scenario()
 
