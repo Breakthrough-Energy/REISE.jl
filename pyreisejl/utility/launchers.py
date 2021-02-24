@@ -194,4 +194,4 @@ def get_launcher(solver):
         return GurobiLauncher
     if solver.lower() not in _launch_map.keys():
         raise ValueError("Invalid solver")
-    return _launch_map[solver]
+    return _launch_map[solver.lower()]
