@@ -1,3 +1,4 @@
+import importlib
 import os
 from time import time
 
@@ -92,6 +93,14 @@ class Launcher:
             }
         )
 
+    def init_julia(self, imports=["REISE"]):
+        # Init happens at runtime because compilation takes time and imports are unknown
+
+        from julia.api import Julia
+
+        Julia(compiled_modules=False)
+        return tuple([importlib.import_module(f"julia.{i}") for i in imports])
+
     def launch_scenario(self):
         # This should be defined in sub-classes
         raise NotImplementedError
@@ -103,15 +112,10 @@ class GLPKLauncher(Launcher):
 
         :return: (*int*) runtime of scenario in seconds
         """
-
         self._print_settings()
         print("INFO: threads not supported by GLPK, ignoring")
 
-        from julia.api import Julia
-
-        Julia(compiled_modules=False)
-        from julia import GLPK  # noqa: F401
-        from julia import REISE
+        GLPK, REISE = self.init_julia(imports=["GLPK", "REISE"])
 
         start = time()
         REISE.run_scenario(
@@ -138,12 +142,9 @@ class GurobiLauncher(Launcher):
         :return: (*int*) runtime of scenario in seconds
         """
         self._print_settings()
-        # Import these within function because there is a lengthy compilation step
-        from julia.api import Julia
 
-        Julia(compiled_modules=False)
-        from julia import Gurobi  # noqa: F401
-        from julia import REISE
+        # Gurobi needs to be imported in the Julia environment, but not used in Python.
+        _, REISE = self.init_julia(imports=["Gurobi", "REISE"])
 
         start = time()
         REISE.run_scenario_gurobi(
