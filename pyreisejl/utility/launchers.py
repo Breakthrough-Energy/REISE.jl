@@ -22,11 +22,24 @@ class Launcher:
         where HH, MM, and SS are optional.
     :param int interval: length of each interval in hours
     :param str input_dir: directory with input data
+    :param None/str execute_dir: directory for execute data. None defaults to an
+        execute folder that will be created in the input directory
+    :param None/int threads: number of threads to use.
+    :param None/dict solver_kwargs: keyword arguments to pass to solver (if any).
     :raises InvalidDateArgument: if start_date is posterior to end_date
     :raises InvalidInterval: if the interval doesn't evently divide the given date range
     """
 
-    def __init__(self, start_date, end_date, interval, input_dir):
+    def __init__(
+        self,
+        start_date,
+        end_date,
+        interval,
+        input_dir,
+        execute_dir=None,
+        threads=None,
+        solver_kwargs=None,
+    ):
         """Constructor."""
         # extract time limits from 'demand.csv'
         with open(os.path.join(input_dir, "demand.csv")) as profile:
@@ -61,6 +74,10 @@ class Launcher:
         self.n_interval = int(ts_range / interval)
         self.input_dir = input_dir
         print("Validation complete!")
+        # These parameters are not validated
+        self.execute_dir = execute_dir
+        self.threads = threads
+        self.solver_kwargs = solver_kwargs
 
     def _print_settings(self):
         print("Launching scenario with parameters:")
@@ -81,17 +98,12 @@ class Launcher:
 
 
 class GLPKLauncher(Launcher):
-    def launch_scenario(self, execute_dir=None, threads=None, solver_kwargs=None):
+    def launch_scenario(self):
         """Launches the scenario.
 
-        :param None/str execute_dir: directory for execute data. None defaults to an
-            execute folder that will be created in the input directory
-        :param None/int threads: number of threads to use.
-        :param None/dict solver_kwargs: keyword arguments to pass to solver (if any).
         :return: (*int*) runtime of scenario in seconds
         """
-        self.execute_dir = execute_dir
-        self.threads = threads
+
         self._print_settings()
         print("INFO: threads not supported by GLPK, ignoring")
 
@@ -120,17 +132,11 @@ class GLPKLauncher(Launcher):
 
 
 class GurobiLauncher(Launcher):
-    def launch_scenario(self, execute_dir=None, threads=None, solver_kwargs=None):
+    def launch_scenario(self):
         """Launches the scenario.
 
-        :param None/str execute_dir: directory for execute data. None defaults to an
-            execute folder that will be created in the input directory
-        :param None/int threads: number of threads to use.
-        :param None/dict solver_kwargs: keyword arguments to pass to solver (if any).
         :return: (*int*) runtime of scenario in seconds
         """
-        self.execute_dir = execute_dir
-        self.threads = threads
         self._print_settings()
         # Import these within function because there is a lengthy compilation step
         from julia.api import Julia

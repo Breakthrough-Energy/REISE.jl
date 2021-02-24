@@ -55,8 +55,10 @@ def main(args):
         args.end_date,
         args.interval,
         args.input_dir,
+        args.execute_dir,
+        args.threads,
     )
-    runtime = launcher.launch_scenario(args.execute_dir, args.threads)
+    runtime = launcher.launch_scenario()
 
     # If using PowerSimData, record the runtime
     if args.scenario_id:
