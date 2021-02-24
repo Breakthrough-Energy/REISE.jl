@@ -90,6 +90,7 @@ class Launcher:
                 "input_dir": self.input_dir,
                 "execute_dir": self.execute_dir,
                 "threads": self.threads,
+                "solver_kwargs": self.solver_kwargs,
             }
         )
 
@@ -125,6 +126,7 @@ class GLPKLauncher(Launcher):
             inputfolder=self.input_dir,
             outputfolder=self.execute_dir,
             optimizer_factory=GLPK.Optimizer,
+            solver_kwargs=self.solver_kwargs,
         )
         end = time()
 
@@ -154,6 +156,7 @@ class GurobiLauncher(Launcher):
             inputfolder=self.input_dir,
             outputfolder=self.execute_dir,
             threads=self.threads,
+            solver_kwargs=self.solver_kwargs,
         )
         end = time()
 
