@@ -102,6 +102,12 @@ class Launcher:
         Julia(compiled_modules=False)
         return tuple([importlib.import_module(f"julia.{i}") for i in imports])
 
+    def parse_runtime(self, start, end):
+        runtime = round(end - start)
+        hours, minutes, seconds = sec2hms(runtime)
+        print(f"Run time: {hours}:{minutes:02d}:{seconds:02d}")
+        return runtime
+
     def launch_scenario(self):
         # This should be defined in sub-classes
         raise NotImplementedError
@@ -130,11 +136,7 @@ class GLPKLauncher(Launcher):
         )
         end = time()
 
-        runtime = round(end - start)
-        hours, minutes, seconds = sec2hms(runtime)
-        print(f"Run time: {hours}:{minutes:02d}:{seconds:02d}")
-
-        return runtime
+        return self.parse_runtime(start, end)
 
 
 class GurobiLauncher(Launcher):
@@ -160,11 +162,7 @@ class GurobiLauncher(Launcher):
         )
         end = time()
 
-        runtime = round(end - start)
-        hours, minutes, seconds = sec2hms(runtime)
-        print(f"Run time: {hours}:{minutes:02d}:{seconds:02d}")
-
-        return runtime
+        return self.parse_runtime(start, end)
 
 
 _launch_map = {"gurobi": GurobiLauncher, "glpk": GLPKLauncher}
