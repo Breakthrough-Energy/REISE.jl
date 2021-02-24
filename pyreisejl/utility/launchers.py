@@ -3,6 +3,7 @@ import os
 from time import time
 
 import pandas as pd
+from julia.api import LibJulia
 
 from pyreisejl.utility.helpers import (
     InvalidDateArgument,
@@ -27,6 +28,7 @@ class Launcher:
         execute folder that will be created in the input directory
     :param None/int threads: number of threads to use.
     :param None/dict solver_kwargs: keyword arguments to pass to solver (if any).
+    :param str julia_env: path to the julia environment to be used to run simulation.
     :raises InvalidDateArgument: if start_date is posterior to end_date
     :raises InvalidInterval: if the interval doesn't evently divide the given date range
     """
@@ -40,6 +42,7 @@ class Launcher:
         execute_dir=None,
         threads=None,
         solver_kwargs=None,
+        julia_env=None,
     ):
         """Constructor."""
         # extract time limits from 'demand.csv'
@@ -79,6 +82,7 @@ class Launcher:
         self.execute_dir = execute_dir
         self.threads = threads
         self.solver_kwargs = solver_kwargs
+        self.julia_env = julia_env
 
     def _print_settings(self):
         print("Launching scenario with parameters:")
@@ -90,16 +94,23 @@ class Launcher:
                 "input_dir": self.input_dir,
                 "execute_dir": self.execute_dir,
                 "threads": self.threads,
+                "julia_env": self.julia_env,
                 "solver_kwargs": self.solver_kwargs,
             }
         )
 
     def init_julia(self, imports=["REISE"]):
-        # Init happens at runtime because compilation takes time and imports are unknown
+        """Initialize a Julia session in the specified environment and import.
 
-        from julia.api import Julia
+        :param list imports: julia packages to import.
+        :return: (*tuple*) -- imported names.
+        """
+        api = LibJulia.load()
+        julia_command_line_options = ["--compiled-modules=no"]
+        if self.julia_env is not None:
+            julia_command_line_options += [f"--project={self.julia_env}"]
+        api.init_julia(julia_command_line_options)
 
-        Julia(compiled_modules=False)
         return tuple([importlib.import_module(f"julia.{i}") for i in imports])
 
     def parse_runtime(self, start, end):

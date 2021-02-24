@@ -55,8 +55,9 @@ def main(args):
         args.end_date,
         args.interval,
         args.input_dir,
-        args.execute_dir,
-        args.threads,
+        execute_dir=args.execute_dir,
+        threads=args.threads,
+        julia_env=args.julia_env,
     )
     runtime = launcher.launch_scenario()
 
