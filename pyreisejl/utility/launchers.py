@@ -24,10 +24,11 @@ class Launcher:
         where HH, MM, and SS are optional.
     :param int interval: length of each interval in hours
     :param str input_dir: directory with input data
-    :param None/str execute_dir: directory for execute data. None defaults to an
-        execute folder that will be created in the input directory
-    :param None/int threads: number of threads to use.
-    :param None/dict solver_kwargs: keyword arguments to pass to solver (if any).
+    :param str execute_dir: directory for execute data. None defaults to an execute
+        folder that will be created in the input directory
+    :param int threads: number of threads to use. None defaults to letting the solver
+        decide.
+    :param dict solver_kwargs: keyword arguments to pass to solver (if any).
     :param str julia_env: path to the julia environment to be used to run simulation.
     :param int num_segments: number of segments used for cost curve linearization.
     :raises InvalidDateArgument: if start_date is posterior to end_date
