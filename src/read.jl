@@ -120,4 +120,11 @@ function read_demand_flexibility(filepath)::Flexibility
             flexibility["flex_amt"][:, c] = zeros(DataFrames.nrow(demand))
         end
     end
+    
+    # Convert Dict to NamedTuple
+    flexibility = (; (Symbol(k) => v for (k,v) in flexibility)...)
+    # Convert NamedTuple to Flexibility
+    flexibility = Flexibility(; flexibility...)
+
+    return flexibility
 end

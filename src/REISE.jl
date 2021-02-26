@@ -9,9 +9,9 @@ import Requires
 import SparseArrays: sparse, SparseMatrixCSC
 
 
-include("types.jl")         # Defines Case, Results, Storage,
+include("types.jl")         # Defines Case, Results, Storage, Flexibility,
                             #     VariablesOfInterest
-include("read.jl")          # Defines read_case, read_storage
+include("read.jl")          # Defines read_case, read_storage, read_demand_flexibility
 include("prepare.jl")       # Defines reise_data_mods
 include("model.jl")         # Defines _build_model (used in interval_loop)
 include("loop.jl")          # Defines interval_loop
@@ -63,7 +63,7 @@ function run_scenario(;
     storage = read_storage(inputfolder)
     flexibility = read_demand_flexibility(inputfolder)
     println("All scenario files loaded!")
-    case = reise_data_mods(case, num_segments=num_segments)
+    
     save_input_mat(case, storage, flexibility, inputfolder, outputfolder)
     model_kwargs = Dict(
         "case" => case,

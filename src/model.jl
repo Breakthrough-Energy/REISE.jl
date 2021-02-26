@@ -38,29 +38,65 @@ end
 
 
 """
-    _make_bus_demand(case)
+    _make_bus_demand_weighting(case)
 
-Given a Case object, build a matrix of demand by (bus, hour) for this interval.
+Given a Case object, build a sparse matrix that indicates the weighting of each bus in 
+    each zone.
 """
-function _make_bus_demand(case::Case, start_index::Int, end_index::Int)::Matrix
+function _make_bus_demand_weighting(
+    case::Case, start_index::Int, end_index::Int
+)::SparseMatrixCSC
     bus_idx = 1:length(case.busid)
     bus_df = DataFrames.DataFrame(
-        name=case.busid, load=case.bus_demand, zone=case.bus_zone)
+        name=case.busid, load=case.bus_demand, zone=case.bus_zone
+    )
     zone_demand = DataFrames.combine(
-        DataFrames.groupby(bus_df, :zone), :load => sum)
+        DataFrames.groupby(bus_df, :zone), :load => sum
+    )
     zone_list = sort(collect(Set(case.bus_zone)))
-    num_zones = length(zone_list)
-    zone_idx = 1:num_zones
+    zone_idx = 1:length(zone_list)
     zone_id2idx = Dict(zone_list .=> zone_idx)
     bus_df_with_zone_load = DataFrames.innerjoin(bus_df, zone_demand, on=:zone)
     bus_share = bus_df[:, :load] ./ bus_df_with_zone_load[:, :load_sum]
     bus_zone_idx = Int64[zone_id2idx[z] for z in case.bus_zone]
     zone_to_bus_shares = sparse(
-        bus_zone_idx, bus_idx, bus_share)::SparseMatrixCSC
+        bus_zone_idx, bus_idx, bus_share
+    )::SparseMatrixCSC
+    return zone_to_bus_shares
+end
+
+
+"""
+    _make_bus_demand(case)
+
+Given a Case object, build a matrix of demand by (bus, hour) for this interval.
+"""
+function _make_bus_demand(case::Case, start_index::Int, end_index::Int)::Matrix
+    # Bus weighting
+    zone_to_bus_shares = _make_bus_demand_weighting(case, start_index, end_index)
+
     # Profiles
     simulation_demand = Matrix(case.demand[start_index:end_index, 2:end])
     bus_demand = permutedims(simulation_demand * zone_to_bus_shares)
     return bus_demand
+end
+
+"""
+    _make_bus_flexibility_amount(case, flexibility)
+
+Given a Case object and a Flexibility object, build a matrix of demand flexibility by 
+    (bus, hour) for this interval.
+"""
+function _make_bus_flexibility_amount(
+    case::Case, flexibility::Flexibility, start_index::Int, end_index::Int
+)::Matrix
+    # Bus weighting
+    zone_to_bus_shares = _make_bus_demand_weighting(case, start_index, end_index)
+
+    # Demand flexibility profiles
+    simulation_flex_amt = Matrix(flexibility.flex_amt[start_index:end_index, 2:end])
+    bus_flex_amt = permutedims(simulation_flex_amt * zone_to_bus_shares)
+    return bus_flex_amt
 end
 
 
