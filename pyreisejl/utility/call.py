@@ -55,8 +55,12 @@ def main(args):
         args.end_date,
         args.interval,
         args.input_dir,
+        execute_dir=args.execute_dir,
+        threads=args.threads,
+        julia_env=args.julia_env,
+        num_segments=args.linearization_segments,
     )
-    runtime = launcher.launch_scenario(args.execute_dir, args.threads)
+    runtime = launcher.launch_scenario()
 
     # If using PowerSimData, record the runtime
     if args.scenario_id:

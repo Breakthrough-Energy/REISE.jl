@@ -1,7 +1,9 @@
+import importlib
 import os
 from time import time
 
 import pandas as pd
+from julia.api import LibJulia
 
 from pyreisejl.utility.helpers import (
     InvalidDateArgument,
@@ -22,11 +24,29 @@ class Launcher:
         where HH, MM, and SS are optional.
     :param int interval: length of each interval in hours
     :param str input_dir: directory with input data
+    :param str execute_dir: directory for execute data. None defaults to an execute
+        folder that will be created in the input directory
+    :param int threads: number of threads to use. None defaults to letting the solver
+        decide.
+    :param dict solver_kwargs: keyword arguments to pass to solver (if any).
+    :param str julia_env: path to the julia environment to be used to run simulation.
+    :param int num_segments: number of segments used for cost curve linearization.
     :raises InvalidDateArgument: if start_date is posterior to end_date
     :raises InvalidInterval: if the interval doesn't evently divide the given date range
     """
 
-    def __init__(self, start_date, end_date, interval, input_dir):
+    def __init__(
+        self,
+        start_date,
+        end_date,
+        interval,
+        input_dir,
+        execute_dir=None,
+        threads=None,
+        solver_kwargs=None,
+        julia_env=None,
+        num_segments=1,
+    ):
         """Constructor."""
         # extract time limits from 'demand.csv'
         with open(os.path.join(input_dir, "demand.csv")) as profile:
@@ -61,19 +81,48 @@ class Launcher:
         self.n_interval = int(ts_range / interval)
         self.input_dir = input_dir
         print("Validation complete!")
+        # These parameters are not validated
+        self.execute_dir = execute_dir
+        self.threads = threads
+        self.solver_kwargs = solver_kwargs
+        self.julia_env = julia_env
+        self.num_segments = num_segments
 
     def _print_settings(self):
         print("Launching scenario with parameters:")
         print(
             {
+                "num_segments": self.num_segments,
                 "interval": self.interval,
                 "n_interval": self.n_interval,
                 "start_index": self.start_index,
                 "input_dir": self.input_dir,
                 "execute_dir": self.execute_dir,
                 "threads": self.threads,
+                "julia_env": self.julia_env,
+                "solver_kwargs": self.solver_kwargs,
             }
         )
+
+    def init_julia(self, imports=["REISE"]):
+        """Initialize a Julia session in the specified environment and import.
+
+        :param list imports: julia packages to import.
+        :return: (*tuple*) -- imported names.
+        """
+        api = LibJulia.load()
+        julia_command_line_options = ["--compiled-modules=no"]
+        if self.julia_env is not None:
+            julia_command_line_options += [f"--project={self.julia_env}"]
+        api.init_julia(julia_command_line_options)
+
+        return tuple([importlib.import_module(f"julia.{i}") for i in imports])
+
+    def parse_runtime(self, start, end):
+        runtime = round(end - start)
+        hours, minutes, seconds = sec2hms(runtime)
+        print(f"Run time: {hours}:{minutes:02d}:{seconds:02d}")
+        return runtime
 
     def launch_scenario(self):
         # This should be defined in sub-classes
@@ -81,25 +130,15 @@ class Launcher:
 
 
 class GLPKLauncher(Launcher):
-    def launch_scenario(self, execute_dir=None, threads=None, solver_kwargs=None):
+    def launch_scenario(self):
         """Launches the scenario.
 
-        :param None/str execute_dir: directory for execute data. None defaults to an
-            execute folder that will be created in the input directory
-        :param None/int threads: number of threads to use.
-        :param None/dict solver_kwargs: keyword arguments to pass to solver (if any).
         :return: (*int*) runtime of scenario in seconds
         """
-        self.execute_dir = execute_dir
-        self.threads = threads
         self._print_settings()
         print("INFO: threads not supported by GLPK, ignoring")
 
-        from julia.api import Julia
-
-        Julia(compiled_modules=False)
-        from julia import GLPK  # noqa: F401
-        from julia import REISE
+        GLPK, REISE = self.init_julia(imports=["GLPK", "REISE"])
 
         start = time()
         REISE.run_scenario(
@@ -109,35 +148,24 @@ class GLPKLauncher(Launcher):
             inputfolder=self.input_dir,
             outputfolder=self.execute_dir,
             optimizer_factory=GLPK.Optimizer,
+            solver_kwargs=self.solver_kwargs,
+            num_segments=self.num_segments,
         )
         end = time()
 
-        runtime = round(end - start)
-        hours, minutes, seconds = sec2hms(runtime)
-        print(f"Run time: {hours}:{minutes:02d}:{seconds:02d}")
-
-        return runtime
+        return self.parse_runtime(start, end)
 
 
 class GurobiLauncher(Launcher):
-    def launch_scenario(self, execute_dir=None, threads=None, solver_kwargs=None):
+    def launch_scenario(self):
         """Launches the scenario.
 
-        :param None/str execute_dir: directory for execute data. None defaults to an
-            execute folder that will be created in the input directory
-        :param None/int threads: number of threads to use.
-        :param None/dict solver_kwargs: keyword arguments to pass to solver (if any).
         :return: (*int*) runtime of scenario in seconds
         """
-        self.execute_dir = execute_dir
-        self.threads = threads
         self._print_settings()
-        # Import these within function because there is a lengthy compilation step
-        from julia.api import Julia
 
-        Julia(compiled_modules=False)
-        from julia import Gurobi  # noqa: F401
-        from julia import REISE
+        # Gurobi needs to be imported in the Julia environment, but not used in Python.
+        _, REISE = self.init_julia(imports=["Gurobi", "REISE"])
 
         start = time()
         REISE.run_scenario_gurobi(
@@ -147,14 +175,12 @@ class GurobiLauncher(Launcher):
             inputfolder=self.input_dir,
             outputfolder=self.execute_dir,
             threads=self.threads,
+            solver_kwargs=self.solver_kwargs,
+            num_segments=self.num_segments,
         )
         end = time()
 
-        runtime = round(end - start)
-        hours, minutes, seconds = sec2hms(runtime)
-        print(f"Run time: {hours}:{minutes:02d}:{seconds:02d}")
-
-        return runtime
+        return self.parse_runtime(start, end)
 
 
 _launch_map = {"gurobi": GurobiLauncher, "glpk": GLPKLauncher}
@@ -169,4 +195,4 @@ def get_launcher(solver):
         return GurobiLauncher
     if solver.lower() not in _launch_map.keys():
         raise ValueError("Invalid solver")
-    return _launch_map[solver]
+    return _launch_map[solver.lower()]
