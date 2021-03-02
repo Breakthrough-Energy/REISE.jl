@@ -115,7 +115,7 @@ function read_demand_flexibility(filepath)::Flexibility
         println("Generating a flexibility profile comprised solely of zeros.")
         demand = CSV.File(joinpath(filepath, "demand.csv")) |> DataFrames.DataFrame
         flexibility["flex_amt"] = DataFrames.DataFrame()
-        flexibility["flex_amt"][:, names(demand)[1]] = demand[:, "Local Time"]
+        flexibility["flex_amt"][:, names(demand)[1]] = demand[:, "UTC Time"]
         for c in names(demand)[2:end]
             flexibility["flex_amt"][:, c] = zeros(DataFrames.nrow(demand))
         end

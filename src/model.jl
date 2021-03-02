@@ -194,17 +194,21 @@ end
 Given a Case object and a set of options, build an optimization model.
 Returns a JuMP.Model instance.
 """
-function _build_model(m::JuMP.Model; case::Case, storage::Storage,
-                     start_index::Int, interval_length::Int,
-                     demand_scaling::Number=1.0,
-                     load_shed_enabled::Bool=false,
-                     load_shed_penalty::Number=9000,
-                     trans_viol_enabled::Bool=false,
-                     trans_viol_penalty::Number=100,
-                     initial_ramp_enabled::Bool=false,
-                     initial_ramp_g0::Array{Float64,1}=Float64[],
-                     storage_e0::Array{Float64,1}=Float64[])::Tuple{
-                        JuMP.Model, VariablesOfInterest}
+function _build_model(
+    m::JuMP.Model;
+    case::Case,
+    storage::Storage,
+    flexibility::Flexibility,
+    start_index::Int, interval_length::Int,
+    demand_scaling::Number=1.0,
+    load_shed_enabled::Bool=false,
+    load_shed_penalty::Number=9000,
+    trans_viol_enabled::Bool=false,
+    trans_viol_penalty::Number=100,
+    initial_ramp_enabled::Bool=false,
+    initial_ramp_g0::Array{Float64,1}=Float64[],
+    storage_e0::Array{Float64,1}=Float64[]
+)::Tuple{JuMP.Model, VariablesOfInterest}
     # Positional indices from mpc.gencost
     COST = 5
     # Positional indices from mpc.gen
@@ -251,6 +255,11 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
         storage_map = sparse(storage_bus_idx, sets.storage_idx, 1,
                              sets.num_bus, sets.num_storage)::SparseMatrixCSC
     end
+    # Demand flexibility parameters (if present)
+    bus_flex_amt = _make_bus_flexibility_amount(
+        case, flexibility, start_index, end_index
+    )
+    flexibility_enabled = (bus_flex_amt != zeros(sets.num_bus, interval_length))
 
     println("variables: ", Dates.now())
     # Variables
@@ -283,6 +292,16 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
                 <= storage_max_energy[i]), (container=Array)
         end)
     end
+    if flexibility_enabled
+        # load_shift is the amount of demand that is deviated from the load profile
+        JuMP.@variable(
+            m, 
+            -1 * bus_flex_amt[sets.load_bus_idx[i], j] 
+                <= load_shift[i in 1:sets.num_load_bus, j in 1:interval_length] 
+                <= bus_flex_amt[sets.load_bus_idx[i], j],
+            container=Array
+        )
+    end
 
     println("constraints: ", Dates.now())
     # Constraints
@@ -294,12 +313,15 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
     if load_shed_enabled
         injections = JuMP.@expression(m, injections + load_bus_map * load_shed)
     end
-    withdrawls = JuMP.@expression(m, bus_demand)
+    withdrawals = JuMP.@expression(m, bus_demand)
     if storage_enabled
         injections = JuMP.@expression(m, injections + storage_map * storage_dis)
-        withdrawls = JuMP.@expression(m, withdrawls + storage_map * storage_chg)
+        withdrawals = JuMP.@expression(m, withdrawals + storage_map * storage_chg)
     end
-    JuMP.@constraint(m, powerbalance, (injections .== withdrawls))
+    if flexibility_enabled
+        withdrawals = JuMP.@expression(m, withdrawals + load_bus_map * load_shift)
+    end
+    JuMP.@constraint(m, powerbalance, (injections .== withdrawals))
     println("powerbalance, setting names: ", Dates.now())
     for i in sets.bus_idx, j in hour_idx
         JuMP.set_name(powerbalance[i, j],
@@ -440,6 +462,7 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
     println(Dates.now())
     # For non-existent variables/constraints, define as `nothing`
     load_shed = load_shed_enabled ? load_shed : nothing
+    load_shift = flexibility_enabled ? load_shift: nothing
     storage_dis = storage_enabled ? storage_dis : nothing
     storage_chg = storage_enabled ? storage_chg : nothing
     storage_soc = storage_enabled ? storage_soc : nothing
@@ -448,8 +471,8 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
     initial_rampdown = initial_ramp_enabled ? initial_rampdown : nothing
     voi = VariablesOfInterest(;
         # Variables
-        pg=pg, pf=pf, load_shed=load_shed, storage_soc=storage_soc,
-        storage_dis=storage_dis, storage_chg=storage_chg,
+        pg=pg, pf=pf, load_shed=load_shed, load_shift=load_shift, 
+        storage_soc=storage_soc, storage_dis=storage_dis, storage_chg=storage_chg,
         # Constraints
         branch_min=branch_min, branch_max=branch_max,
         powerbalance=powerbalance, initial_soc=initial_soc,
