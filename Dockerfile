@@ -22,14 +22,22 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -U pip; pip install -r requirements.txt
 
-COPY . .
+COPY Project.toml .
+COPY Manifest.toml .
+RUN mkdir src && touch src/REISE.jl
+
 RUN julia -e 'using Pkg; \
 	Pkg.activate("."); \
 	Pkg.instantiate(); \
 	Pkg.add("Gurobi"); \
-	import Gurobi; \
-	Pkg.add("GLPK"); \
+	Pkg.add("GLPK")'
+
+COPY src src
+
+RUN julia -e 'import Gurobi; \
 	import GLPK; \
 	using REISE'
+
+COPY pyreisejl pyreisejl
 
 CMD ["flask", "run", "--host", "0.0.0.0"]
