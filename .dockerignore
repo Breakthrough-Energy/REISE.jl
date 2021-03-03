@@ -1,3 +1,6 @@
 .git
 .pytest_cache
 .tox
+.venv
+Dockerfile
+.dockerignore

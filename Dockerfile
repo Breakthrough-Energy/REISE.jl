@@ -19,8 +19,10 @@ ENV PATH="$PATH:/usr/share/julia-1.5.3/bin" \
     FLASK_APP=pyreisejl/utility/app.py
 
 WORKDIR /app
-COPY . .
+COPY requirements.txt .
+RUN pip install -U pip; pip install -r requirements.txt
 
+COPY . .
 RUN julia -e 'using Pkg; \
 	Pkg.activate("."); \
 	Pkg.instantiate(); \
@@ -28,8 +30,6 @@ RUN julia -e 'using Pkg; \
 	import Gurobi; \
 	Pkg.add("GLPK"); \
 	import GLPK; \
-	using REISE' && \
-    pip install -r requirements.txt
-
+	using REISE'
 
 CMD ["flask", "run", "--host", "0.0.0.0"]
