@@ -40,8 +40,10 @@ function interval_loop(factory_like, model_kwargs::Dict,
     # Constant parameters
     case = model_kwargs["case"]
     storage = model_kwargs["storage"]
+    flexibility = model_kwargs["flexibility"]
     sets = _make_sets(case, storage)
     storage_enabled = (sets.num_storage > 0)
+    flexibility_enabled = (bus_flex_amt != zeros(sets.num_bus, interval))
     unused_load_shed_intervals_turnoff = 14
     # Start looping
     for i in 1:n_interval

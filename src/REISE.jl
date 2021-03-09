@@ -63,8 +63,8 @@ function run_scenario(;
     storage = read_storage(inputfolder)
     flexibility = read_demand_flexibility(inputfolder)
     println("All scenario files loaded!")
-    
-    save_input_mat(case, storage, flexibility, inputfolder, outputfolder)
+    case = reise_data_mods(case, num_segments=num_segments)
+    save_input_mat(case, storage, inputfolder, outputfolder)
     model_kwargs = Dict(
         "case" => case,
         "storage" => storage,
