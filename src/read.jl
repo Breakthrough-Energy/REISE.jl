@@ -106,13 +106,12 @@ function read_demand_flexibility(filepath)::Flexibility
 
     # Try loading demand flexibility profiles. Otherwise, create a DataFrame of zeros
     try
-        println("...loading flexibility profiles")
         flexibility["flex_amt"] = CSV.File(
             joinpath(filepath, "flexibility.csv")
         ) |> DataFrames.DataFrame
+        println("...loading flexibility profiles")
     catch e
         println("Flexibility profiles not found in " * filepath)
-        println("Generating a flexibility profile comprised solely of zeros.")
         demand = CSV.File(joinpath(filepath, "demand.csv")) |> DataFrames.DataFrame
         flexibility["flex_amt"] = DataFrames.DataFrame()
         flexibility["flex_amt"][:, names(demand)[1]] = demand[:, "UTC Time"]

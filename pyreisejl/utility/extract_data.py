@@ -113,6 +113,12 @@ def extract_data(results):
             extraction_vars |= {"load_shed"}
         except KeyError:
             pass
+        try:
+            temps["load_shift_dn"] = output_mpc["flexible_demand"]["load_shift_dn"].T
+            temps["load_shift_up"] = output_mpc["flexible_demand"]["load_shift_up"].T
+            extraction_vars |= {"load_shift_dn", "load_shift_up"}
+        except KeyError:
+            pass
 
         # Extract which number result currently being processed
         i = result_num(filename)
@@ -247,6 +253,12 @@ def _get_outputs_from_converted(matfile):
         num_storage = 1 if isinstance(storage_index, float) else len(storage_index)
         outputs_id["storage_pg"] = np.arange(num_storage)
         outputs_id["storage_e"] = np.arange(num_storage)
+    except AttributeError:
+        pass
+
+    try:
+        outputs_id["load_shift_dn"] = case.mpc.bus[:, 0].astype(np.int64)
+        outputs_id["load_shift_up"] = case.mpc.bus[:, 0].astype(np.int64)
     except AttributeError:
         pass
 

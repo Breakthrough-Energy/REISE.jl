@@ -336,13 +336,21 @@ function _build_model(
     end
 
     if load_shed_enabled
-        JuMP.@constraint(
-            m, 
-            load_shed_ub[i in 1:sets.num_load_bus, j in 1:interval_length], 
-            0 <= load_shed[i, j] 
-                <= bus_demand[sets.load_bus_idx[i], j] + load_shift_up[i, j] 
-                    - load_shift_dn[i, j]
-        )
+        if flexibility_enabled
+            JuMP.@constraint(
+                m, 
+                load_shed_ub[i in 1:sets.num_load_bus, j in 1:interval_length], 
+                0 <= load_shed[i, j] 
+                    <= bus_demand[sets.load_bus_idx[i], j] + load_shift_up[i, j] 
+                        - load_shift_dn[i, j]
+            )
+        else
+            JuMP.@constraint(
+                m, 
+                load_shed_ub[i in 1:sets.num_load_bus, j in 1:interval_length], 
+                0 <= load_shed[i, j] <= bus_demand[sets.load_bus_idx[i], j]
+            )
+        end
     end
 
     if storage_enabled

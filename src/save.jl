@@ -79,7 +79,8 @@ function save_results(results::Results, filename::String;
                 ),
             )),
         )
-    # For DC lines, storage power/energy, and load_shed, save only if nonempty
+    # For DC lines, storage power/energy, load_shed, and flexible demand,
+    # save only if nonempty
     if size(results.pf_dcline) != (0, 0)
         mdo_save["flow"]["mpc"]["dcline"] = Dict(
             "PF_dcline" => results.pf_dcline)
@@ -93,6 +94,12 @@ function save_results(results::Results, filename::String;
     if size(results.load_shed) != (0, 0)
         mdo_save["flow"]["mpc"]["load_shed"] = Dict(
             "load_shed" => results.load_shed)
+    end
+    if size(results.load_shift_dn) != (0, 0)
+        mdo_save["flow"]["mpc"]["flexible_demand"] = Dict(
+            "load_shift_dn" => results.load_shift_dn,
+            "load_shift_up" => results.load_shift_up,
+        )
     end
     MAT.matwrite(filename, Dict("mdo_save" => mdo_save); compress=true)
 end
