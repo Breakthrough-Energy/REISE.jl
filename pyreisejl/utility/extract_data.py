@@ -114,9 +114,8 @@ def extract_data(results):
         except KeyError:
             pass
         try:
-            temps["load_shift_dn"] = output_mpc["flexible_demand"]["load_shift_dn"].T
-            temps["load_shift_up"] = output_mpc["flexible_demand"]["load_shift_up"].T
-            extraction_vars |= {"load_shift_dn", "load_shift_up"}
+            temps["load_shift"] = output_mpc["flexible_demand"]["load_shift"].T
+            extraction_vars |= {"load_shift"}
         except KeyError:
             pass
 
@@ -257,8 +256,7 @@ def _get_outputs_from_converted(matfile):
         pass
 
     try:
-        outputs_id["load_shift_dn"] = case.mpc.bus[:, 0].astype(np.int64)
-        outputs_id["load_shift_up"] = case.mpc.bus[:, 0].astype(np.int64)
+        outputs_id["load_shift"] = case.mpc.bus[:, 0].astype(np.int64)
     except AttributeError:
         pass
 

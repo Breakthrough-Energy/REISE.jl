@@ -58,8 +58,7 @@ Base.@kwdef struct Results
     storage_pg::Array{Float64,2}
     storage_e::Array{Float64,2}
     load_shed::Array{Float64,2}
-    load_shift_dn::Array{Float64, 2}
-    load_shift_up::Array{Float64, 2}
+    load_shift::Array{Float64, 2}
     f::Float64
     status::String
 end
@@ -69,8 +68,7 @@ Base.@kwdef struct VariablesOfInterest
     pg::Array{JuMP.VariableRef,2}
     pf::Array{JuMP.VariableRef,2}
     load_shed::Union{Array{JuMP.VariableRef,2},Nothing}
-    load_shift_dn::Union{Array{JuMP.VariableRef, 2},Nothing}
-    load_shift_up::Union{Array{JuMP.VariableRef, 2},Nothing}
+    load_shift::Union{Array{JuMP.VariableRef, 2},Nothing}
     powerbalance::Array{JuMP.ConstraintRef,2}
     branch_min::JuMP.Containers.DenseAxisArray
     branch_max::JuMP.Containers.DenseAxisArray
