@@ -120,6 +120,17 @@ function read_demand_flexibility(filepath)::Flexibility
         end
     end
 
+    # Try loading the duration for the demand flexibility
+    try
+        flexibility_parameters = CSV.File(
+            joinpath(filepath, "flexibility_parameters.csv")
+        ) |> DataFrames.DataFrame
+        flexibility["duration"] = flexibility_parameters[1, "duration"]
+    catch e
+        println("Flexibility parameters not found in " * filepath)
+        flexibility["duration"] = nothing
+    end
+
     # Convert Dict to NamedTuple
     flexibility = (; (Symbol(k) => v for (k,v) in flexibility)...)
     # Convert NamedTuple to Flexibility

@@ -44,6 +44,7 @@ end
 
 Base.@kwdef struct Flexibility
     flex_amt::DataFrames.DataFrame
+    duration::Union{Int64,Nothing}
 end
 
 

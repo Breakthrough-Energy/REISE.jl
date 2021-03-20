@@ -261,6 +261,11 @@ function _build_model(
         case, flexibility, start_index, end_index
     )
     flexibility_enabled = (bus_flex_amt != zeros(sets.num_bus, interval_length))
+    if flexibility_enabled && (
+        flexibility.duration == nothing || flexibility.duration > interval_length
+    )
+        flexibility.duration = interval_length
+    end
 
     println("variables: ", Dates.now())
     # Variables
