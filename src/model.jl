@@ -382,8 +382,11 @@ function _build_model(
         println("load balance: ", Dates.now())
         JuMP.@constraint(
             m, 
-            load_balance[i in 1:sets.num_load_bus], 
-            sum(load_shift[i, j] for j in 1:interval_length) >= 0
+            load_balance[
+                i in 1:sets.num_load_bus, 
+                k in 1:(interval_length - flexibility.duration)
+            ], 
+            sum(load_shift[i, j] for j in k:(k + flexibility.duration)) >= 0
         )
     end
 
