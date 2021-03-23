@@ -298,11 +298,17 @@ function _build_model(
         end)
     end
     if flexibility_enabled
-        # The amount of demand that is curtailed or recovered from the base load
+        # The amount of demand that is curtailed from the base load
         JuMP.@variable(
             m, 
-            -1 * bus_flex_amt[sets.load_bus_idx[i], j] 
-                <= load_shift[i in 1:sets.num_load_bus, j in 1:interval_length] 
+            0 <= load_shift_dn[i in 1:sets.num_load_bus, j in 1:interval_length] 
+                <= bus_flex_amt[sets.load_bus_idx[i], j]
+        )
+
+        # The amount of demand that is added to the base load
+        JuMP.@variable(
+            m, 
+            0 <= load_shift_up[i in 1:sets.num_load_bus, j in 1:interval_length]
                 <= bus_flex_amt[sets.load_bus_idx[i], j]
         )
     end
@@ -323,7 +329,8 @@ function _build_model(
         withdrawals = JuMP.@expression(m, withdrawals + storage_map * storage_chg)
     end
     if flexibility_enabled
-        withdrawals = JuMP.@expression(m, withdrawals + load_bus_map * load_shift)
+        injections = JuMP.@expression(m, injections + load_bus_map * load_shift_dn)
+        withdrawals = JuMP.@expression(m, withdrawals + load_bus_map * load_shift_up)
     end
     JuMP.@constraint(m, powerbalance, (injections .== withdrawals))
     println("powerbalance, setting names: ", Dates.now())
@@ -338,7 +345,8 @@ function _build_model(
                 m, 
                 load_shed_ub[i in 1:sets.num_load_bus, j in 1:interval_length], 
                 0 <= load_shed[i, j] 
-                    <= bus_demand[sets.load_bus_idx[i], j] + load_shift[i, j]
+                    <= bus_demand[sets.load_bus_idx[i], j] + load_shift_up[i, j] 
+                        - load_shift_dn[i, j]
             )
         else
             JuMP.@constraint(
@@ -379,14 +387,26 @@ function _build_model(
     end
 
     if flexibility_enabled
-        println("load balance: ", Dates.now())
+        println("rolling load balance: ", Dates.now())
         JuMP.@constraint(
             m, 
-            load_balance[
+            rolling_load_balance[
                 i in 1:sets.num_load_bus, 
                 k in 1:(interval_length - flexibility.duration)
             ], 
-            sum(load_shift[i, j] for j in k:(k + flexibility.duration)) >= 0
+            sum(
+                load_shift_up[i, j] - load_shift_dn[i, j] 
+                for j in k:(k + flexibility.duration)
+            ) >= 0
+        )
+
+        println("interval load balance: ", Dates.now())
+        JuMP.@constraint(
+            m, 
+            interval_load_balance[i in 1:sets.num_load_bus], 
+            sum(
+                load_shift_up[i, j] - load_shift_dn[i, j] for j in 1:interval_length
+            ) >= 0
         )
     end
 
@@ -495,7 +515,8 @@ function _build_model(
     println(Dates.now())
     # For non-existent variables/constraints, define as `nothing`
     load_shed = load_shed_enabled ? load_shed : nothing
-    load_shift = flexibility_enabled ? load_shift : nothing
+    load_shift_up = flexibility_enabled ? load_shift_up : nothing
+    load_shift_dn = flexibility_enabled ? load_shift_dn : nothing
     storage_dis = storage_enabled ? storage_dis : nothing
     storage_chg = storage_enabled ? storage_chg : nothing
     storage_soc = storage_enabled ? storage_soc : nothing
@@ -505,7 +526,7 @@ function _build_model(
     voi = VariablesOfInterest(;
         # Variables
         pg=pg, pf=pf, 
-        load_shed=load_shed, load_shift=load_shift, 
+        load_shed=load_shed, load_shift_up=load_shift_up, load_shift_dn=load_shift_dn, 
         storage_soc=storage_soc, storage_dis=storage_dis, storage_chg=storage_chg,
         # Constraints
         branch_min=branch_min, branch_max=branch_max,

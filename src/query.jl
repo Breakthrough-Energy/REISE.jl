@@ -66,13 +66,16 @@ function get_results(f::Float64, voi::VariablesOfInterest, case::Case)::Results
 
     # These variables will only be in the results if the model has flexible demand
     # Initialize with empty arrays, to be discarded later if they stay empty
-    load_shift = zeros(0, 0)
+    load_shift_up = zeros(0, 0)
+    load_shift_dn = zeros(0, 0)
     try
-        load_shift_temp = JuMP.value.(voi.load_shift)
+        load_shift_up_temp = JuMP.value.(voi.load_shift_up)
+        load_shift_dn_temp = JuMP.value.(voi.load_shift_dn)
         load_bus_map = sparse(
             sets.load_bus_idx, 1:sets.num_load_bus, 1, sets.num_bus, sets.num_load_bus
         )
-        load_shift = load_bus_map * load_shift_temp
+        load_shift_up = load_bus_map * load_shift_up_temp
+        load_shift_dn = load_bus_map * load_shift_dn_temp
     catch e
         if isa(e, MethodError)
             # Thrown when storage variables are `nothing`
@@ -85,6 +88,6 @@ function get_results(f::Float64, voi::VariablesOfInterest, case::Case)::Results
     results = Results(;
         pg=pg, pf=pf, lmp=lmp, congl=congl, congu=congu, pf_dcline=pf_dcline,
         f=f, storage_pg=storage_pg, storage_e=storage_e, load_shed=load_shed,
-        load_shift=load_shift, status=status)
+        load_shift_up=load_shift_up, load_shift_dn=load_shift_dn, status=status)
     return results
 end

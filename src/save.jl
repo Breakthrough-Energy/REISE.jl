@@ -95,9 +95,10 @@ function save_results(results::Results, filename::String;
         mdo_save["flow"]["mpc"]["load_shed"] = Dict(
             "load_shed" => results.load_shed)
     end
-    if size(results.load_shift) != (0, 0)
+    if size(results.load_shift_dn) != (0, 0)
         mdo_save["flow"]["mpc"]["flexible_demand"] = Dict(
-            "load_shift" => results.load_shift
+            "load_shift_up" => results.load_shift_up, 
+            "load_shift_dn" => results.load_shift_dn,
         )
     end
     MAT.matwrite(filename, Dict("mdo_save" => mdo_save); compress=true)
