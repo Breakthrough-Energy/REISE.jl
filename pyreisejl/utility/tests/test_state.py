@@ -1,3 +1,4 @@
+import time
 from subprocess import PIPE, Popen
 
 import pytest
@@ -14,6 +15,7 @@ def test_proc():
 
 def test_scenario_state_refresh(test_proc):
     entry = SimulationState(123, test_proc)
+    time.sleep(0.4)  # mitigate race condition
     entry.as_dict()
     assert entry.output == ["foo"]
     assert entry.errors == []
