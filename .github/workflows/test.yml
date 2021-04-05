@@ -1,24 +1,49 @@
-name: Pytest
+name: Test
 
 on: push
 
 jobs:
-  test:
+  test-julia:
+    name: Julia ${{ matrix.version }}
+    if: "!contains(github.event.head_commit.message, 'skip_ci')"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - '1.5'
+          - 'nightly'
+        os:
+          - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: ${{ matrix.version }}
+      - uses: actions/cache@v1
+        with:
+          path: ~/.julia/artifacts
+          key: ${{ runner.os }}-artifacts-${{ hashFiles('**/Project.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-artifacts-
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
+
+  test-python:
+    name: Python ${{ matrix.version }}
     if: "!contains(github.event.head_commit.message, 'skip_ci')"
     runs-on: ubuntu-latest
     strategy:
         fail-fast: false
         matrix:
-          python-version: [3.7, 3.8]
-
-    name: Python ${{ matrix.python-version }}
+          version: [3.7, 3.8]
     steps:
       - uses: actions/checkout@v2
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python ${{ matrix.version }}
         uses: actions/setup-python@v2
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ matrix.version }}
 
       - run: python -m pip install --upgrade pip tox
       - run: tox -e pytest
