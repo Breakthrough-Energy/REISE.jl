@@ -239,6 +239,8 @@ def _get_outputs_from_converted(matfile):
         "pf": case.mpc.branchid,
         "lmp": case.mpc.bus[:, 0].astype(np.int64),
         "load_shed": case.mpc.bus[:, 0].astype(np.int64),
+        "load_shift_up": case.mpc.bus[:, 0].astype(np.int64),
+        "load_shift_dn": case.mpc.bus[:, 0].astype(np.int64),
         "congu": case.mpc.branchid,
         "congl": case.mpc.branchid,
     }
@@ -253,12 +255,6 @@ def _get_outputs_from_converted(matfile):
         num_storage = 1 if isinstance(storage_index, float) else len(storage_index)
         outputs_id["storage_pg"] = np.arange(num_storage)
         outputs_id["storage_e"] = np.arange(num_storage)
-    except AttributeError:
-        pass
-
-    try:
-        outputs_id["load_shift_up"] = case.mpc.bus[:, 0].astype(np.int64)
-        outputs_id["load_shift_dn"] = case.mpc.bus[:, 0].astype(np.int64)
     except AttributeError:
         pass
 
