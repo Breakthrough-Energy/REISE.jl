@@ -277,9 +277,11 @@ function _build_model(
         theta[sets.bus_idx, hour_idx], (container=Array)
     end)
     if load_shed_enabled
-        JuMP.@variable(m,
-            load_shed[i in 1:sets.num_load_bus, j in 1:interval_length],
-            container=Array)
+        JuMP.@variable(
+            m,
+            load_shed[i in 1:sets.num_load_bus, j in 1:interval_length] >= 0,
+            container=Array
+        )
     end
     if trans_viol_enabled
         JuMP.@variable(m,
@@ -344,15 +346,15 @@ function _build_model(
             JuMP.@constraint(
                 m, 
                 load_shed_ub[i in 1:sets.num_load_bus, j in 1:interval_length], 
-                0 <= load_shed[i, j] 
-                    <= bus_demand[sets.load_bus_idx[i], j] + load_shift_up[i, j] 
-                        - load_shift_dn[i, j]
+                load_shed[i, j] <= bus_demand[sets.load_bus_idx[i], j] 
+                    + load_shift_up[i, j]
+                    - load_shift_dn[i, j]
             )
         else
             JuMP.@constraint(
                 m, 
                 load_shed_ub[i in 1:sets.num_load_bus, j in 1:interval_length], 
-                0 <= load_shed[i, j] <= bus_demand[sets.load_bus_idx[i], j]
+                load_shed[i, j] <= bus_demand[sets.load_bus_idx[i], j]
             )
         end
     end
@@ -523,14 +525,15 @@ function _build_model(
     initial_soc = storage_enabled ? initial_soc : nothing
     initial_rampup = initial_ramp_enabled ? initial_rampup : nothing
     initial_rampdown = initial_ramp_enabled ? initial_rampdown : nothing
+    load_shed_ub = load_shed_enabled ? load_shed_ub : nothing
     voi = VariablesOfInterest(;
         # Variables
         pg=pg, pf=pf, 
         load_shed=load_shed, load_shift_up=load_shift_up, load_shift_dn=load_shift_dn, 
         storage_soc=storage_soc, storage_dis=storage_dis, storage_chg=storage_chg,
         # Constraints
-        branch_min=branch_min, branch_max=branch_max,
-        powerbalance=powerbalance, initial_soc=initial_soc,
+        branch_min=branch_min, branch_max=branch_max, powerbalance=powerbalance,
+        initial_soc=initial_soc, load_shed_ub=load_shed_ub, 
         initial_rampup=initial_rampup, initial_rampdown=initial_rampdown,
         hydro_fixed=hydro_fixed, solar_max=solar_max, wind_max=wind_max)
     return (m, voi)
