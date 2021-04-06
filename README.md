@@ -627,11 +627,14 @@ Power available from time-varying generator (hydro, wind, solar) ![i](https://re
 at time ![t](https://render.githubusercontent.com/render/math?math=t).
 - ![x_{l}](https://render.githubusercontent.com/render/math?math=x_%7Bl%7D):
 Impedance of branch ![l](https://render.githubusercontent.com/render/math?math=l).
-- ![\overline{\delta}_{b, t}](https://render.githubusercontent.com/render/math?math=%5Coverline%7B%5Cdelta%7D_%7Bb%2Ct%7D):
-Demand flexibility available at bus ![b](https://render.githubusercontent.com/render/math?math=b)
+- ![\underline{\delta}_{b, t}](https://render.githubusercontent.com/render/math?math=%5Cunderline%7B%5Cdelta%7D_%7Bb%2Ct%7D):
+Demand flexibility curtailments available (in MW) at bus ![b](https://render.githubusercontent.com/render/math?math=b)
 at time ![t](https://render.githubusercontent.com/render/math?math=t).
-- ![\Delta](https://render.githubusercontent.com/render/math?math=%7B%5CDelta%7D):
-The length of the rolling load balance window, used to account for the duration that flexible demand is deviating from the base demand.
+- ![\overline{\delta}_{b, t}](https://render.githubusercontent.com/render/math?math=%5Coverline%7B%5Cdelta%7D_%7Bb%2Ct%7D):
+Demand flexibility additions available (in MW) at bus ![b](https://render.githubusercontent.com/render/math?math=b)
+at time ![t](https://render.githubusercontent.com/render/math?math=t).
+- ![\Delta^{balance}](https://render.githubusercontent.com/render/math?math=\Delta^{balance}):
+The length of the rolling load balance window (in hours), used to account for the duration that flexible demand is deviating from the base demand.
 - ![\eta_{b}^{\text{chg}}](https://render.githubusercontent.com/render/math?math=%5Ceta_%7Bb%7D%5E%7B%5Ctext%7Bchg%7D%7D):
 Charging efficiency of storage device at bus ![b](https://render.githubusercontent.com/render/math?math=b).
 - ![\eta_{b}^{\text{dis}}](https://render.githubusercontent.com/render/math?math=%5Ceta_%7Bb%7D%5E%7B%5Ctext%7Bdis%7D%7D):
@@ -676,11 +679,11 @@ Ramp-down constraint.
 Power flow over each branch is limited by the branch power limit, and can only exceed this value by using the 'violation' variable (if enabled), which is penalized in the objective function.
 - ![f_{l,t} = \frac{1}{x_{l}} \sum_{b \in B} m_{l,b}^{\text{line}} \theta_{b,t}](https://render.githubusercontent.com/render/math?math=f_%7Bl%2Ct%7D%20%3D%20%5Cfrac%7B1%7D%7Bx_%7Bl%7D%7D%20%5Csum_%7Bb%20%5Cin%20B%7D%20m_%7Bl%2Cb%7D%5E%7B%5Ctext%7Bline%7D%7D%20%5Ctheta_%7Bb%2Ct%7D):
 Power flow over each branch is proportional to the admittance and the angle difference.
-- ![0 \le \delta_{b,t}^{\text{down}} \le \overline{\delta_{b,t}}](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20%5Cdelta_%7Bb%2Ct%7D%5E%7B%5Ctext%7Bdown%7D%7D%20%5Cle%20%5Coverline%7B%5Cdelta%7D_%7Bb%2Ct%7D):
+- ![0 \le \delta_{b,t}^{\text{down}} \le \underline{\delta_{b,t}}](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20%5Cdelta_%7Bb%2Ct%7D%5E%7B%5Ctext%7Bdown%7D%7D%20%5Cle%20%5Cunderline%7B%5Cdelta%7D_%7Bb%2Ct%7D):
 Bound on the amount of demand that flexible demand resources can curtail.
 - ![0 \le \delta_{b,t}^{\text{up}} \le \overline{\delta_{b,t}}](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20%5Cdelta_%7Bb%2Ct%7D%5E%7B%5Ctext%7Bup%7D%7D%20%5Cle%20%5Coverline%7B%5Cdelta%7D_%7Bb%2Ct%7D):
 Bound on the amount of demand that flexible demand resources can add.
-- ![\sum_{t = k}^{k + \Delta} \delta_{b,t}^{\text{up}} - \delta_{b,t}^{\text{down}} \ge 0, \quad \forall b \in B, \quad k = 1, ..., |T| - \Delta](https://render.githubusercontent.com/render/math?math=\sum_{t%20=%20k}^{k%20%2B%20\Delta}%20\delta_{b,t}^{\text{up}}%20-%20\delta_{b,t}^{\text{down}}%20\ge%200,%20\quad%20\forall%20b%20\in%20B,%20\quad%20k%20=%201,%20...,%20|T|%20-%20\Delta):
+- ![\sum_{t = k}^{k + \Delta^{balance}} \delta_{b,t}^{\text{up}} - \delta_{b,t}^{\text{down}} \ge 0, \quad \forall b \in B, \quad k = 1, ..., |T| - \Delta^{balance}](https://render.githubusercontent.com/render/math?math=\sum_{t%20=%20k}^{k%20%2B%20\Delta^{balance}}%20\delta_{b,t}^{\text{up}}%20-%20\delta_{b,t}^{\text{down}}%20\ge%200,%20\quad%20\forall%20b%20\in%20B,%20\quad%20k%20=%201,%20...,%20|T|%20-%20\Delta^{balance}):
 Rolling load balance for flexible demand resources; used to restrict the time that flexible demand resources can deviate from the base demand.
 - ![\sum_{t \in T} \delta_{b,t}^{\text{up}} - \delta_{b,t}^{\text{down}} \ge 0, \quad \forall b \in B](https://render.githubusercontent.com/render/math?math=\sum_{t%20\in%20T}%20\delta_{b,t}^{\text{up}}%20-%20\delta_{b,t}^{\text{down}}%20\ge%200,%20\quad%20\forall%20b%20\in%20B):
 Interval load balance for flexible demand resources.
