@@ -80,6 +80,18 @@ function get_results(f::Float64, case::Case, demand_flexibility::DemandFlexibili
         end
     end
 
+    trans_viol = zeros(0, 0)
+    try
+        trans_viol = JuMP.value.(m[:trans_viol])
+    catch e
+        if isa(e, MethodError)
+            # Thrown when trans_viol is `nothing`
+        else
+            # Unknown error, rethrow it
+            rethrow(e)
+        end
+    end
+
     results = Results(;
         pg=pg,
         pf=pf,
@@ -94,6 +106,7 @@ function get_results(f::Float64, case::Case, demand_flexibility::DemandFlexibili
         load_shift_up=load_shift_up,
         load_shift_dn=load_shift_dn,
         status=status,
+        trans_viol=trans_viol,
     )
     return results
 end
