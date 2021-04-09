@@ -99,42 +99,42 @@ function read_storage(filepath)::Storage
 end
 
 
-"""Load flexibility profile(s) from .csv files into DataFrame(s)."""
-function read_demand_flexibility(filepath)::Flexibility
-    # Initialize flexibility
-    flexibility = Dict()
+"""Load demand flexibility profile from .csv files into DataFrame(s)."""
+function read_demand_flexibility(filepath)::DemandFlexibility
+    # Initialize demand flexibility
+    demand_flexibility = Dict()
 
     # Try loading demand flexibility profiles. Otherwise, create a DataFrame of zeros
     try
-        flexibility["flex_amt"] = CSV.File(
-            joinpath(filepath, "flexibility.csv")
+        demand_flexibility["flex_amt"] = CSV.File(
+            joinpath(filepath, "demand_flexibility.csv")
         ) |> DataFrames.DataFrame
-        println("...loading flexibility profiles")
+        println("...loading demand flexibility profiles")
     catch e
-        println("Flexibility profiles not found in " * filepath)
+        println("Demand flexibility profiles not found in " * filepath)
         demand = CSV.File(joinpath(filepath, "demand.csv")) |> DataFrames.DataFrame
-        flexibility["flex_amt"] = DataFrames.DataFrame()
-        flexibility["flex_amt"][:, names(demand)[1]] = demand[:, "UTC Time"]
+        demand_flexibility["flex_amt"] = DataFrames.DataFrame()
+        demand_flexibility["flex_amt"][:, names(demand)[1]] = demand[:, "UTC Time"]
         for c in names(demand)[2:end]
-            flexibility["flex_amt"][:, c] = zeros(DataFrames.nrow(demand))
+            demand_flexibility["flex_amt"][:, c] = zeros(DataFrames.nrow(demand))
         end
     end
 
     # Try loading the duration for the demand flexibility
     try
-        flexibility_parameters = CSV.File(
-            joinpath(filepath, "flexibility_parameters.csv")
+        demand_flexibility_parameters = CSV.File(
+            joinpath(filepath, "demand_flexibility_parameters.csv")
         ) |> DataFrames.DataFrame
-        flexibility["duration"] = flexibility_parameters[1, "duration"]
+        demand_flexibility["duration"] = demand_flexibility_parameters[1, "duration"]
     catch e
-        println("Flexibility parameters not found in " * filepath)
-        flexibility["duration"] = nothing
+        println("Demand flexibility parameters not found in " * filepath)
+        demand_flexibility["duration"] = nothing
     end
 
     # Convert Dict to NamedTuple
-    flexibility = (; (Symbol(k) => v for (k,v) in flexibility)...)
-    # Convert NamedTuple to Flexibility
-    flexibility = Flexibility(; flexibility...)
+    demand_flexibility = (; (Symbol(k) => v for (k,v) in demand_flexibility)...)
+    # Convert NamedTuple to DemandFlexibility object
+    demand_flexibility = DemandFlexibility(; demand_flexibility...)
 
-    return flexibility
+    return demand_flexibility
 end

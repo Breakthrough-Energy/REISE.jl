@@ -9,7 +9,7 @@ import Requires
 import SparseArrays: sparse, SparseMatrixCSC
 
 
-include("types.jl")         # Defines Case, Results, Storage, Flexibility,
+include("types.jl")         # Defines Case, Results, Storage, DemandFlexibility,
                             #     VariablesOfInterest
 include("read.jl")          # Defines read_case, read_storage, read_demand_flexibility
 include("prepare.jl")       # Defines reise_data_mods
@@ -61,14 +61,14 @@ function run_scenario(;
     stderr_filepath = joinpath(outputfolder, "stderr.err")
     case = read_case(inputfolder)
     storage = read_storage(inputfolder)
-    flexibility = read_demand_flexibility(inputfolder)
+    demand_flexibility = read_demand_flexibility(inputfolder)
     println("All scenario files loaded!")
     case = reise_data_mods(case, num_segments=num_segments)
     save_input_mat(case, storage, inputfolder, outputfolder)
     model_kwargs = Dict(
         "case" => case,
         "storage" => storage,
-        "flexibility" => flexibility,
+        "demand_flexibility" => demand_flexibility,
         "interval_length" => interval,
         )
     # If a number of threads is specified, add to solver settings dict

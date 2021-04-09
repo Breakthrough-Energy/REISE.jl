@@ -82,21 +82,23 @@ function _make_bus_demand(case::Case, start_index::Int, end_index::Int)::Matrix
 end
 
 """
-    _make_bus_flexibility_amount(case, flexibility)
+    _make_bus_demand_flexibility_amount(case, demand_flexibility)
 
-Given a Case object and a Flexibility object, build a matrix of demand flexibility by 
-    (bus, hour) for this interval.
+Given a Case object and a DemandFlexibility object, build a matrix of demand flexibility
+    by (bus, hour) for this interval.
 """
-function _make_bus_flexibility_amount(
-    case::Case, flexibility::Flexibility, start_index::Int, end_index::Int
+function _make_bus_demand_flexibility_amount(
+    case::Case, demand_flexibility::DemandFlexibility, start_index::Int, end_index::Int
 )::Matrix
     # Bus weighting
     zone_to_bus_shares = _make_bus_demand_weighting(case, start_index, end_index)
 
     # Demand flexibility profiles
-    simulation_flex_amt = Matrix(flexibility.flex_amt[start_index:end_index, 2:end])
-    bus_flex_amt = permutedims(simulation_flex_amt * zone_to_bus_shares)
-    return bus_flex_amt
+    simulation_demand_flex_amt = Matrix(
+        demand_flexibility.flex_amt[start_index:end_index, 2:end]
+    )
+    bus_demand_flex_amt = permutedims(simulation_demand_flex_amt * zone_to_bus_shares)
+    return bus_demand_flex_amt
 end
 
 
@@ -198,7 +200,7 @@ function _build_model(
     m::JuMP.Model;
     case::Case,
     storage::Storage,
-    flexibility::Flexibility,
+    demand_flexibility::DemandFlexibility,
     start_index::Int, 
     interval_length::Int,
     demand_scaling::Number=1.0,
@@ -257,14 +259,23 @@ function _build_model(
                              sets.num_bus, sets.num_storage)::SparseMatrixCSC
     end
     # Demand flexibility parameters (if present)
-    bus_flex_amt = _make_bus_flexibility_amount(
-        case, flexibility, start_index, end_index
+    bus_demand_flex_amt = _make_bus_demand_flexibility_amount(
+        case, demand_flexibility, start_index, end_index
     )
-    flexibility_enabled = (bus_flex_amt != zeros(sets.num_bus, interval_length))
-    if flexibility_enabled && (
-        flexibility.duration == nothing || flexibility.duration > interval_length
+    demand_flexibility_enabled = (
+        bus_demand_flex_amt != zeros(sets.num_bus, interval_length)
     )
-        flexibility.duration = interval_length
+    if demand_flexibility_enabled && (
+        demand_flexibility.duration == nothing 
+            || demand_flexibility.duration > interval_length
+    )
+        if demand_flexibility.duration > interval_length
+            @warn (
+                "Demand flexibility durations greater than the interval length are set "
+                * "equal to the interval length."
+            )
+        end
+        demand_flexibility.duration = interval_length
     end
 
     println("variables: ", Dates.now())
@@ -299,19 +310,19 @@ function _build_model(
                 <= storage_max_energy[i]), (container=Array)
         end)
     end
-    if flexibility_enabled
+    if demand_flexibility_enabled
         # The amount of demand that is curtailed from the base load
         JuMP.@variable(
             m, 
             0 <= load_shift_dn[i in 1:sets.num_load_bus, j in 1:interval_length] 
-                <= bus_flex_amt[sets.load_bus_idx[i], j]
+                <= bus_demand_flex_amt[sets.load_bus_idx[i], j]
         )
 
         # The amount of demand that is added to the base load
         JuMP.@variable(
             m, 
             0 <= load_shift_up[i in 1:sets.num_load_bus, j in 1:interval_length]
-                <= bus_flex_amt[sets.load_bus_idx[i], j]
+                <= bus_demand_flex_amt[sets.load_bus_idx[i], j]
         )
     end
 
@@ -330,7 +341,7 @@ function _build_model(
         injections = JuMP.@expression(m, injections + storage_map * storage_dis)
         withdrawals = JuMP.@expression(m, withdrawals + storage_map * storage_chg)
     end
-    if flexibility_enabled
+    if demand_flexibility_enabled
         injections = JuMP.@expression(m, injections + load_bus_map * load_shift_dn)
         withdrawals = JuMP.@expression(m, withdrawals + load_bus_map * load_shift_up)
     end
@@ -342,7 +353,7 @@ function _build_model(
     end
 
     if load_shed_enabled
-        if flexibility_enabled
+        if demand_flexibility_enabled
             JuMP.@constraint(
                 m, 
                 load_shed_ub[i in 1:sets.num_load_bus, j in 1:interval_length], 
@@ -388,17 +399,17 @@ function _build_model(
             container=Array)
     end
 
-    if flexibility_enabled
+    if demand_flexibility_enabled
         println("rolling load balance: ", Dates.now())
         JuMP.@constraint(
             m, 
             rolling_load_balance[
                 i in 1:sets.num_load_bus, 
-                k in 1:(interval_length - flexibility.duration)
+                k in 1:(interval_length - demand_flexibility.duration)
             ], 
             sum(
                 load_shift_up[i, j] - load_shift_dn[i, j] 
-                for j in k:(k + flexibility.duration)
+                for j in k:(k + demand_flexibility.duration)
             ) >= 0
         )
 
@@ -517,8 +528,8 @@ function _build_model(
     println(Dates.now())
     # For non-existent variables/constraints, define as `nothing`
     load_shed = load_shed_enabled ? load_shed : nothing
-    load_shift_up = flexibility_enabled ? load_shift_up : nothing
-    load_shift_dn = flexibility_enabled ? load_shift_dn : nothing
+    load_shift_up = demand_flexibility_enabled ? load_shift_up : nothing
+    load_shift_dn = demand_flexibility_enabled ? load_shift_dn : nothing
     storage_dis = storage_enabled ? storage_dis : nothing
     storage_chg = storage_enabled ? storage_chg : nothing
     storage_soc = storage_enabled ? storage_soc : nothing

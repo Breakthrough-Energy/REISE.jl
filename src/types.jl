@@ -42,7 +42,7 @@ Base.@kwdef struct Storage
 end
 
 
-Base.@kwdef struct Flexibility
+Base.@kwdef struct DemandFlexibility
     flex_amt::DataFrames.DataFrame
     duration::Union{Int64,Nothing}
 end
