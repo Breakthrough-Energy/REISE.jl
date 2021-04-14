@@ -262,10 +262,7 @@ function _build_model(
     bus_demand_flex_amt = _make_bus_demand_flexibility_amount(
         case, demand_flexibility, start_index, end_index
     )
-    demand_flexibility_enabled = (
-        bus_demand_flex_amt != zeros(sets.num_bus, interval_length)
-    )
-    if demand_flexibility_enabled && (
+    if demand_flexibility.enabled && (
         demand_flexibility.duration == nothing 
             || demand_flexibility.duration > interval_length
     )
@@ -310,7 +307,7 @@ function _build_model(
                 <= storage_max_energy[i]), (container=Array)
         end)
     end
-    if demand_flexibility_enabled
+    if demand_flexibility.enabled
         # The amount of demand that is curtailed from the base load
         JuMP.@variable(
             m, 
@@ -341,7 +338,7 @@ function _build_model(
         injections = JuMP.@expression(m, injections + storage_map * storage_dis)
         withdrawals = JuMP.@expression(m, withdrawals + storage_map * storage_chg)
     end
-    if demand_flexibility_enabled
+    if demand_flexibility.enabled
         injections = JuMP.@expression(m, injections + load_bus_map * load_shift_dn)
         withdrawals = JuMP.@expression(m, withdrawals + load_bus_map * load_shift_up)
     end
@@ -353,7 +350,7 @@ function _build_model(
     end
 
     if load_shed_enabled
-        if demand_flexibility_enabled
+        if demand_flexibility.enabled
             JuMP.@constraint(
                 m, 
                 load_shed_ub[i in 1:sets.num_load_bus, j in 1:interval_length], 
@@ -399,28 +396,33 @@ function _build_model(
             container=Array)
     end
 
-    if demand_flexibility_enabled
-        println("rolling load balance: ", Dates.now())
-        JuMP.@constraint(
-            m, 
-            rolling_load_balance[
-                i in 1:sets.num_load_bus, 
-                k in 1:(interval_length - demand_flexibility.duration)
-            ], 
-            sum(
-                load_shift_up[i, j] - load_shift_dn[i, j] 
-                for j in k:(k + demand_flexibility.duration)
-            ) >= 0
+    if demand_flexibility.enabled
+        if demand_flexibility.rolling_balance && (
+            demand_flexibility.duration < interval_length
         )
-
-        println("interval load balance: ", Dates.now())
-        JuMP.@constraint(
-            m, 
-            interval_load_balance[i in 1:sets.num_load_bus], 
-            sum(
-                load_shift_up[i, j] - load_shift_dn[i, j] for j in 1:interval_length
-            ) >= 0
-        )
+            println("rolling load balance: ", Dates.now())
+            JuMP.@constraint(
+                m, 
+                rolling_load_balance[
+                    i in 1:sets.num_load_bus, 
+                    k in 1:(interval_length - demand_flexibility.duration)
+                ], 
+                sum(
+                    load_shift_up[i, j] - load_shift_dn[i, j] 
+                    for j in k:(k + demand_flexibility.duration)
+                ) >= 0
+            )
+        end
+        if demand_flexibility.interval_balance
+            println("interval load balance: ", Dates.now())
+            JuMP.@constraint(
+                m, 
+                interval_load_balance[i in 1:sets.num_load_bus], 
+                sum(
+                    load_shift_up[i, j] - load_shift_dn[i, j] for j in 1:interval_length
+                ) >= 0
+            )
+        end
     end
 
     noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
@@ -528,8 +530,8 @@ function _build_model(
     println(Dates.now())
     # For non-existent variables/constraints, define as `nothing`
     load_shed = load_shed_enabled ? load_shed : nothing
-    load_shift_up = demand_flexibility_enabled ? load_shift_up : nothing
-    load_shift_dn = demand_flexibility_enabled ? load_shift_dn : nothing
+    load_shift_up = demand_flexibility.enabled ? load_shift_up : nothing
+    load_shift_dn = demand_flexibility.enabled ? load_shift_dn : nothing
     storage_dis = storage_enabled ? storage_dis : nothing
     storage_chg = storage_enabled ? storage_chg : nothing
     storage_soc = storage_enabled ? storage_soc : nothing

@@ -45,6 +45,9 @@ end
 Base.@kwdef struct DemandFlexibility
     flex_amt::DataFrames.DataFrame
     duration::Union{Int64,Nothing}
+    enabled::Bool
+    interval_balance::Bool
+    rolling_balance::Bool
 end
 
 
