@@ -1,7 +1,7 @@
 # REISE.jl
 Renewable Energy Integration Simulation Engine.
 
-This repository contains, in the `src` folder, the Julia scripts to run the power-flow study in the U.S. electric grid. The simulation engine relies on [Gurobi] as the optimization solver.
+This repository contains, in the `src` folder, the Julia scripts to run the power-flow study in the U.S. electric grid. The simulation engine relies on the use of an external optimization solver; any solver [compatible with JuMP] can be used, though code that makes efficient use of the capabilities of [Gurobi] is included in this repository.
 
 ## Table of Contents
 1. [Dependencies](#dependencies)
@@ -633,7 +633,7 @@ at time ![t](https://render.githubusercontent.com/render/math?math=t).
 - ![\overline{\delta}_{b, t}](https://render.githubusercontent.com/render/math?math=%5Coverline%7B%5Cdelta%7D_%7Bb%2Ct%7D):
 Demand flexibility additions available (in MW) at bus ![b](https://render.githubusercontent.com/render/math?math=b)
 at time ![t](https://render.githubusercontent.com/render/math?math=t).
-- ![\Delta^{balance}](https://render.githubusercontent.com/render/math?math=\Delta^{balance}):
+- ![\Delta^{\text{balance}}](https://render.githubusercontent.com/render/math?math=\Delta^{\text{balance}}):
 The length of the rolling load balance window (in hours), used to account for the duration that flexible demand is deviating from the base demand.
 - ![\eta_{b}^{\text{chg}}](https://render.githubusercontent.com/render/math?math=%5Ceta_%7Bb%7D%5E%7B%5Ctext%7Bchg%7D%7D):
 Charging efficiency of storage device at bus ![b](https://render.githubusercontent.com/render/math?math=b).
@@ -648,7 +648,7 @@ All equations apply over all entries in the indexed sets unless otherwise listed
 - ![0 \le g_{i,s,t} \le g_{i,s,t}^{\text{max}}](https://render.githubusercontent.com/render/math?math=0%5Cle%20g_%7Bi%2Cs%2Ct%7D%5Cle%20g%5E%7B%5Ctext%7Bmax%7D%7D_%7Bi%2Cs%2Ct%7D):
 Generator segment power is non-negative and less than the segment width.
 - ![0 \le s_{b,t} \le a^{\text{shed}} \cdot ( d_{b,t} + \delta_{b,t}^{\text{up}} - \delta_{b,t}^{\text{down}} )](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20s_%7Bb%2Ct%7D%20%5Cle%20a%5E%7B%5Ctext%7Bshed%7D%7D%20%5Ccdot%20%28%20d_%7Bb%2Ct%7D%20%2B%20%5Cdelta_%7Bb%2Ct%7D%5E%7B%5Ctext%7Bup%7D%7D%20-%20%5Cdelta_%7Bb%2Ct%7D%5E%7B%5Ctext%7Bdown%7D%7D%20%29):
-Load shed is non-negative and less than the demand at that bus, if load shedding is enabled.
+Load shed is non-negative and less than the demand at that bus (including the impact of demand flexibility), if load shedding is enabled.
 If not, load shed is fixed to 0.
 - ![0 \le v_{b,t} \le a^{\text{viol}} \cdot M](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20v_%7Bb%2Ct%7D%20%5Cle%20a%5E%7B%5Ctext%7Bshed%7D%7D%20%5Ccdot%20M):
 Transmission violations are non-negative, if they are enabled
@@ -683,7 +683,7 @@ Power flow over each branch is proportional to the admittance and the angle diff
 Bound on the amount of demand that flexible demand resources can curtail.
 - ![0 \le \delta_{b,t}^{\text{up}} \le \overline{\delta_{b,t}}](https://render.githubusercontent.com/render/math?math=0%20%5Cle%20%5Cdelta_%7Bb%2Ct%7D%5E%7B%5Ctext%7Bup%7D%7D%20%5Cle%20%5Coverline%7B%5Cdelta%7D_%7Bb%2Ct%7D):
 Bound on the amount of demand that flexible demand resources can add.
-- ![\sum_{t = k}^{k + \Delta^{balance}} \delta_{b,t}^{\text{up}} - \delta_{b,t}^{\text{down}} \ge 0, \quad \forall b \in B, \quad k = 1, ..., |T| - \Delta^{balance}](https://render.githubusercontent.com/render/math?math=\sum_{t%20=%20k}^{k%20%2B%20\Delta^{balance}}%20\delta_{b,t}^{\text{up}}%20-%20\delta_{b,t}^{\text{down}}%20\ge%200,%20\quad%20\forall%20b%20\in%20B,%20\quad%20k%20=%201,%20...,%20|T|%20-%20\Delta^{balance}):
+- ![\sum_{t = k}^{k + \Delta^{\text{balance}}} \delta_{b,t}^{\text{up}} - \delta_{b,t}^{\text{down}} \ge 0, \quad \forall b \in B, \quad k = 1, ..., |T| - \Delta^{\text{balance}}](https://render.githubusercontent.com/render/math?math=\sum_{t%20=%20k}^{k%20%2B%20\Delta^{\text{balance}}}%20\delta_{b,t}^{\text{up}}%20-%20\delta_{b,t}^{\text{down}}%20\ge%200,%20\quad%20\forall%20b%20\in%20B,%20\quad%20k%20=%201,%20...,%20|T|%20-%20\Delta^{\text{balance}}):
 Rolling load balance for flexible demand resources; used to restrict the time that flexible demand resources can deviate from the base demand.
 - ![\sum_{t \in T} \delta_{b,t}^{\text{up}} - \delta_{b,t}^{\text{down}} \ge 0, \quad \forall b \in B](https://render.githubusercontent.com/render/math?math=\sum_{t%20\in%20T}%20\delta_{b,t}^{\text{up}}%20-%20\delta_{b,t}^{\text{down}}%20\ge%200,%20\quad%20\forall%20b%20\in%20B):
 Interval load balance for flexible demand resources.
