@@ -52,9 +52,7 @@ function get_results(f::Float64, voi::VariablesOfInterest, case::Case)::Results
     load_shed = zeros(0, 0)
     try
         load_shed_temp = JuMP.value.(voi.load_shed)
-        load_bus_map = sparse(sets.load_bus_idx, 1:sets.num_load_bus, 1,
-                              sets.num_bus, sets.num_load_bus)
-        load_shed = load_bus_map * load_shed_temp
+        load_shed = sets.load_bus_map * load_shed_temp
     catch e
         if isa(e, MethodError)
             # Thrown when load_shed is `nothing`
@@ -71,11 +69,8 @@ function get_results(f::Float64, voi::VariablesOfInterest, case::Case)::Results
     try
         load_shift_up_temp = JuMP.value.(voi.load_shift_up)
         load_shift_dn_temp = JuMP.value.(voi.load_shift_dn)
-        load_bus_map = sparse(
-            sets.load_bus_idx, 1:sets.num_load_bus, 1, sets.num_bus, sets.num_load_bus
-        )
-        load_shift_up = load_bus_map * load_shift_up_temp
-        load_shift_dn = load_bus_map * load_shift_dn_temp
+        load_shift_up = sets.load_bus_map * load_shift_up_temp
+        load_shift_dn = sets.load_bus_map * load_shift_dn_temp
     catch e
         if isa(e, MethodError)
             # Thrown when load shift variables are `nothing`

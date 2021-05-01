@@ -139,6 +139,7 @@ function _make_sets(case::Case, storage::Union{Storage,Nothing})::Sets
     bus_id2idx = Dict(case.busid .=> bus_idx)
     load_bus_idx = findall(case.bus_demand .> 0)
     num_load_bus = length(load_bus_idx)
+    load_bus_map = sparse(load_bus_idx, 1:num_load_bus, 1, num_bus, num_load_bus)
     # Sets - branches
     ac_branch_rating = replace(case.branch_rating, 0=>Inf)
     branch_rating = vcat(ac_branch_rating, case.dcline_pmax)
@@ -177,7 +178,7 @@ function _make_sets(case::Case, storage::Union{Storage,Nothing})::Sets
 
     sets = Sets(;
         num_bus=num_bus, bus_idx=bus_idx, bus_id2idx=bus_id2idx,
-        load_bus_idx=load_bus_idx, num_load_bus=num_load_bus,
+        load_bus_idx=load_bus_idx, num_load_bus=num_load_bus, load_bus_map=load_bus_map,
         num_branch=num_branch, num_branch_ac=num_branch_ac,
         branch_idx=branch_idx, noninf_branch_idx=noninf_branch_idx,
         branch_to_idx=branch_to_idx, branch_from_idx=branch_from_idx,
@@ -230,9 +231,6 @@ function _build_model(
 
     println("parameters: ", Dates.now())
     # Parameters
-    # Load bus mapping
-    load_bus_map = sparse(sets.load_bus_idx, 1:sets.num_load_bus, 1,
-                          sets.num_bus, sets.num_load_bus)
     # Generator topology matrix
     gen_map = _make_gen_map(case)
     # Generation segments
@@ -333,7 +331,7 @@ function _build_model(
     line_injections = JuMP.@expression(m, branch_map * pf)
     injections = JuMP.@expression(m, gen_injections + line_injections)
     if load_shed_enabled
-        injections = JuMP.@expression(m, injections + load_bus_map * load_shed)
+        injections = JuMP.@expression(m, injections + sets.load_bus_map * load_shed)
     end
     withdrawals = JuMP.@expression(m, bus_demand)
     if storage_enabled
@@ -341,8 +339,10 @@ function _build_model(
         withdrawals = JuMP.@expression(m, withdrawals + storage_map * storage_chg)
     end
     if demand_flexibility.enabled
-        injections = JuMP.@expression(m, injections + load_bus_map * load_shift_dn)
-        withdrawals = JuMP.@expression(m, withdrawals + load_bus_map * load_shift_up)
+        injections = JuMP.@expression(m, injections + sets.load_bus_map * load_shift_dn)
+        withdrawals = JuMP.@expression(
+            m, withdrawals + sets.load_bus_map * load_shift_up
+        )
     end
     JuMP.@constraint(m, powerbalance, (injections .== withdrawals))
     println("powerbalance, setting names: ", Dates.now())
