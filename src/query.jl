@@ -78,7 +78,7 @@ function get_results(f::Float64, voi::VariablesOfInterest, case::Case)::Results
         load_shift_dn = load_bus_map * load_shift_dn_temp
     catch e
         if isa(e, MethodError)
-            # Thrown when storage variables are `nothing`
+            # Thrown when load shift variables are `nothing`
         else
             # Unknown error, rethrow it
             rethrow(e)

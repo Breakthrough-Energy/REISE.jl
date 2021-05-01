@@ -96,6 +96,8 @@ function read_storage(filepath)::Storage
     storage = (; (Symbol(k) => v for (k,v) in storage)...)
     # Convert NamedTuple to Storage
     storage = Storage(; storage...)
+
+    return storage
 end
 
 

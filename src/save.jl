@@ -80,7 +80,7 @@ function save_results(results::Results, filename::String;
             )),
         )
     # For DC lines, storage power/energy, load_shed, and flexible demand,
-    # save only if nonempty
+        # save only if nonempty
     if size(results.pf_dcline) != (0, 0)
         mdo_save["flow"]["mpc"]["dcline"] = Dict(
             "PF_dcline" => results.pf_dcline)

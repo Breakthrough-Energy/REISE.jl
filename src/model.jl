@@ -34,6 +34,7 @@ function _make_branch_map(case::Case)::SparseMatrixCSC
     branches_to = sparse(branch_to_idx, branch_idx, 1, num_bus, num_branch)
     branches_from = sparse(branch_from_idx, branch_idx, -1, num_bus, num_branch)
     branch_map = branches_to + branches_from
+    return branch_map
 end
 
 
@@ -186,6 +187,7 @@ function _make_sets(case::Case, storage::Union{Storage,Nothing})::Sets
         num_wind=num_wind, num_solar=num_solar, num_hydro=num_hydro,
         num_segments=num_segments, segment_idx=segment_idx,
         num_storage=num_storage, storage_idx=storage_idx)
+    return sets
 end
 
 
