@@ -53,9 +53,11 @@ function interval_loop(factory_like, model_kwargs::Dict,
         interval_start = start_index + (i - 1) * interval
         interval_end = interval_start + interval - 1
         model_kwargs["start_index"] = interval_start
-        bus_flex_amt = _make_bus_demand_flexibility_amount(
-            case, demand_flexibility, interval_start, interval_end
-        )
+        if demand_flexibility.enabled
+            bus_flex_amt = _make_bus_demand_flexibility_amount(
+                case, demand_flexibility, interval_start, interval_end
+            )
+        end
         if i == 1
             # Build a model with no initial ramp constraint
             if storage_enabled

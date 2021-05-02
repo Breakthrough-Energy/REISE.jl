@@ -259,20 +259,22 @@ function _build_model(
                              sets.num_bus, sets.num_storage)::SparseMatrixCSC
     end
     # Demand flexibility parameters (if present)
-    bus_demand_flex_amt = _make_bus_demand_flexibility_amount(
-        case, demand_flexibility, start_index, end_index
-    )
-    if demand_flexibility.enabled && (
-        demand_flexibility.duration == nothing 
+    if demand_flexibility.enabled
+        bus_demand_flex_amt = _make_bus_demand_flexibility_amount(
+            case, demand_flexibility, start_index, end_index
+        )
+        if (
+            demand_flexibility.duration == nothing 
             || demand_flexibility.duration > interval_length
-    )
-        if demand_flexibility.duration > interval_length
-            @warn (
-                "Demand flexibility durations greater than the interval length are set "
-                * "equal to the interval length."
-            )
+        )
+            if demand_flexibility.duration > interval_length
+                @warn (
+                    "Demand flexibility durations greater than the interval length are "
+                    * "set equal to the interval length."
+                )
+            end
+            demand_flexibility.duration = interval_length
         end
-        demand_flexibility.duration = interval_length
     end
 
     println("variables: ", Dates.now())

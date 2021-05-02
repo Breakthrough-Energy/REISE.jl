@@ -112,77 +112,55 @@ function read_demand_flexibility(filepath)::DemandFlexibility
             joinpath(filepath, "demand_flexibility.csv")
         ) |> DataFrames.DataFrame
         println("...loading demand flexibility profiles")
+        demand_flexibility["enabled"] = true
     catch e
         println("Demand flexibility profiles not found in " * filepath)
-        demand = CSV.File(joinpath(filepath, "demand.csv")) |> DataFrames.DataFrame
-        demand_flexibility["flex_amt"] = DataFrames.DataFrame()
-        demand_flexibility["flex_amt"][:, names(demand)[1]] = demand[:, "UTC Time"]
-        for c in names(demand)[2:end]
-            demand_flexibility["flex_amt"][:, c] = zeros(DataFrames.nrow(demand))
-        end
+        demand_flexibility["flex_amt"] = nothing
         demand_flexibility["enabled"] = false
     end
 
-    # Try loading the demand flexibility parameters
-    if ! haskey(demand_flexibility, "enabled")
+    # Set the demand flexibility parameters
+    if demand_flexibility["enabled"]
+        # Pre-specify the demand flexibility parameters
+        demand_flexibility["duration"] = nothing
+        demand_flexibility["interval_balance"] = true
+        demand_flexibility["rolling_balance"] = true
+
+        # Try loading the demand flexibility parameters
+        demand_flexibility_parameters = DataFrames.DataFrame()
         try
             demand_flexibility_parameters = CSV.File(
                 joinpath(filepath, "demand_flexibility_parameters.csv")
             ) |> DataFrames.DataFrame
             println("...loading demand flexibility parameters")
-    
-            # Try loading the duration for the demand flexibility
-            try
-                demand_flexibility["duration"] = demand_flexibility_parameters[
-                    1, "duration"
-                ]
-            catch e
-                println(
-                    "The demand flexibility duration parameter is not defined. Will "
-                    * "default to nothing."
-                )
-                demand_flexibility["duration"] = nothing
-            end
-    
-            # Try loading the parameter that indicates if demand flexibility is enabled
-            try
-                demand_flexibility["enabled"] = demand_flexibility_parameters[
-                    1, "demand_flexibility_enabled"
-                ]
-            catch e
-                println(
-                    "The parameter that indicates if demand flexibility is enabled is "
-                    * "not defined. Will default to being enabled."
-                )
-                demand_flexibility["enabled"] = true
-            end
-    
-            # Try loading the interval load balance indicator parameter
-            try
-                demand_flexibility["interval_balance"] = demand_flexibility_parameters[
-                    1, "interval_load_balance"
-                ]
-            catch e
-                println(
-                    "The parameter that indicates if the interval load balance "
-                    * "constraint is enabled is not defined. Will default to being "
-                    * "enabled."
-                )
-                demand_flexibility["interval_balance"] = true
-            end
-    
-            # Try loading the rolling load balance indicator parameter
-            try
-                demand_flexibility["rolling_balance"] = demand_flexibility_parameters[
-                    1, "rolling_load_balance"
-                ]
-            catch e
-                println(
-                    "The parameter that indicates if the rolling load balance "
-                    * "constraint is enabled is not defined. Will default to being "
-                    * "enabled."
-                )
-                demand_flexibility["rolling_balance"] = true
+
+            # Create a dictionary to hold the error messages relevant to loading the 
+                # demand flexibility parameters
+            demand_flexibility_params_errs = Dict()
+            demand_flexibility_params_errs["duration"] = (
+                "The demand flexibility duration parameter is not defined. Will "
+                * "default to nothing."
+            )
+            demand_flexibility_params_errs["enabled"] = (
+                "The parameter that indicates if demand flexibility is enabled is not "
+                * "defined. Will default to being enabled."
+            )
+            demand_flexibility_params_errs["interval_balance"] = (
+                "The parameter that indicates if the interval load balance constraint "
+                * "is enabled is not defined. Will default to being enabled."
+            )
+            demand_flexibility_params_errs["rolling_balance"] = (
+                "The parameter that indicates if the rolling load balance constraint "
+                * "is enabled is not defined. Will default to being enabled."
+            )
+
+            # Try assigning the different demand flexibility parameters from the file
+            for k in keys(demand_flexibility_params_errs)
+                try
+                    demand_flexibility[k] = demand_flexibility_parameters[1, k]
+                catch e
+                    println(demand_flexibility_params_errs[k])
+                end
             end
         catch e
             println("Demand flexibility parameters not found in " * filepath)
@@ -190,11 +168,7 @@ function read_demand_flexibility(filepath)::DemandFlexibility
                 "Demand flexibility parameters will default to allowing demand "
                 * "flexibility to occur."
             )
-            demand_flexibility["duration"] = nothing
-            demand_flexibility["enabled"] = true
-            demand_flexibility["interval_balance"] = true
-            demand_flexibility["rolling_balance"] = true
-        end    
+        end
     end
 
     # Convert Dict to NamedTuple
