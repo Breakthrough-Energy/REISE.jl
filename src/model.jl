@@ -44,9 +44,7 @@ end
 Given a Case object, build a sparse matrix that indicates the weighting of each bus in 
     each zone.
 """
-function _make_bus_demand_weighting(
-    case::Case, start_index::Int, end_index::Int
-)::SparseMatrixCSC
+function _make_bus_demand_weighting(case::Case)::SparseMatrixCSC
     bus_idx = 1:length(case.busid)
     bus_df = DataFrames.DataFrame(
         name=case.busid, load=case.bus_demand, zone=case.bus_zone
@@ -74,7 +72,7 @@ Given a Case object, build a matrix of demand by (bus, hour) for this interval.
 """
 function _make_bus_demand(case::Case, start_index::Int, end_index::Int)::Matrix
     # Bus weighting
-    zone_to_bus_shares = _make_bus_demand_weighting(case, start_index, end_index)
+    zone_to_bus_shares = _make_bus_demand_weighting(case)
 
     # Profiles
     simulation_demand = Matrix(case.demand[start_index:end_index, 2:end])
@@ -92,7 +90,7 @@ function _make_bus_demand_flexibility_amount(
     case::Case, demand_flexibility::DemandFlexibility, start_index::Int, end_index::Int
 )::Matrix
     # Bus weighting
-    zone_to_bus_shares = _make_bus_demand_weighting(case, start_index, end_index)
+    zone_to_bus_shares = _make_bus_demand_weighting(case)
 
     # Demand flexibility profiles
     simulation_demand_flex_amt = Matrix(
