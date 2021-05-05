@@ -26,11 +26,8 @@ def get_script_path():
     return str(path_to_script)
 
 
-@app.route("/launch/<int:scenario_id>", methods=["POST"])
-def launch_simulation(scenario_id):
+def launch_simulation(scenario_id, threads=None, solver=None):
     cmd_call = ["python3", "-u", get_script_path(), str(scenario_id), "--extract-data"]
-    threads = request.args.get("threads", None)
-    solver = request.args.get("solver", None)
 
     if threads is not None:
         cmd_call.extend(["--threads", str(threads)])
@@ -41,12 +38,24 @@ def launch_simulation(scenario_id):
     proc = Popen(cmd_call, stdout=PIPE, stderr=PIPE, start_new_session=True)
     entry = SimulationState(scenario_id, proc)
     state.add(entry)
-    return jsonify(entry.as_dict())
+    return entry.as_dict()
+
+
+def check_progress():
+    return state.as_dict()
+
+
+@app.route("/launch/<int:scenario_id>", methods=["POST"])
+def handle_launch(scenario_id):
+    threads = request.args.get("threads", None)
+    solver = request.args.get("solver", None)
+    entry = launch_simulation(scenario_id, threads, solver)
+    return jsonify(entry)
 
 
 @app.route("/list")
 def list_ongoing():
-    return jsonify(state.as_dict())
+    return jsonify(check_progress())
 
 
 @app.route("/status/<int:scenario_id>")
