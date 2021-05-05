@@ -34,6 +34,34 @@ function _make_branch_map(case::Case)::SparseMatrixCSC
     branches_to = sparse(branch_to_idx, branch_idx, 1, num_bus, num_branch)
     branches_from = sparse(branch_from_idx, branch_idx, -1, num_bus, num_branch)
     branch_map = branches_to + branches_from
+    return branch_map
+end
+
+
+"""
+    _make_bus_demand_weighting(case)
+
+Given a Case object, build a sparse matrix that indicates the weighting of each bus in 
+    each zone.
+"""
+function _make_bus_demand_weighting(case::Case)::SparseMatrixCSC
+    bus_idx = 1:length(case.busid)
+    bus_df = DataFrames.DataFrame(
+        name=case.busid, load=case.bus_demand, zone=case.bus_zone
+    )
+    zone_demand = DataFrames.combine(
+        DataFrames.groupby(bus_df, :zone), :load => sum
+    )
+    zone_list = sort(collect(Set(case.bus_zone)))
+    zone_idx = 1:length(zone_list)
+    zone_id2idx = Dict(zone_list .=> zone_idx)
+    bus_df_with_zone_load = DataFrames.innerjoin(bus_df, zone_demand, on=:zone)
+    bus_share = bus_df[:, :load] ./ bus_df_with_zone_load[:, :load_sum]
+    bus_zone_idx = Int64[zone_id2idx[z] for z in case.bus_zone]
+    zone_to_bus_shares = sparse(
+        bus_zone_idx, bus_idx, bus_share
+    )::SparseMatrixCSC
+    return zone_to_bus_shares
 end
 
 
@@ -43,24 +71,33 @@ end
 Given a Case object, build a matrix of demand by (bus, hour) for this interval.
 """
 function _make_bus_demand(case::Case, start_index::Int, end_index::Int)::Matrix
-    bus_idx = 1:length(case.busid)
-    bus_df = DataFrames.DataFrame(
-        name=case.busid, load=case.bus_demand, zone=case.bus_zone)
-    zone_demand = DataFrames.combine(
-        DataFrames.groupby(bus_df, :zone), :load => sum)
-    zone_list = sort(collect(Set(case.bus_zone)))
-    num_zones = length(zone_list)
-    zone_idx = 1:num_zones
-    zone_id2idx = Dict(zone_list .=> zone_idx)
-    bus_df_with_zone_load = DataFrames.innerjoin(bus_df, zone_demand, on=:zone)
-    bus_share = bus_df[:, :load] ./ bus_df_with_zone_load[:, :load_sum]
-    bus_zone_idx = Int64[zone_id2idx[z] for z in case.bus_zone]
-    zone_to_bus_shares = sparse(
-        bus_zone_idx, bus_idx, bus_share)::SparseMatrixCSC
+    # Bus weighting
+    zone_to_bus_shares = _make_bus_demand_weighting(case)
+
     # Profiles
     simulation_demand = Matrix(case.demand[start_index:end_index, 2:end])
     bus_demand = permutedims(simulation_demand * zone_to_bus_shares)
     return bus_demand
+end
+
+"""
+    _make_bus_demand_flexibility_amount(case, demand_flexibility)
+
+Given a Case object and a DemandFlexibility object, build a matrix of demand flexibility
+    by (bus, hour) for this interval.
+"""
+function _make_bus_demand_flexibility_amount(
+    case::Case, demand_flexibility::DemandFlexibility, start_index::Int, end_index::Int
+)::Matrix
+    # Bus weighting
+    zone_to_bus_shares = _make_bus_demand_weighting(case)
+
+    # Demand flexibility profiles
+    simulation_demand_flex_amt = Matrix(
+        demand_flexibility.flex_amt[start_index:end_index, 2:end]
+    )
+    bus_demand_flex_amt = permutedims(simulation_demand_flex_amt * zone_to_bus_shares)
+    return bus_demand_flex_amt
 end
 
 
@@ -100,6 +137,7 @@ function _make_sets(case::Case, storage::Union{Storage,Nothing})::Sets
     bus_id2idx = Dict(case.busid .=> bus_idx)
     load_bus_idx = findall(case.bus_demand .> 0)
     num_load_bus = length(load_bus_idx)
+    load_bus_map = sparse(load_bus_idx, 1:num_load_bus, 1, num_bus, num_load_bus)
     # Sets - branches
     ac_branch_rating = replace(case.branch_rating, 0=>Inf)
     branch_rating = vcat(ac_branch_rating, case.dcline_pmax)
@@ -138,7 +176,7 @@ function _make_sets(case::Case, storage::Union{Storage,Nothing})::Sets
 
     sets = Sets(;
         num_bus=num_bus, bus_idx=bus_idx, bus_id2idx=bus_id2idx,
-        load_bus_idx=load_bus_idx, num_load_bus=num_load_bus,
+        load_bus_idx=load_bus_idx, num_load_bus=num_load_bus, load_bus_map=load_bus_map,
         num_branch=num_branch, num_branch_ac=num_branch_ac,
         branch_idx=branch_idx, noninf_branch_idx=noninf_branch_idx,
         branch_to_idx=branch_to_idx, branch_from_idx=branch_from_idx,
@@ -148,6 +186,7 @@ function _make_sets(case::Case, storage::Union{Storage,Nothing})::Sets
         num_wind=num_wind, num_solar=num_solar, num_hydro=num_hydro,
         num_segments=num_segments, segment_idx=segment_idx,
         num_storage=num_storage, storage_idx=storage_idx)
+    return sets
 end
 
 
@@ -158,17 +197,22 @@ end
 Given a Case object and a set of options, build an optimization model.
 Returns a JuMP.Model instance.
 """
-function _build_model(m::JuMP.Model; case::Case, storage::Storage,
-                     start_index::Int, interval_length::Int,
-                     demand_scaling::Number=1.0,
-                     load_shed_enabled::Bool=false,
-                     load_shed_penalty::Number=9000,
-                     trans_viol_enabled::Bool=false,
-                     trans_viol_penalty::Number=100,
-                     initial_ramp_enabled::Bool=false,
-                     initial_ramp_g0::Array{Float64,1}=Float64[],
-                     storage_e0::Array{Float64,1}=Float64[])::Tuple{
-                        JuMP.Model, VariablesOfInterest}
+function _build_model(
+    m::JuMP.Model;
+    case::Case,
+    storage::Storage,
+    demand_flexibility::DemandFlexibility,
+    start_index::Int, 
+    interval_length::Int,
+    demand_scaling::Number=1.0,
+    load_shed_enabled::Bool=false,
+    load_shed_penalty::Number=9000,
+    trans_viol_enabled::Bool=false,
+    trans_viol_penalty::Number=100,
+    initial_ramp_enabled::Bool=false,
+    initial_ramp_g0::Array{Float64,1}=Float64[],
+    storage_e0::Array{Float64,1}=Float64[]
+)::Tuple{JuMP.Model, VariablesOfInterest}
     # Positional indices from mpc.gencost
     COST = 5
     # Positional indices from mpc.gen
@@ -185,9 +229,6 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
 
     println("parameters: ", Dates.now())
     # Parameters
-    # Load bus mapping
-    load_bus_map = sparse(sets.load_bus_idx, 1:sets.num_load_bus, 1,
-                          sets.num_bus, sets.num_load_bus)
     # Generator topology matrix
     gen_map = _make_gen_map(case)
     # Generation segments
@@ -215,6 +256,24 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
         storage_map = sparse(storage_bus_idx, sets.storage_idx, 1,
                              sets.num_bus, sets.num_storage)::SparseMatrixCSC
     end
+    # Demand flexibility parameters (if present)
+    if demand_flexibility.enabled
+        bus_demand_flex_amt = _make_bus_demand_flexibility_amount(
+            case, demand_flexibility, start_index, end_index
+        )
+        if (
+            demand_flexibility.duration == nothing 
+            || demand_flexibility.duration > interval_length
+        )
+            if demand_flexibility.duration > interval_length
+                @warn (
+                    "Demand flexibility durations greater than the interval length are "
+                    * "set equal to the interval length."
+                )
+            end
+            demand_flexibility.duration = interval_length
+        end
+    end
 
     println("variables: ", Dates.now())
     # Variables
@@ -226,10 +285,11 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
         theta[sets.bus_idx, hour_idx], (container=Array)
     end)
     if load_shed_enabled
-        JuMP.@variable(m,
-            0 <= load_shed[i in 1:sets.num_load_bus, j in 1:interval_length]
-            <= bus_demand[sets.load_bus_idx[i], j],
-            container=Array)
+        JuMP.@variable(
+            m,
+            load_shed[i in 1:sets.num_load_bus, j in 1:interval_length] >= 0,
+            container=Array
+        )
     end
     if trans_viol_enabled
         JuMP.@variable(m,
@@ -247,6 +307,21 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
                 <= storage_max_energy[i]), (container=Array)
         end)
     end
+    if demand_flexibility.enabled
+        # The amount of demand that is curtailed from the base load
+        JuMP.@variable(
+            m, 
+            0 <= load_shift_dn[i in 1:sets.num_load_bus, j in 1:interval_length] 
+                <= bus_demand_flex_amt[sets.load_bus_idx[i], j]
+        )
+
+        # The amount of demand that is added to the base load
+        JuMP.@variable(
+            m, 
+            0 <= load_shift_up[i in 1:sets.num_load_bus, j in 1:interval_length]
+                <= bus_demand_flex_amt[sets.load_bus_idx[i], j]
+        )
+    end
 
     println("constraints: ", Dates.now())
     # Constraints
@@ -256,18 +331,44 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
     line_injections = JuMP.@expression(m, branch_map * pf)
     injections = JuMP.@expression(m, gen_injections + line_injections)
     if load_shed_enabled
-        injections = JuMP.@expression(m, injections + load_bus_map * load_shed)
+        injections = JuMP.@expression(m, injections + sets.load_bus_map * load_shed)
     end
-    withdrawls = JuMP.@expression(m, bus_demand)
+    withdrawals = JuMP.@expression(m, bus_demand)
     if storage_enabled
         injections = JuMP.@expression(m, injections + storage_map * storage_dis)
-        withdrawls = JuMP.@expression(m, withdrawls + storage_map * storage_chg)
+        withdrawals = JuMP.@expression(m, withdrawals + storage_map * storage_chg)
     end
-    JuMP.@constraint(m, powerbalance, (injections .== withdrawls))
+    if demand_flexibility.enabled
+        injections = JuMP.@expression(m, injections + sets.load_bus_map * load_shift_dn)
+        withdrawals = JuMP.@expression(
+            m, withdrawals + sets.load_bus_map * load_shift_up
+        )
+    end
+    JuMP.@constraint(m, powerbalance, (injections .== withdrawals))
     println("powerbalance, setting names: ", Dates.now())
     for i in sets.bus_idx, j in hour_idx
         JuMP.set_name(powerbalance[i, j],
                       "powerbalance[" * string(i) * "," * string(j) * "]")
+    end
+
+    if load_shed_enabled
+        demand_for_load_shed = JuMP.@expression(
+            m, 
+            [i=1:sets.num_load_bus, j=1:interval_length], 
+            bus_demand[sets.load_bus_idx[i], j]
+        )
+        if demand_flexibility.enabled
+            demand_for_load_shed = JuMP.@expression(
+                m, 
+                [i=1:sets.num_load_bus, j=1:interval_length], 
+                demand_for_load_shed[i, j] + load_shift_up[i, j] - load_shift_dn[i, j]
+            )
+        end
+        JuMP.@constraint(
+            m, 
+            load_shed_ub[i in 1:sets.num_load_bus, j in 1:interval_length], 
+            load_shed[i, j] <= demand_for_load_shed[i, j]
+        )
     end
 
     if storage_enabled
@@ -297,6 +398,35 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
             soc_terminal_max[i in 1:sets.num_storage],
             storage_soc[i, num_hour] <= storage.sd_table.ExpectedTerminalStorageMax[i],
             container=Array)
+    end
+
+    if demand_flexibility.enabled
+        if demand_flexibility.rolling_balance && (
+            demand_flexibility.duration < interval_length
+        )
+            println("rolling load balance: ", Dates.now())
+            JuMP.@constraint(
+                m, 
+                rolling_load_balance[
+                    i in 1:sets.num_load_bus, 
+                    k in 1:(interval_length - demand_flexibility.duration)
+                ], 
+                sum(
+                    load_shift_up[i, j] - load_shift_dn[i, j] 
+                    for j in k:(k + demand_flexibility.duration)
+                ) >= 0
+            )
+        end
+        if demand_flexibility.interval_balance
+            println("interval load balance: ", Dates.now())
+            JuMP.@constraint(
+                m, 
+                interval_load_balance[i in 1:sets.num_load_bus], 
+                sum(
+                    load_shift_up[i, j] - load_shift_dn[i, j] for j in 1:interval_length
+                ) >= 0
+            )
+        end
     end
 
     noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
@@ -404,19 +534,23 @@ function _build_model(m::JuMP.Model; case::Case, storage::Storage,
     println(Dates.now())
     # For non-existent variables/constraints, define as `nothing`
     load_shed = load_shed_enabled ? load_shed : nothing
+    load_shift_up = demand_flexibility.enabled ? load_shift_up : nothing
+    load_shift_dn = demand_flexibility.enabled ? load_shift_dn : nothing
     storage_dis = storage_enabled ? storage_dis : nothing
     storage_chg = storage_enabled ? storage_chg : nothing
     storage_soc = storage_enabled ? storage_soc : nothing
     initial_soc = storage_enabled ? initial_soc : nothing
     initial_rampup = initial_ramp_enabled ? initial_rampup : nothing
     initial_rampdown = initial_ramp_enabled ? initial_rampdown : nothing
+    load_shed_ub = load_shed_enabled ? load_shed_ub : nothing
     voi = VariablesOfInterest(;
         # Variables
-        pg=pg, pf=pf, load_shed=load_shed, storage_soc=storage_soc,
-        storage_dis=storage_dis, storage_chg=storage_chg,
+        pg=pg, pf=pf, 
+        load_shed=load_shed, load_shift_up=load_shift_up, load_shift_dn=load_shift_dn, 
+        storage_soc=storage_soc, storage_dis=storage_dis, storage_chg=storage_chg,
         # Constraints
-        branch_min=branch_min, branch_max=branch_max,
-        powerbalance=powerbalance, initial_soc=initial_soc,
+        branch_min=branch_min, branch_max=branch_max, powerbalance=powerbalance,
+        initial_soc=initial_soc, load_shed_ub=load_shed_ub, 
         initial_rampup=initial_rampup, initial_rampdown=initial_rampdown,
         hydro_fixed=hydro_fixed, solar_max=solar_max, wind_max=wind_max)
     return (m, voi)

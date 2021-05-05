@@ -113,6 +113,12 @@ def extract_data(results):
             extraction_vars |= {"load_shed"}
         except KeyError:
             pass
+        try:
+            temps["load_shift_up"] = output_mpc["flexible_demand"]["load_shift_up"].T
+            temps["load_shift_dn"] = output_mpc["flexible_demand"]["load_shift_dn"].T
+            extraction_vars |= {"load_shift_up", "load_shift_dn"}
+        except KeyError:
+            pass
 
         # Extract which number result currently being processed
         i = result_num(filename)
@@ -233,6 +239,8 @@ def _get_outputs_from_converted(matfile):
         "pf": case.mpc.branchid,
         "lmp": case.mpc.bus[:, 0].astype(np.int64),
         "load_shed": case.mpc.bus[:, 0].astype(np.int64),
+        "load_shift_up": case.mpc.bus[:, 0].astype(np.int64),
+        "load_shift_dn": case.mpc.bus[:, 0].astype(np.int64),
         "congu": case.mpc.branchid,
         "congl": case.mpc.branchid,
     }
