@@ -117,6 +117,9 @@ function read_demand_flexibility(filepath)::DemandFlexibility
         println("Demand flexibility profiles not found in " * filepath)
         demand_flexibility["flex_amt"] = nothing
         demand_flexibility["enabled"] = false
+        demand_flexibility["duration"] = nothing
+        demand_flexibility["interval_balance"] = false
+        demand_flexibility["rolling_balance"] = false
     end
 
     # Set the demand flexibility parameters
