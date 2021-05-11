@@ -1,3 +1,5 @@
+import os
+import sys
 from pathlib import Path
 from subprocess import PIPE, Popen
 
@@ -27,15 +29,23 @@ def get_script_path():
 
 
 def launch_simulation(scenario_id, threads=None, solver=None):
-    cmd_call = ["python3", "-u", get_script_path(), str(scenario_id), "--extract-data"]
+    cmd = [
+        sys.executable,
+        "-u",
+        get_script_path(),
+        str(scenario_id),
+        "--extract-data",
+    ]
 
     if threads is not None:
-        cmd_call.extend(["--threads", str(threads)])
+        cmd.extend(["--threads", str(threads)])
 
     if solver is not None:
-        cmd_call.extend(["--solver", solver])
+        cmd.extend(["--solver", solver])
 
-    proc = Popen(cmd_call, stdout=PIPE, stderr=PIPE, start_new_session=True)
+    new_env = os.environ.copy()
+    new_env["PYTHONPATH"] = str(Path(__file__).parent.parent.parent.absolute())
+    proc = Popen(cmd, stdout=PIPE, stderr=PIPE, start_new_session=True, env=new_env)
     entry = SimulationState(scenario_id, proc)
     state.add(entry)
     return entry.as_dict()
