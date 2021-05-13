@@ -1,6 +1,9 @@
 .git
+.github
 .pytest_cache
+**/__pycache__
 .tox
+.env
 .venv
 Dockerfile
 .dockerignore
