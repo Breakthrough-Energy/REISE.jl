@@ -1,3 +1,5 @@
+import os
+import sys
 from pathlib import Path
 from subprocess import PIPE, Popen
 
@@ -26,27 +28,44 @@ def get_script_path():
     return str(path_to_script)
 
 
-@app.route("/launch/<int:scenario_id>", methods=["POST"])
-def launch_simulation(scenario_id):
-    cmd_call = ["python3", "-u", get_script_path(), str(scenario_id), "--extract-data"]
-    threads = request.args.get("threads", None)
-    solver = request.args.get("solver", None)
+def launch_simulation(scenario_id, threads=None, solver=None):
+    cmd = [
+        sys.executable,
+        "-u",
+        get_script_path(),
+        str(scenario_id),
+        "--extract-data",
+    ]
 
     if threads is not None:
-        cmd_call.extend(["--threads", str(threads)])
+        cmd.extend(["--threads", str(threads)])
 
     if solver is not None:
-        cmd_call.extend(["--solver", solver])
+        cmd.extend(["--solver", solver])
 
-    proc = Popen(cmd_call, stdout=PIPE, stderr=PIPE, start_new_session=True)
+    new_env = os.environ.copy()
+    new_env["PYTHONPATH"] = str(Path(__file__).parent.parent.parent.absolute())
+    proc = Popen(cmd, stdout=PIPE, stderr=PIPE, start_new_session=True, env=new_env)
     entry = SimulationState(scenario_id, proc)
     state.add(entry)
-    return jsonify(entry.as_dict())
+    return entry.as_dict()
+
+
+def check_progress():
+    return state.as_dict()
+
+
+@app.route("/launch/<int:scenario_id>", methods=["POST"])
+def handle_launch(scenario_id):
+    threads = request.args.get("threads", None)
+    solver = request.args.get("solver", None)
+    entry = launch_simulation(scenario_id, threads, solver)
+    return jsonify(entry)
 
 
 @app.route("/list")
 def list_ongoing():
-    return jsonify(state.as_dict())
+    return jsonify(check_progress())
 
 
 @app.route("/status/<int:scenario_id>")
