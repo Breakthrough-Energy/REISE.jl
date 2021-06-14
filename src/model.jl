@@ -211,7 +211,8 @@ function _build_model(
     trans_viol_penalty::Number=100,
     initial_ramp_enabled::Bool=false,
     initial_ramp_g0::Array{Float64,1}=Float64[],
-    storage_e0::Array{Float64,1}=Float64[]
+    storage_e0::Array{Float64,1}=Float64[],
+    init_shifted_demand::Array{Float64,1}=Float64[]
 )::Tuple{JuMP.Model, VariablesOfInterest}
     # Positional indices from mpc.gencost
     COST = 5
@@ -392,6 +393,15 @@ function _build_model(
         if demand_flexibility.rolling_balance && (
             demand_flexibility.duration < interval_length
         )
+            println("rolling load balance, first window: ", Dates.now())
+            JuMP.@constraint(
+                m,
+                rolling_load_balance_first[i in 1:sets.num_load_bus],
+                sum(
+                    load_shift_up[i, j] - load_shift_dn[i, j] 
+                    for j in 1:(demand_flexibility.duration - 1)
+                ) >= -1 * init_shifted_demand[i]
+            )
             println("rolling load balance: ", Dates.now())
             JuMP.@constraint(
                 m, 
@@ -412,7 +422,7 @@ function _build_model(
                 interval_load_balance[i in 1:sets.num_load_bus], 
                 sum(
                     load_shift_up[i, j] - load_shift_dn[i, j] for j in 1:interval_length
-                ) >= 0
+                ) >= -1 * init_shifted_demand[i]
             )
         end
     end
@@ -524,6 +534,8 @@ function _build_model(
     load_shed = load_shed_enabled ? load_shed : nothing
     load_shift_up = demand_flexibility.enabled ? load_shift_up : nothing
     load_shift_dn = demand_flexibility.enabled ? load_shift_dn : nothing
+    rolling_load_balance_first = demand_flexibility.rolling_balance ? rolling_load_balance_first : nothing
+    interval_load_balance = demand_flexibility.interval_balance ? interval_balance : nothing
     storage_dis = storage_enabled ? storage_dis : nothing
     storage_chg = storage_enabled ? storage_chg : nothing
     storage_soc = storage_enabled ? storage_soc : nothing
@@ -539,6 +551,8 @@ function _build_model(
         # Constraints
         branch_min=branch_min, branch_max=branch_max, powerbalance=powerbalance,
         initial_soc=initial_soc, load_shed_ub=load_shed_ub, 
+        rolling_load_balance_first=rolling_load_balance_first, 
+        interval_load_balance=interval_load_balance,
         initial_rampup=initial_rampup, initial_rampdown=initial_rampdown,
         hydro_fixed=hydro_fixed, solar_max=solar_max, wind_max=wind_max)
     return (m, voi)

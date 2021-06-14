@@ -76,6 +76,8 @@ Base.@kwdef struct VariablesOfInterest
     load_shed_ub::Union{JuMP.Containers.DenseAxisArray,Nothing}
     load_shift_up::Union{Array{JuMP.VariableRef,2},Nothing}
     load_shift_dn::Union{Array{JuMP.VariableRef,2},Nothing}
+    rolling_load_balance_first::Union{Array{JuMP.ConstraintRef,1},Nothing}
+    interval_load_balance::Union{Array{JuMP.ConstraintRef,1},Nothing}
     powerbalance::Array{JuMP.ConstraintRef,2}
     branch_min::JuMP.Containers.DenseAxisArray
     branch_max::JuMP.Containers.DenseAxisArray
