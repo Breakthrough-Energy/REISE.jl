@@ -380,11 +380,11 @@ function _add_constraints_demand_flexibility!(
             m,
             rolling_load_balance[
                 i in 1:sets.num_flexible_bus,
-                k in 1:(interval_length - demand_flexibility.duration)
+                k in 1:(interval_length - demand_flexibility.duration + 1)
             ],
             sum(
                 m[:load_shift_up][i, j] - m[:load_shift_dn][i, j]
-                for j in k:(k + demand_flexibility.duration)
+                for j in k:(k + demand_flexibility.duration - 1)
             ) >= 0,
         )
     end
