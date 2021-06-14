@@ -40,6 +40,7 @@ function interval_loop(factory_like, model_kwargs::Dict,
     # Constant parameters
     case = model_kwargs["case"]
     storage = model_kwargs["storage"]
+    demand_flexibility = model_kwargs["demand_flexibility"]
     sets = _make_sets(case, storage)
     storage_enabled = (sets.num_storage > 0)
     unused_load_shed_intervals_turnoff = 14
@@ -52,6 +53,11 @@ function interval_loop(factory_like, model_kwargs::Dict,
         interval_start = start_index + (i - 1) * interval
         interval_end = interval_start + interval - 1
         model_kwargs["start_index"] = interval_start
+        if demand_flexibility.enabled
+            bus_flex_amt = _make_bus_demand_flexibility_amount(
+                case, demand_flexibility, interval_start, interval_end
+            )
+        end
         if i == 1
             # Build a model with no initial ramp constraint
             if storage_enabled
@@ -86,8 +92,9 @@ function interval_loop(factory_like, model_kwargs::Dict,
             if (("load_shed_enabled" in keys(model_kwargs))
                 && (model_kwargs["load_shed_enabled"] == true))
                 for t in 1:interval, i in 1:length(sets.load_bus_idx)
-                    JuMP.set_upper_bound(voi.load_shed[i, t],
-                                         bus_demand[sets.load_bus_idx[i], t])
+                    JuMP.set_normalized_rhs(
+                        voi.load_shed_ub[i, t], bus_demand[sets.load_bus_idx[i], t]
+                    )
                 end
             end
             for t in 1:interval, g in 1:sets.num_hydro
@@ -113,6 +120,16 @@ function interval_loop(factory_like, model_kwargs::Dict,
             if storage_enabled
                 for s in 1:sets.num_storage
                     JuMP.set_normalized_rhs(voi.initial_soc[s], storage_e0[s])
+                end
+            end
+            if demand_flexibility.enabled
+                for t in 1:interval, i in 1:length(sets.load_bus_idx)
+                    JuMP.set_upper_bound(
+                        voi.load_shift_up[i, t], bus_flex_amt[sets.load_bus_idx[i], t]
+                    )
+                    JuMP.set_upper_bound(
+                        voi.load_shift_dn[i, t], bus_flex_amt[sets.load_bus_idx[i], t]
+                    )
                 end
             end
         end

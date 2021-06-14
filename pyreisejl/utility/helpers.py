@@ -176,10 +176,8 @@ def get_scenario(scenario_id):
     scenario_info = scenario.to_dict("records", into=OrderedDict)[0]
 
     # Determine input and execute directory for data
-    input_dir = os.path.join(const.EXECUTE_DIR, "scenario_%s" % scenario_info["id"])
-    execute_dir = os.path.join(
-        const.EXECUTE_DIR, f"scenario_{str(scenario_id)}", "output"
-    )
+    input_dir = os.path.join(const.EXECUTE_DIR, f"scenario_{scenario_id}")
+    execute_dir = os.path.join(input_dir, "output")
 
     # Grab start and end date for scenario
     start_date = scenario_info["start_date"]

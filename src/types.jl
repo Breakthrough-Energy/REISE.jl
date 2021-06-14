@@ -42,6 +42,15 @@ Base.@kwdef struct Storage
 end
 
 
+Base.@kwdef struct DemandFlexibility
+    flex_amt::Union{DataFrames.DataFrame,Nothing}
+    duration::Union{Int64,Nothing}
+    enabled::Bool
+    interval_balance::Bool
+    rolling_balance::Bool
+end
+
+
 Base.@kwdef struct Results
     # We create a struct to hold case results in a type-declared format
     pg::Array{Float64,2}
@@ -53,6 +62,8 @@ Base.@kwdef struct Results
     storage_pg::Array{Float64,2}
     storage_e::Array{Float64,2}
     load_shed::Array{Float64,2}
+    load_shift_up::Array{Float64,2}
+    load_shift_dn::Array{Float64,2}
     f::Float64
     status::String
 end
@@ -62,6 +73,9 @@ Base.@kwdef struct VariablesOfInterest
     pg::Array{JuMP.VariableRef,2}
     pf::Array{JuMP.VariableRef,2}
     load_shed::Union{Array{JuMP.VariableRef,2},Nothing}
+    load_shed_ub::Union{JuMP.Containers.DenseAxisArray,Nothing}
+    load_shift_up::Union{Array{JuMP.VariableRef,2},Nothing}
+    load_shift_dn::Union{Array{JuMP.VariableRef,2},Nothing}
     powerbalance::Array{JuMP.ConstraintRef,2}
     branch_min::JuMP.Containers.DenseAxisArray
     branch_max::JuMP.Containers.DenseAxisArray
@@ -91,6 +105,7 @@ Base.@kwdef struct Sets
     bus_idx::UnitRange{Int64}
     load_bus_idx::Array{Int64,1}
     bus_id2idx::Dict{Int64,Int64}
+    load_bus_map::SparseMatrixCSC{Int64,Int64}
     # Gen & gen sub-sets
     num_gen::Int64
     num_wind::Int64

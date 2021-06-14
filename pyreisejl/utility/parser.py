@@ -1,5 +1,7 @@
 import argparse
 
+from pyreisejl.utility.launchers import get_available_solvers
+
 
 def parse_call_args():
     parser = argparse.ArgumentParser(description="Run REISE.jl simulation.")
@@ -72,6 +74,27 @@ def parse_call_args():
         help="The result.mat files found in the execute directory will be kept "
         "instead of deleted after extraction. "
         "This flag is only used if the extract-data flag is set.",
+    )
+
+    solvers = ",".join(get_available_solvers())
+    parser.add_argument(
+        "--solver",
+        help="Specify the solver to run the optimization. Will default to gurobi. "
+        f"Current solvers available are {solvers}.",
+    )
+    parser.add_argument(
+        "-j",
+        "--julia-env",
+        help="The path to the julia environment within which to run REISE.jl. "
+        "This is optional and defaults to the default julia environment.",
+    )
+    parser.add_argument(
+        "-l",
+        "--linearization-segments",
+        type=int,
+        default=1,
+        help="The number of piecewise linear segments used to linearize cost curves. "
+        "This is optional and defaults to one.",
     )
 
     # For backwards compatability with PowerSimData
