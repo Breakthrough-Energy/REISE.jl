@@ -122,12 +122,42 @@ function read_demand_flexibility(filepath)::DemandFlexibility
         demand_flexibility["rolling_balance"] = false
     end
 
+    
+    # Try loading demand flexibility cost. If a file is not found, set the field to nothing.
+    if demand_flexibility["enabled"]
+        # try read the cost for down-shifting loads
+        try 
+            println("...loading demand flexibility down-shift cost profiles")
+            demand_flexibility["cost_dn"] = CSV.File(
+                joinpath(filepath, "demand_flexibility_cost_dn.csv")
+            ) |> DataFrames.DataFrame
+        catch e
+            println("Demand flexibility down-shift cost profiles not found in " * filepath)
+            demand_flexibility["cost_dn"] = nothing
+        end
+        
+         # try read the cost for up-shifting loads
+        try 
+            println("...loading demand flexibility up-shift cost profiles")
+            demand_flexibility["cost_up"] = CSV.File(
+                joinpath(filepath, "demand_flexibility_cost_up.csv")
+            ) |> DataFrames.DataFrame
+        catch e
+            println("Demand flexibility up-shift cost profiles not found in " * filepath)
+            demand_flexibility["cost_up"] = nothing
+        end
+    end
+
+    
+    
     # Set the demand flexibility parameters
     if demand_flexibility["enabled"]
         # Pre-specify the demand flexibility parameters
         demand_flexibility["duration"] = nothing
         demand_flexibility["interval_balance"] = true
         demand_flexibility["rolling_balance"] = true
+    
+        
 
         # Try loading the demand flexibility parameters
         demand_flexibility_parameters = DataFrames.DataFrame()
@@ -156,6 +186,7 @@ function read_demand_flexibility(filepath)::DemandFlexibility
                 "The parameter that indicates if the rolling load balance constraint "
                 * "is enabled is not defined. Will default to being enabled."
             )
+            
 
             # Try assigning the different demand flexibility parameters from the file
             for k in keys(demand_flexibility_params_errs)

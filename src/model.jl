@@ -101,6 +101,30 @@ function _make_bus_demand_flexibility_amount(
 end
 
 
+""" 
+    _make_bus_demand_flexibility_cost_amount(demand_flexibility.cost, start_index, end_index, num_load_bus)
+
+Given a matrix of demand response cost table, select a sub-matrix of demand flexibility cost
+    by (hour, num_load_bus) for this interval.
+"""
+function _make_bus_demand_flexibility_cost_amount(
+    demand_flexibility_cost::Union{DataFrames.DataFrame,Nothing}, start_index::Int, end_index::Int, num_load_bus::Int
+)::Matrix
+    # check if the cost table exist, if not, create a DataFrame of zeros
+    if isnothing(demand_flexibility_cost)
+        bus_demand_flex_cost_amt = zeros(Int8, end_index - start_index + 1, num_load_bus)
+        
+    # if yes, select the profiles corresponding to the current interval
+    else
+        bus_demand_flex_cost_amt = Matrix(
+            demand_flexibility_cost[start_index:end_index, 2:end]
+        )
+    end
+    
+    return bus_demand_flex_cost_amt
+end
+
+
 """
     _build_segment_slope(case, segment_idx, segment_width)
 
@@ -260,6 +284,12 @@ function _build_model(
     if demand_flexibility.enabled
         bus_demand_flex_amt = _make_bus_demand_flexibility_amount(
             case, demand_flexibility, start_index, end_index
+        )
+        bus_demand_flex_cost_up_amt = _make_bus_demand_flexibility_cost_amount(
+            demand_flexibility.cost_up, start_index, end_index, sets.num_load_bus
+        )
+        bus_demand_flex_cost_dn_amt = _make_bus_demand_flexibility_cost_amount(
+            demand_flexibility.cost_dn, start_index, end_index, sets.num_load_bus
         )
         if (
             demand_flexibility.duration == nothing 
@@ -528,6 +558,23 @@ function _build_model(
                 .* storage.sd_table.TerminalStoragePrice))
         JuMP.add_to_expression!(obj, storage_penalty)
     end
+    
+    # Pay for the cost of DR programs based on committed flexible demand
+    if demand_flexibility.enabled
+        
+        # cost for increasing flexible load
+        demand_response_penalty_up = JuMP.@expression(m, sum(
+            sum(bus_demand_flex_cost_up_amt * load_shift_up)))
+        JuMP.add_to_expression!(obj, demand_response_penalty_up)
+        
+        # cost for decreasing flexible load
+        demand_response_penalty_dn = JuMP.@expression(m, sum(
+            sum(bus_demand_flex_cost_dn_amt * load_shift_dn)))
+        JuMP.add_to_expression!(obj, demand_response_penalty_dn)
+
+        
+    end
+    
     # Finally, set as objective of model
     JuMP.@objective(m, Min, obj)
 
