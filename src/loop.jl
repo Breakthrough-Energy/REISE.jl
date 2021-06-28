@@ -134,47 +134,51 @@ function interval_loop(factory_like, model_kwargs::Dict,
                 if !isnothing(demand_flexibility.cost_up)
                     bus_demand_flex_cost_up = permutedims(
                         Matrix(
-                            demand_flexibility.cost_up[interval_start:interval_end, 2:end]
+                            demand_flexibility.cost_up[
+                                interval_start:interval_end, 2:end
+                            ]
                         )
                     )
                 end
                 if !isnothing(demand_flexibility.cost_dn)
                     bus_demand_flex_cost_dn = permutedims(
                         Matrix(
-                            demand_flexibility.cost_dn[interval_start:interval_end, 2:end]
+                            demand_flexibility.cost_dn[
+                                interval_start:interval_end, 2:end
+                            ]
                         )
                     )
                 end
-                for i in 1:sets.num_flexible_bus
+                for l in 1:sets.num_flexible_bus
                     for t in 1:interval
                         JuMP.set_upper_bound(
-                            m[:load_shift_up][i, t], 
-                            bus_demand_flex_amt_up[i, t],
+                            m[:load_shift_up][l, t], 
+                            bus_demand_flex_amt_up[l, t],
                         )
                         JuMP.set_upper_bound(
-                            m[:load_shift_dn][i, t], 
-                            bus_demand_flex_amt_dn[i, t],
+                            m[:load_shift_dn][l, t], 
+                            bus_demand_flex_amt_dn[l, t],
                         )
                         if !isnothing(demand_flexibility.cost_up)
                             JuMP.set_objective_coefficient(
                                 m, 
-                                m[:load_shift_up][i, t], 
-                                bus_demand_flex_cost_up[i, t],
+                                m[:load_shift_up][l, t], 
+                                bus_demand_flex_cost_up[l, t],
                             )
                         end
                         if !isnothing(demand_flexibility.cost_dn)
                             JuMP.set_objective_coefficient(
                                 m, 
-                                m[:load_shift_dn][i, t], 
-                                bus_demand_flex_cost_dn[i, t],
+                                m[:load_shift_dn][l, t], 
+                                bus_demand_flex_cost_dn[l, t],
                             )
                         end
                     end
                     JuMP.set_normalized_rhs(
-                        m[:rolling_load_balance_first][i], -1 * init_shifted_demand[i]
+                        m[:rolling_load_balance_first][l], -1 * init_shifted_demand[l]
                     )
                     JuMP.set_normalized_rhs(
-                        m[:interval_load_balance][i], -1 * init_shifted_demand[i]
+                        m[:interval_load_balance][l], -1 * init_shifted_demand[l]
                     )
                 end
             end
