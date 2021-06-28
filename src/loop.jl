@@ -129,22 +129,22 @@ function interval_loop(factory_like, model_kwargs::Dict,
                 end
             end
             if demand_flexibility.enabled
-                for i in 1:length(sets.load_bus_idx)
+                for l in 1:sets.num_load_bus
                     for t in 1:interval
                         JuMP.set_upper_bound(
-                            voi.load_shift_up[i, t], 
-                            bus_flex_amt[sets.load_bus_idx[i], t]
+                            voi.load_shift_up[l, t], 
+                            bus_flex_amt[sets.load_bus_idx[l], t]
                         )
                         JuMP.set_upper_bound(
-                            voi.load_shift_dn[i, t], 
-                            bus_flex_amt[sets.load_bus_idx[i], t]
+                            voi.load_shift_dn[l, t], 
+                            bus_flex_amt[sets.load_bus_idx[l], t]
                         )
                     end
                     JuMP.set_normalized_rhs(
-                        voi.rolling_load_balance_first[i], -1 * init_shifted_demand[i]
+                        voi.rolling_load_balance_first[l], -1 * init_shifted_demand[l]
                     )
                     JuMP.set_normalized_rhs(
-                        voi.interval_load_balance[i], -1 * init_shifted_demand[i]
+                        voi.interval_load_balance[l], -1 * init_shifted_demand[l]
                     )
                 end
             end
