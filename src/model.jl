@@ -535,7 +535,7 @@ function _build_model(
     load_shift_up = demand_flexibility.enabled ? load_shift_up : nothing
     load_shift_dn = demand_flexibility.enabled ? load_shift_dn : nothing
     rolling_load_balance_first = demand_flexibility.rolling_balance ? rolling_load_balance_first : nothing
-    interval_load_balance = demand_flexibility.interval_balance ? interval_balance : nothing
+    interval_load_balance = demand_flexibility.interval_balance ? interval_load_balance : nothing
     storage_dis = storage_enabled ? storage_dis : nothing
     storage_chg = storage_enabled ? storage_chg : nothing
     storage_soc = storage_enabled ? storage_soc : nothing
