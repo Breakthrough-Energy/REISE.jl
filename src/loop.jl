@@ -66,7 +66,7 @@ function interval_loop(factory_like, model_kwargs::Dict,
                 model_kwargs["storage_e0"] = storage.sd_table.InitialStorage
             end
             if demand_flexibility.enabled
-                model_kwargs["init_shifted_demand"] = zeros(size(bus_flex_amt, 2))
+                model_kwargs["init_shifted_demand"] = zeros(size(bus_flex_amt, 1))
             end
             m = new_model(factory_like)
             JuMP.set_optimizer_attributes(m, pairs(solver_kwargs)...)
@@ -267,12 +267,12 @@ function interval_loop(factory_like, model_kwargs::Dict,
                         :, (interval - demand_flexibility.duration + 1):end
                     ],
                     dims=2
-                )
+                )[:, 1]
             else
                 init_shifted_demand = sum(
                     results.load_shift_up - results.load_shift_dn,
                     dims=2
-                )
+                )[:, 1]
             end
         end
 
