@@ -373,6 +373,28 @@ function _add_constraints_initial_ramping!(
 end
 
 
+function _add_constraints_ramping!(
+    m::JuMP.Model,
+    case::Case,
+    sets::Sets,
+    interval_length::Int,
+)
+    noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
+    println("rampup: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        rampup[i in noninf_ramp_idx, h in 1:(interval_length-1)],
+        m[:pg][i, h+1] - m[:pg][i, h] <= case.gen_ramp30[i] * 2
+    )
+    println("rampdown: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        rampdown[i in noninf_ramp_idx, h in 1:(interval_length-1)],
+        case.gen_ramp30[i] * -2 <= m[:pg][i, h+1] - m[:pg][i, h]
+    )
+end
+
+
 """
     _build_model(m; case=case, storage=storage, start_index=x,
                  interval_length=y[, kwargs...])
@@ -524,19 +546,11 @@ function _build_model(
         )
     end
 
-    noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
     if initial_ramp_enabled
         _add_constraints_initial_ramping!(m, case, sets, initial_ramp_g0)
     end
     if length(hour_idx) > 1
-        println("rampup: ", Dates.now())
-        JuMP.@constraint(m,
-            rampup[i in noninf_ramp_idx, h in 1:(num_hour-1)],
-            pg[i, h+1] - pg[i, h] <= case.gen_ramp30[i] * 2)
-        println("rampdown: ", Dates.now())
-        JuMP.@constraint(m,
-            rampdown[i in noninf_ramp_idx, h in 1:(num_hour-1)],
-            case.gen_ramp30[i] * -2 <= pg[i, h+1] - pg[i, h])
+        _add_constraints_ramping!(m, case, sets, interval_length)
     end
 
     println("segment_max: ", Dates.now())
