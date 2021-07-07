@@ -246,6 +246,40 @@ function _add_constraint_power_balance!(
 end
 
 
+function _add_constraint_load_shed!(
+    m::JuMP.Model,
+    case::Case,
+    sets::Sets,
+    demand_flexibility::DemandFlexibility,
+    start_index::Int,
+    interval_length::Int,
+    demand_scaling::Number,
+)
+    # Demand by bus
+    end_index = start_index + interval_length - 1
+    bus_demand = _make_bus_demand(case, start_index, end_index)
+    bus_demand *= demand_scaling
+
+    demand_for_load_shed = JuMP.@expression(
+        m,
+        [i=1:sets.num_load_bus, j=1:interval_length],
+        bus_demand[sets.load_bus_idx[i], j]
+    )
+    if demand_flexibility.enabled
+        demand_for_load_shed = JuMP.@expression(
+            m,
+            [i=1:sets.num_load_bus, j=1:interval_length],
+            demand_for_load_shed[i, j] + m[:load_shift_up][i, j] - m[:load_shift_dn][i, j]
+        )
+    end
+    JuMP.@constraint(
+        m,
+        load_shed_ub[i in 1:sets.num_load_bus, j in 1:interval_length],
+        m[:load_shed][i, j] <= demand_for_load_shed[i, j]
+    )
+end
+
+
 """
     _build_model(m; case=case, storage=storage, start_index=x,
                  interval_length=y[, kwargs...])
@@ -374,22 +408,14 @@ function _build_model(
     )
 
     if load_shed_enabled
-        demand_for_load_shed = JuMP.@expression(
-            m, 
-            [i=1:sets.num_load_bus, j=1:interval_length], 
-            bus_demand[sets.load_bus_idx[i], j]
-        )
-        if demand_flexibility.enabled
-            demand_for_load_shed = JuMP.@expression(
-                m, 
-                [i=1:sets.num_load_bus, j=1:interval_length], 
-                demand_for_load_shed[i, j] + load_shift_up[i, j] - load_shift_dn[i, j]
-            )
-        end
-        JuMP.@constraint(
-            m, 
-            load_shed_ub[i in 1:sets.num_load_bus, j in 1:interval_length], 
-            load_shed[i, j] <= demand_for_load_shed[i, j]
+        _add_constraint_load_shed!(
+            m,
+            case,
+            sets,
+            demand_flexibility,
+            start_index,
+            interval_length,
+            demand_scaling,
         )
     end
 
