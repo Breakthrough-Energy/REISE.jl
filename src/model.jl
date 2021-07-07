@@ -355,6 +355,24 @@ function _add_constraints_demand_flexibility!(
 end
 
 
+function _add_constraints_initial_ramping!(
+    m::JuMP.Model,
+    case::Case,
+    sets::Sets,
+    initial_ramp_g0,
+)
+    noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
+    println("initial rampup: ", Dates.now())
+    JuMP.@constraint(m,
+        initial_rampup[i in noninf_ramp_idx],
+        m[:pg][i, 1] - initial_ramp_g0[i] <= case.gen_ramp30[i] * 2)
+    println("initial rampdown: ", Dates.now())
+    JuMP.@constraint(m,
+        initial_rampdown[i in noninf_ramp_idx],
+        case.gen_ramp30[i] * -2 <= m[:pg][i, 1] - initial_ramp_g0[i])
+end
+
+
 """
     _build_model(m; case=case, storage=storage, start_index=x,
                  interval_length=y[, kwargs...])
@@ -508,14 +526,7 @@ function _build_model(
 
     noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
     if initial_ramp_enabled
-        println("initial rampup: ", Dates.now())
-        JuMP.@constraint(m,
-            initial_rampup[i in noninf_ramp_idx],
-            pg[i, 1] - initial_ramp_g0[i] <= case.gen_ramp30[i] * 2)
-        println("initial rampdown: ", Dates.now())
-        JuMP.@constraint(m,
-            initial_rampdown[i in noninf_ramp_idx],
-            case.gen_ramp30[i] * -2 <= pg[i, 1] - initial_ramp_g0[i])
+        _add_constraints_initial_ramping!(m, case, sets, initial_ramp_g0)
     end
     if length(hour_idx) > 1
         println("rampup: ", Dates.now())
