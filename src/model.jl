@@ -414,6 +414,45 @@ function _add_constraints_generator_segments!(
 end
 
 
+function _add_constraints_branch_flow_limits!(
+    m::JuMP.Model,
+    case::Case,
+    sets::Sets,
+    trans_viol_enabled,
+    hour_idx,
+)
+    branch_pmin = vcat(-1 * case.branch_rating, case.dcline_pmin)
+    branch_pmax = vcat(case.branch_rating, case.dcline_pmax)
+    if trans_viol_enabled
+        JuMP.@expression(m, branch_limit_pmin, branch_pmin - m[:trans_viol])
+        JuMP.@expression(m, branch_limit_pmax, branch_pmax + m[:trans_viol])
+    else
+        JuMP.@expression(
+            m,
+            branch_limit_pmin[br in sets.branch_idx, h in hour_idx],
+            branch_pmin[br]
+        )
+        JuMP.@expression(
+            m,
+            branch_limit_pmax[br in sets.branch_idx, h in hour_idx],
+            branch_pmax[br]
+        )
+    end
+    println("branch_min, branch_max: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        branch_min[br in sets.noninf_branch_idx, h in hour_idx],
+        branch_limit_pmin[br, h] <= m[:pf][br, h]
+        )
+    println("branch_max: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        branch_max[br in sets.noninf_branch_idx, h in hour_idx],
+        m[:pf][br, h] <= branch_limit_pmax[br, h]
+        )
+end
+
+
 """
     _build_model(m; case=case, storage=storage, start_index=x,
                  interval_length=y[, kwargs...])
@@ -453,8 +492,6 @@ function _build_model(
 
     println("parameters: ", Dates.now())
     # Parameters
-    branch_pmin = vcat(-1 * case.branch_rating, case.dcline_pmin)
-    branch_pmax = vcat(case.branch_rating, case.dcline_pmax)
     simulation_hydro = Matrix(case.hydro[start_index:end_index, 2:end])
     simulation_solar = Matrix(case.solar[start_index:end_index, 2:end])
     simulation_wind = Matrix(case.wind[start_index:end_index, 2:end])
@@ -570,25 +607,9 @@ function _build_model(
 
     _add_constraints_generator_segments!(m, case, sets, hour_idx)
 
-    if trans_viol_enabled
-        JuMP.@expression(m, branch_limit_pmin, branch_pmin - trans_viol)
-        JuMP.@expression(m, branch_limit_pmax, branch_pmax + trans_viol)
-    else
-        JuMP.@expression(m,
-            branch_limit_pmin[br in sets.branch_idx, h in hour_idx],
-            branch_pmin[br])
-        JuMP.@expression(m,
-            branch_limit_pmax[br in sets.branch_idx, h in hour_idx],
-            branch_pmax[br])
-    end
-    println("branch_min, branch_max: ", Dates.now())
-    JuMP.@constraint(m,
-        branch_min[br in sets.noninf_branch_idx, h in hour_idx],
-        branch_limit_pmin[br, h] <= pf[br, h])
-    println("branch_max: ", Dates.now())
-    JuMP.@constraint(m,
-        branch_max[br in sets.noninf_branch_idx, h in hour_idx],
-        pf[br, h] <= branch_limit_pmax[br, h])
+    _add_constraints_branch_flow_limits!(
+        m, case, sets, trans_viol_enabled, hour_idx
+    )
 
     println("branch_angle: ", Dates.now())
     # Explicit numbering here so that we constrain AC branches but not DC
