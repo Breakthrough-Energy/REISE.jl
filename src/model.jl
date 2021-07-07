@@ -468,6 +468,39 @@ function _add_branch_angle_constraints!(
 end
 
 
+function _add_profile_generator_limits!(
+    m::JuMP.Model,
+    case::Case,
+    sets::Sets,
+    hour_idx,
+    start_index,
+    interval_length,
+)
+    end_index = start_index + interval_length - 1
+    # Generation segments
+    simulation_hydro = Matrix(case.hydro[start_index:end_index, 2:end])
+    simulation_solar = Matrix(case.solar[start_index:end_index, 2:end])
+    simulation_wind = Matrix(case.wind[start_index:end_index, 2:end])
+    println("hydro_fixed: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        hydro_fixed[i in 1:sets.num_hydro, h in hour_idx],
+        m[:pg][sets.gen_hydro_idx[i], h] == simulation_hydro[h, i]
+    )
+    println("solar_max: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        solar_max[i in 1:sets.num_solar, h in hour_idx],
+        m[:pg][sets.gen_solar_idx[i], h] <= simulation_solar[h, i]
+    )
+    println("wind_max: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        wind_max[i in 1:sets.num_wind, h in hour_idx],
+        m[:pg][sets.gen_wind_idx[i], h] <= simulation_wind[h, i]
+    )
+end
+
 
 """
     _build_model(m; case=case, storage=storage, start_index=x,
@@ -508,9 +541,6 @@ function _build_model(
 
     println("parameters: ", Dates.now())
     # Parameters
-    simulation_hydro = Matrix(case.hydro[start_index:end_index, 2:end])
-    simulation_solar = Matrix(case.solar[start_index:end_index, 2:end])
-    simulation_wind = Matrix(case.wind[start_index:end_index, 2:end])
     # Storage parameters (if present)
     storage_enabled = (sets.num_storage > 0)
     if storage_enabled
@@ -623,26 +653,13 @@ function _build_model(
 
     _add_constraints_generator_segments!(m, case, sets, hour_idx)
 
-    _add_constraints_branch_flow_limits!(
-        m, case, sets, trans_viol_enabled, hour_idx
-    )
+    _add_constraints_branch_flow_limits!(m, case, sets, trans_viol_enabled, hour_idx)
 
     println("branch_angle: ", Dates.now())
     _add_branch_angle_constraints!(m, case, sets, hour_idx)
 
     # Constrain variable generators based on profiles
-    println("hydro_fixed: ", Dates.now())
-    JuMP.@constraint(m,
-        hydro_fixed[i in 1:sets.num_hydro, h in hour_idx],
-        pg[sets.gen_hydro_idx[i], h] == simulation_hydro[h, i])
-    println("solar_max: ", Dates.now())
-    JuMP.@constraint(m,
-        solar_max[i in 1:sets.num_solar, h in hour_idx],
-        pg[sets.gen_solar_idx[i], h] <= simulation_solar[h, i])
-    println("wind_max: ", Dates.now())
-    JuMP.@constraint(m,
-        wind_max[i in 1:sets.num_wind, h in hour_idx],
-        pg[sets.gen_wind_idx[i], h] <= simulation_wind[h, i])
+    _add_profile_generator_limits!(m, case, sets, hour_idx, start_index, interval_length)
 
     println("objective: ", Dates.now())
     # Start with generator variable O & M, piecewise
