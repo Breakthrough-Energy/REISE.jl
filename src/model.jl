@@ -190,6 +190,62 @@ function _make_sets(case::Case, storage::Union{Storage,Nothing})::Sets
 end
 
 
+function _add_constraint_power_balance!(
+    m::JuMP.Model,
+    case::Case,
+    sets::Sets,
+    storage::Storage,
+    demand_flexibility::DemandFlexibility,
+    start_index::Int,
+    interval_length::Int,
+    demand_scaling::Number,
+    load_shed_enabled::Bool,
+)
+    num_hour = interval_length
+    hour_idx = 1:interval_length
+    end_index = start_index + interval_length - 1
+
+    # Generator topology matrix
+    gen_map = _make_gen_map(case)
+    # Branch connectivity matrix
+    branch_map = _make_branch_map(case)
+    # Demand by bus
+    bus_demand = _make_bus_demand(case, start_index, end_index)
+    bus_demand *= demand_scaling
+
+    gen_injections = JuMP.@expression(m, gen_map * m[:pg])
+    line_injections = JuMP.@expression(m, branch_map * m[:pf])
+    injections = JuMP.@expression(m, gen_injections + line_injections)
+    if load_shed_enabled
+        injections = JuMP.@expression(m, injections + sets.load_bus_map * m[:load_shed])
+    end
+    withdrawals = JuMP.@expression(m, bus_demand)
+    storage_enabled = (sets.num_storage > 0)
+    if storage_enabled
+        storage_bus_idx = [sets.bus_id2idx[b] for b in storage.gen[:, 1]]
+        storage_map = sparse(
+            storage_bus_idx, sets.storage_idx, 1, sets.num_bus, sets.num_storage
+        )::SparseMatrixCSC
+        injections = JuMP.@expression(m, injections + storage_map * m[:storage_dis])
+        withdrawals = JuMP.@expression(m, withdrawals + storage_map * m[:storage_chg])
+    end
+    if demand_flexibility.enabled
+        injections = JuMP.@expression(
+            m, injections + sets.load_bus_map * m[:load_shift_dn]
+        )
+        withdrawals = JuMP.@expression(
+            m, withdrawals + sets.load_bus_map * m[:load_shift_up]
+        )
+    end
+    JuMP.@constraint(m, powerbalance, (injections .== withdrawals))
+    println("powerbalance, setting names: ", Dates.now())
+    for i in sets.bus_idx, j in hour_idx
+        JuMP.set_name(powerbalance[i, j],
+                      "powerbalance[" * string(i) * "," * string(j) * "]")
+    end
+end
+
+
 """
     _build_model(m; case=case, storage=storage, start_index=x,
                  interval_length=y[, kwargs...])
@@ -229,19 +285,12 @@ function _build_model(
 
     println("parameters: ", Dates.now())
     # Parameters
-    # Generator topology matrix
-    gen_map = _make_gen_map(case)
     # Generation segments
     segment_width = (case.gen_pmax - case.gen_pmin) ./ sets.num_segments
     fixed_cost = case.gencost[:, COST+1]
     segment_slope = _build_segment_slope(case, sets.segment_idx, segment_width)
-    # Branch connectivity matrix
-    branch_map = _make_branch_map(case)
     branch_pmin = vcat(-1 * case.branch_rating, case.dcline_pmin)
     branch_pmax = vcat(case.branch_rating, case.dcline_pmax)
-    # Demand by bus
-    bus_demand = _make_bus_demand(case, start_index, end_index)
-    bus_demand *= demand_scaling
     simulation_hydro = Matrix(case.hydro[start_index:end_index, 2:end])
     simulation_solar = Matrix(case.solar[start_index:end_index, 2:end])
     simulation_wind = Matrix(case.wind[start_index:end_index, 2:end])
@@ -252,9 +301,6 @@ function _build_model(
         storage_max_chg = -1 * storage.gen[:, PMIN]
         storage_min_energy = storage.sd_table.MinStorageLevel
         storage_max_energy = storage.sd_table.MaxStorageLevel
-        storage_bus_idx = [sets.bus_id2idx[b] for b in storage.gen[:, 1]]
-        storage_map = sparse(storage_bus_idx, sets.storage_idx, 1,
-                             sets.num_bus, sets.num_storage)::SparseMatrixCSC
     end
     # Demand flexibility parameters (if present)
     if demand_flexibility.enabled
@@ -315,29 +361,17 @@ function _build_model(
     # Constraints
 
     println("powerbalance: ", Dates.now())
-    gen_injections = JuMP.@expression(m, gen_map * pg)
-    line_injections = JuMP.@expression(m, branch_map * pf)
-    injections = JuMP.@expression(m, gen_injections + line_injections)
-    if load_shed_enabled
-        injections = JuMP.@expression(m, injections + sets.load_bus_map * load_shed)
-    end
-    withdrawals = JuMP.@expression(m, bus_demand)
-    if storage_enabled
-        injections = JuMP.@expression(m, injections + storage_map * storage_dis)
-        withdrawals = JuMP.@expression(m, withdrawals + storage_map * storage_chg)
-    end
-    if demand_flexibility.enabled
-        injections = JuMP.@expression(m, injections + sets.load_bus_map * load_shift_dn)
-        withdrawals = JuMP.@expression(
-            m, withdrawals + sets.load_bus_map * load_shift_up
-        )
-    end
-    JuMP.@constraint(m, powerbalance, (injections .== withdrawals))
-    println("powerbalance, setting names: ", Dates.now())
-    for i in sets.bus_idx, j in hour_idx
-        JuMP.set_name(powerbalance[i, j],
-                      "powerbalance[" * string(i) * "," * string(j) * "]")
-    end
+    _add_constraint_power_balance!(
+        m,
+        case,
+        sets,
+        storage,
+        demand_flexibility,
+        start_index,
+        interval_length,
+        demand_scaling,
+        load_shed_enabled,
+    )
 
     if load_shed_enabled
         demand_for_load_shed = JuMP.@expression(
