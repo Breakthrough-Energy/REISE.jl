@@ -190,6 +190,304 @@ function _make_sets(case::Case, storage::Union{Storage,Nothing})::Sets
 end
 
 
+function _add_constraint_power_balance!(
+    m::JuMP.Model,
+    case::Case,
+    sets::Sets,
+    storage::Storage,
+    demand_flexibility::DemandFlexibility,
+    bus_demand::Matrix,
+    load_shed_enabled::Bool,
+)
+    # Generator topology matrix
+    gen_map = _make_gen_map(case)
+    # Branch connectivity matrix
+    branch_map = _make_branch_map(case)
+
+    gen_injections = JuMP.@expression(m, gen_map * m[:pg])
+    line_injections = JuMP.@expression(m, branch_map * m[:pf])
+    injections = JuMP.@expression(m, gen_injections + line_injections)
+    if load_shed_enabled
+        injections = JuMP.@expression(m, injections + sets.load_bus_map * m[:load_shed])
+    end
+    withdrawals = JuMP.@expression(m, bus_demand)
+    storage_enabled = (sets.num_storage > 0)
+    if storage_enabled
+        storage_bus_idx = [sets.bus_id2idx[b] for b in storage.gen[:, 1]]
+        storage_map = sparse(
+            storage_bus_idx, sets.storage_idx, 1, sets.num_bus, sets.num_storage
+        )::SparseMatrixCSC
+        injections = JuMP.@expression(m, injections + storage_map * m[:storage_dis])
+        withdrawals = JuMP.@expression(m, withdrawals + storage_map * m[:storage_chg])
+    end
+    if demand_flexibility.enabled
+        injections = JuMP.@expression(
+            m, injections + sets.load_bus_map * m[:load_shift_dn]
+        )
+        withdrawals = JuMP.@expression(
+            m, withdrawals + sets.load_bus_map * m[:load_shift_up]
+        )
+    end
+    JuMP.@constraint(m, powerbalance, (injections .== withdrawals))
+    println("powerbalance, setting names: ", Dates.now())
+    interval_length = size(bus_demand)[2]
+    for i in sets.bus_idx, j in 1:interval_length
+        JuMP.set_name(
+            powerbalance[i, j], "powerbalance[" * string(i) * "," * string(j) * "]"
+        )
+    end
+end
+
+
+function _add_constraint_load_shed!(
+    m::JuMP.Model,
+    case::Case,
+    sets::Sets,
+    demand_flexibility::DemandFlexibility,
+    bus_demand::Matrix,
+)
+    demand_for_load_shed = JuMP.@expression(
+        m,
+        [i=1:sets.num_load_bus, j=1:interval_length],
+        bus_demand[sets.load_bus_idx[i], j],
+    )
+    if demand_flexibility.enabled
+        demand_for_load_shed = JuMP.@expression(
+            m,
+            [i=1:sets.num_load_bus, j=1:interval_length],
+            demand_for_load_shed[i, j] + m[:load_shift_up][i, j] - m[:load_shift_dn][i, j],
+        )
+    end
+    JuMP.@constraint(
+        m,
+        load_shed_ub[i in 1:sets.num_load_bus, j in 1:interval_length],
+        m[:load_shed][i, j] <= demand_for_load_shed[i, j],
+    )
+end
+
+
+function _add_constraints_storage_operation!(
+    m::JuMP.Model,
+    case::Case,
+    sets::Sets,
+    storage::Storage,
+    interval_length::Int,
+    storage_e0::Array{Float64,1},
+)
+    num_hour = interval_length
+
+    println("storage soc_tracking: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        soc_tracking[i in 1:sets.num_storage, h in 1:(num_hour-1)],
+        m[:storage_soc][i, h+1] == (
+            m[:storage_soc][i, h] * (1 - storage.sd_table.LossFactor[i])
+            + storage.sd_table.InEff[i] * m[:storage_chg][i, h+1]
+            - (1 / storage.sd_table.OutEff[i]) * m[:storage_dis][i, h+1]
+        ),
+        container=Array,
+    )
+    println("storage initial_soc: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        initial_soc[i in 1:sets.num_storage],
+        m[:storage_soc][i, 1] == (
+            storage_e0[i]
+            + storage.sd_table.InEff[i] * m[:storage_chg][i, 1]
+            - (1 / storage.sd_table.OutEff[i]) * m[:storage_dis][i, 1]
+        ),
+        container=Array,
+    )
+    println("storage final_soc_min: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        soc_terminal_min[i in 1:sets.num_storage],
+        m[:storage_soc][i, num_hour] >= storage.sd_table.ExpectedTerminalStorageMin[i],
+        container=Array,
+    )
+    println("storage final_soc_max: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        soc_terminal_max[i in 1:sets.num_storage],
+        m[:storage_soc][i, num_hour] <= storage.sd_table.ExpectedTerminalStorageMax[i],
+        container=Array,
+    )
+end
+
+
+function _add_constraints_demand_flexibility!(
+    m::JuMP.Model,
+    case::Case,
+    sets::Sets,
+    demand_flexibility::DemandFlexibility,
+    interval_length::Int,
+)
+    if demand_flexibility.rolling_balance && (
+        demand_flexibility.duration < interval_length
+    )
+        println("rolling load balance: ", Dates.now())
+        JuMP.@constraint(
+            m,
+            rolling_load_balance[
+                i in 1:sets.num_load_bus,
+                k in 1:(interval_length - demand_flexibility.duration)
+            ],
+            sum(
+                m[:load_shift_up][i, j] - m[:load_shift_dn][i, j]
+                for j in k:(k + demand_flexibility.duration)
+            ) >= 0,
+        )
+    end
+    if demand_flexibility.interval_balance
+        println("interval load balance: ", Dates.now())
+        JuMP.@constraint(
+            m,
+            interval_load_balance[i in 1:sets.num_load_bus],
+            sum(
+                m[:load_shift_up][i, j] - m[:load_shift_dn][i, j] for j in 1:interval_length
+            ) >= 0,
+        )
+    end
+end
+
+
+function _add_constraints_initial_ramping!(
+    m::JuMP.Model, case::Case, sets::Sets, initial_ramp_g0
+)
+    noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
+    println("initial rampup: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        initial_rampup[i in noninf_ramp_idx],
+        m[:pg][i, 1] - initial_ramp_g0[i] <= case.gen_ramp30[i] * 2,
+    )
+    println("initial rampdown: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        initial_rampdown[i in noninf_ramp_idx],
+        case.gen_ramp30[i] * -2 <= m[:pg][i, 1] - initial_ramp_g0[i],
+    )
+end
+
+
+function _add_constraints_ramping!(
+    m::JuMP.Model, case::Case, sets::Sets, interval_length::Int
+)
+    noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
+    println("rampup: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        rampup[i in noninf_ramp_idx, h in 1:(interval_length-1)],
+        m[:pg][i, h+1] - m[:pg][i, h] <= case.gen_ramp30[i] * 2,
+    )
+    println("rampdown: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        rampdown[i in noninf_ramp_idx, h in 1:(interval_length-1)],
+        case.gen_ramp30[i] * -2 <= m[:pg][i, h+1] - m[:pg][i, h],
+    )
+end
+
+
+function _add_constraints_generator_segments!(
+    m::JuMP.Model, case::Case, sets::Sets, hour_idx,
+)
+    segment_width = (case.gen_pmax - case.gen_pmin) ./ sets.num_segments
+    println("segment_max: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        segment_max[i in sets.noninf_pmax, s in sets.segment_idx, h in hour_idx],
+        m[:pg_seg][i, s, h] <= segment_width[i],
+    )
+    println("segment_add: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        segment_add[i in sets.noninf_pmax, h in hour_idx],
+        m[:pg][i, h] == case.gen_pmin[i] + sum(m[:pg_seg][i, :, h]),
+    )
+end
+
+
+function _add_constraints_branch_flow_limits!(
+    m::JuMP.Model, case::Case, sets::Sets, trans_viol_enabled, hour_idx
+)
+    branch_pmin = vcat(-1 * case.branch_rating, case.dcline_pmin)
+    branch_pmax = vcat(case.branch_rating, case.dcline_pmax)
+    if trans_viol_enabled
+        JuMP.@expression(m, branch_limit_pmin, branch_pmin - m[:trans_viol])
+        JuMP.@expression(m, branch_limit_pmax, branch_pmax + m[:trans_viol])
+    else
+        JuMP.@expression(
+            m,
+            branch_limit_pmin[br in sets.branch_idx, h in hour_idx],
+            branch_pmin[br],
+        )
+        JuMP.@expression(
+            m,
+            branch_limit_pmax[br in sets.branch_idx, h in hour_idx],
+            branch_pmax[br],
+        )
+    end
+    println("branch_min, branch_max: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        branch_min[br in sets.noninf_branch_idx, h in hour_idx],
+        branch_limit_pmin[br, h] <= m[:pf][br, h],
+    )
+    println("branch_max: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        branch_max[br in sets.noninf_branch_idx, h in hour_idx],
+        m[:pf][br, h] <= branch_limit_pmax[br, h],
+    )
+end
+
+
+function _add_branch_angle_constraints!(m::JuMP.Model, case::Case, sets::Sets, hour_idx)
+    # Explicit numbering here so that we constrain AC branches but not DC
+    JuMP.@constraint(
+        m,
+        branch_angle[br in 1:sets.num_branch_ac, h in hour_idx],
+        (
+            case.branch_reactance[br] * m[:pf][br, h]
+            == (
+                m[:theta][sets.branch_to_idx[br], h]
+                - m[:theta][sets.branch_from_idx[br], h]
+            )
+        )
+    )
+end
+
+
+function _add_profile_generator_limits!(
+    m::JuMP.Model, case::Case, sets::Sets, hour_idx, start_index, interval_length
+)
+    end_index = start_index + interval_length - 1
+    # Generation segments
+    simulation_hydro = Matrix(case.hydro[start_index:end_index, 2:end])
+    simulation_solar = Matrix(case.solar[start_index:end_index, 2:end])
+    simulation_wind = Matrix(case.wind[start_index:end_index, 2:end])
+    println("hydro_fixed: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        hydro_fixed[i in 1:sets.num_hydro, h in hour_idx],
+        m[:pg][sets.gen_hydro_idx[i], h] == simulation_hydro[h, i],
+    )
+    println("solar_max: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        solar_max[i in 1:sets.num_solar, h in hour_idx],
+        m[:pg][sets.gen_solar_idx[i], h] <= simulation_solar[h, i],
+    )
+    println("wind_max: ", Dates.now())
+    JuMP.@constraint(
+        m,
+        wind_max[i in 1:sets.num_wind, h in hour_idx],
+        m[:pg][sets.gen_wind_idx[i], h] <= simulation_wind[h, i],
+    )
+end
+
+
 """
     _build_model(m; case=case, storage=storage, start_index=x,
                  interval_length=y[, kwargs...])
@@ -221,7 +519,6 @@ function _build_model(
 
     println("building sets: ", Dates.now())
     # Sets - time periods
-    num_hour = interval_length
     hour_idx = 1:interval_length
     end_index = start_index + interval_length - 1
     # Sets - static
@@ -229,33 +526,8 @@ function _build_model(
 
     println("parameters: ", Dates.now())
     # Parameters
-    # Generator topology matrix
-    gen_map = _make_gen_map(case)
-    # Generation segments
-    segment_width = (case.gen_pmax - case.gen_pmin) ./ sets.num_segments
-    fixed_cost = case.gencost[:, COST+1]
-    segment_slope = _build_segment_slope(case, sets.segment_idx, segment_width)
-    # Branch connectivity matrix
-    branch_map = _make_branch_map(case)
-    branch_pmin = vcat(-1 * case.branch_rating, case.dcline_pmin)
-    branch_pmax = vcat(case.branch_rating, case.dcline_pmax)
-    # Demand by bus
-    bus_demand = _make_bus_demand(case, start_index, end_index)
-    bus_demand *= demand_scaling
-    simulation_hydro = Matrix(case.hydro[start_index:end_index, 2:end])
-    simulation_solar = Matrix(case.solar[start_index:end_index, 2:end])
-    simulation_wind = Matrix(case.wind[start_index:end_index, 2:end])
-    # Storage parameters (if present)
     storage_enabled = (sets.num_storage > 0)
-    if storage_enabled
-        storage_max_dis = storage.gen[:, PMAX]
-        storage_max_chg = -1 * storage.gen[:, PMIN]
-        storage_min_energy = storage.sd_table.MinStorageLevel
-        storage_max_energy = storage.sd_table.MaxStorageLevel
-        storage_bus_idx = [sets.bus_id2idx[b] for b in storage.gen[:, 1]]
-        storage_map = sparse(storage_bus_idx, sets.storage_idx, 1,
-                             sets.num_bus, sets.num_storage)::SparseMatrixCSC
-    end
+    bus_demand = _make_bus_demand(case, start_index, end_index) * demand_scaling
     # Demand flexibility parameters (if present)
     if demand_flexibility.enabled
         bus_demand_flex_amt = _make_bus_demand_flexibility_amount(
@@ -285,6 +557,10 @@ function _build_model(
             container=Array)
     end
     if storage_enabled
+        storage_max_dis = storage.gen[:, PMAX]
+        storage_max_chg = -1 * storage.gen[:, PMIN]
+        storage_min_energy = storage.sd_table.MinStorageLevel
+        storage_max_energy = storage.sd_table.MaxStorageLevel
         JuMP.@variables(m, begin
             (0 <= storage_chg[i in sets.storage_idx, j in hour_idx]
                 <= storage_max_chg[i]), (container=Array)
@@ -315,181 +591,42 @@ function _build_model(
     # Constraints
 
     println("powerbalance: ", Dates.now())
-    gen_injections = JuMP.@expression(m, gen_map * pg)
-    line_injections = JuMP.@expression(m, branch_map * pf)
-    injections = JuMP.@expression(m, gen_injections + line_injections)
-    if load_shed_enabled
-        injections = JuMP.@expression(m, injections + sets.load_bus_map * load_shed)
-    end
-    withdrawals = JuMP.@expression(m, bus_demand)
-    if storage_enabled
-        injections = JuMP.@expression(m, injections + storage_map * storage_dis)
-        withdrawals = JuMP.@expression(m, withdrawals + storage_map * storage_chg)
-    end
-    if demand_flexibility.enabled
-        injections = JuMP.@expression(m, injections + sets.load_bus_map * load_shift_dn)
-        withdrawals = JuMP.@expression(
-            m, withdrawals + sets.load_bus_map * load_shift_up
-        )
-    end
-    JuMP.@constraint(m, powerbalance, (injections .== withdrawals))
-    println("powerbalance, setting names: ", Dates.now())
-    for i in sets.bus_idx, j in hour_idx
-        JuMP.set_name(powerbalance[i, j],
-                      "powerbalance[" * string(i) * "," * string(j) * "]")
-    end
+    _add_constraint_power_balance!(
+        m, case, sets, storage, demand_flexibility, bus_demand, load_shed_enabled,
+    )
 
     if load_shed_enabled
-        demand_for_load_shed = JuMP.@expression(
-            m, 
-            [i=1:sets.num_load_bus, j=1:interval_length], 
-            bus_demand[sets.load_bus_idx[i], j]
-        )
-        if demand_flexibility.enabled
-            demand_for_load_shed = JuMP.@expression(
-                m, 
-                [i=1:sets.num_load_bus, j=1:interval_length], 
-                demand_for_load_shed[i, j] + load_shift_up[i, j] - load_shift_dn[i, j]
-            )
-        end
-        JuMP.@constraint(
-            m, 
-            load_shed_ub[i in 1:sets.num_load_bus, j in 1:interval_length], 
-            load_shed[i, j] <= demand_for_load_shed[i, j]
-        )
+        _add_constraint_load_shed!(m, case, sets, demand_flexibility, bus_demand)
     end
 
     if storage_enabled
-        println("storage soc_tracking: ", Dates.now())
-        JuMP.@constraint(m,
-            soc_tracking[i in 1:sets.num_storage, h in 1:(num_hour-1)],
-            storage_soc[i, h+1] == (
-                storage_soc[i, h] * (1 - storage.sd_table.LossFactor[i])
-                + storage.sd_table.InEff[i] * storage_chg[i, h+1]
-                - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, h+1]),
-            container=Array)
-        println("storage initial_soc: ", Dates.now())
-        JuMP.@constraint(m,
-            initial_soc[i in 1:sets.num_storage],
-            storage_soc[i, 1] == (
-                storage_e0[i]
-                + storage.sd_table.InEff[i] * storage_chg[i, 1]
-                - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, 1]),
-            container=Array)
-        println("storage final_soc_min: ", Dates.now())
-        JuMP.@constraint(m,
-            soc_terminal_min[i in 1:sets.num_storage],
-            storage_soc[i, num_hour] >= storage.sd_table.ExpectedTerminalStorageMin[i],
-            container=Array)
-        println("storage final_soc_max: ", Dates.now())
-        JuMP.@constraint(m,
-            soc_terminal_max[i in 1:sets.num_storage],
-            storage_soc[i, num_hour] <= storage.sd_table.ExpectedTerminalStorageMax[i],
-            container=Array)
+        _add_constraints_storage_operation!(
+            m, case, sets, storage, interval_length, storage_e0
+        )
     end
 
     if demand_flexibility.enabled
-        if demand_flexibility.rolling_balance && (
-            demand_flexibility.duration < interval_length
+        _add_constraints_demand_flexibility!(
+            m, case, sets, demand_flexibility, interval_length
         )
-            println("rolling load balance: ", Dates.now())
-            JuMP.@constraint(
-                m, 
-                rolling_load_balance[
-                    i in 1:sets.num_load_bus, 
-                    k in 1:(interval_length - demand_flexibility.duration)
-                ], 
-                sum(
-                    load_shift_up[i, j] - load_shift_dn[i, j] 
-                    for j in k:(k + demand_flexibility.duration)
-                ) >= 0
-            )
-        end
-        if demand_flexibility.interval_balance
-            println("interval load balance: ", Dates.now())
-            JuMP.@constraint(
-                m, 
-                interval_load_balance[i in 1:sets.num_load_bus], 
-                sum(
-                    load_shift_up[i, j] - load_shift_dn[i, j] for j in 1:interval_length
-                ) >= 0
-            )
-        end
     end
 
-    noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
     if initial_ramp_enabled
-        println("initial rampup: ", Dates.now())
-        JuMP.@constraint(m,
-            initial_rampup[i in noninf_ramp_idx],
-            pg[i, 1] - initial_ramp_g0[i] <= case.gen_ramp30[i] * 2)
-        println("initial rampdown: ", Dates.now())
-        JuMP.@constraint(m,
-            initial_rampdown[i in noninf_ramp_idx],
-            case.gen_ramp30[i] * -2 <= pg[i, 1] - initial_ramp_g0[i])
+        _add_constraints_initial_ramping!(m, case, sets, initial_ramp_g0)
     end
     if length(hour_idx) > 1
-        println("rampup: ", Dates.now())
-        JuMP.@constraint(m,
-            rampup[i in noninf_ramp_idx, h in 1:(num_hour-1)],
-            pg[i, h+1] - pg[i, h] <= case.gen_ramp30[i] * 2)
-        println("rampdown: ", Dates.now())
-        JuMP.@constraint(m,
-            rampdown[i in noninf_ramp_idx, h in 1:(num_hour-1)],
-            case.gen_ramp30[i] * -2 <= pg[i, h+1] - pg[i, h])
+        _add_constraints_ramping!(m, case, sets, interval_length)
     end
 
-    println("segment_max: ", Dates.now())
-    JuMP.@constraint(m,
-        segment_max[
-            i in sets.noninf_pmax, s in sets.segment_idx, h in hour_idx],
-        pg_seg[i, s, h] <= segment_width[i])
-    println("segment_add: ", Dates.now())
-    JuMP.@constraint(m,
-        segment_add[i in sets.noninf_pmax, h in hour_idx],
-        pg[i, h] == case.gen_pmin[i] + sum(pg_seg[i, :, h]))
+    _add_constraints_generator_segments!(m, case, sets, hour_idx)
 
-    if trans_viol_enabled
-        JuMP.@expression(m, branch_limit_pmin, branch_pmin - trans_viol)
-        JuMP.@expression(m, branch_limit_pmax, branch_pmax + trans_viol)
-    else
-        JuMP.@expression(m,
-            branch_limit_pmin[br in sets.branch_idx, h in hour_idx],
-            branch_pmin[br])
-        JuMP.@expression(m,
-            branch_limit_pmax[br in sets.branch_idx, h in hour_idx],
-            branch_pmax[br])
-    end
-    println("branch_min, branch_max: ", Dates.now())
-    JuMP.@constraint(m,
-        branch_min[br in sets.noninf_branch_idx, h in hour_idx],
-        branch_limit_pmin[br, h] <= pf[br, h])
-    println("branch_max: ", Dates.now())
-    JuMP.@constraint(m,
-        branch_max[br in sets.noninf_branch_idx, h in hour_idx],
-        pf[br, h] <= branch_limit_pmax[br, h])
+    _add_constraints_branch_flow_limits!(m, case, sets, trans_viol_enabled, hour_idx)
 
     println("branch_angle: ", Dates.now())
-    # Explicit numbering here so that we constrain AC branches but not DC
-    JuMP.@constraint(m,
-        branch_angle[br in 1:sets.num_branch_ac, h in hour_idx],
-        (case.branch_reactance[br] * pf[br, h]
-            == (theta[sets.branch_to_idx[br], h]
-                - theta[sets.branch_from_idx[br], h])))
+    _add_branch_angle_constraints!(m, case, sets, hour_idx)
 
     # Constrain variable generators based on profiles
-    println("hydro_fixed: ", Dates.now())
-    JuMP.@constraint(m,
-        hydro_fixed[i in 1:sets.num_hydro, h in hour_idx],
-        pg[sets.gen_hydro_idx[i], h] == simulation_hydro[h, i])
-    println("solar_max: ", Dates.now())
-    JuMP.@constraint(m,
-        solar_max[i in 1:sets.num_solar, h in hour_idx],
-        pg[sets.gen_solar_idx[i], h] <= simulation_solar[h, i])
-    println("wind_max: ", Dates.now())
-    JuMP.@constraint(m,
-        wind_max[i in 1:sets.num_wind, h in hour_idx],
-        pg[sets.gen_wind_idx[i], h] <= simulation_wind[h, i])
+    _add_profile_generator_limits!(m, case, sets, hour_idx, start_index, interval_length)
 
     println("objective: ", Dates.now())
     # Start with generator variable O & M, piecewise
