@@ -395,6 +395,25 @@ function _add_constraints_ramping!(
 end
 
 
+function _add_constraints_generator_segments!(
+    m::JuMP.Model,
+    case::Case,
+    sets::Sets,
+    hour_idx,
+)
+    segment_width = (case.gen_pmax - case.gen_pmin) ./ sets.num_segments
+    println("segment_max: ", Dates.now())
+    JuMP.@constraint(m,
+        segment_max[
+            i in sets.noninf_pmax, s in sets.segment_idx, h in hour_idx],
+        m[:pg_seg][i, s, h] <= segment_width[i])
+    println("segment_add: ", Dates.now())
+    JuMP.@constraint(m,
+        segment_add[i in sets.noninf_pmax, h in hour_idx],
+        m[:pg][i, h] == case.gen_pmin[i] + sum(m[:pg_seg][i, :, h]))
+end
+
+
 """
     _build_model(m; case=case, storage=storage, start_index=x,
                  interval_length=y[, kwargs...])
@@ -434,10 +453,6 @@ function _build_model(
 
     println("parameters: ", Dates.now())
     # Parameters
-    # Generation segments
-    segment_width = (case.gen_pmax - case.gen_pmin) ./ sets.num_segments
-    fixed_cost = case.gencost[:, COST+1]
-    segment_slope = _build_segment_slope(case, sets.segment_idx, segment_width)
     branch_pmin = vcat(-1 * case.branch_rating, case.dcline_pmin)
     branch_pmax = vcat(case.branch_rating, case.dcline_pmax)
     simulation_hydro = Matrix(case.hydro[start_index:end_index, 2:end])
@@ -553,15 +568,7 @@ function _build_model(
         _add_constraints_ramping!(m, case, sets, interval_length)
     end
 
-    println("segment_max: ", Dates.now())
-    JuMP.@constraint(m,
-        segment_max[
-            i in sets.noninf_pmax, s in sets.segment_idx, h in hour_idx],
-        pg_seg[i, s, h] <= segment_width[i])
-    println("segment_add: ", Dates.now())
-    JuMP.@constraint(m,
-        segment_add[i in sets.noninf_pmax, h in hour_idx],
-        pg[i, h] == case.gen_pmin[i] + sum(pg_seg[i, :, h]))
+    _add_constraints_generator_segments!(m, case, sets, hour_idx)
 
     if trans_viol_enabled
         JuMP.@expression(m, branch_limit_pmin, branch_pmin - trans_viol)
