@@ -319,6 +319,42 @@ function _add_constraints_storage_operation!(
 end
 
 
+function _add_constraints_demand_flexibility!(
+    m::JuMP.Model,
+    case::Case,
+    sets::Sets,
+    demand_flexibility::DemandFlexibility,
+    interval_length::Int,
+)
+    if demand_flexibility.rolling_balance && (
+        demand_flexibility.duration < interval_length
+    )
+        println("rolling load balance: ", Dates.now())
+        JuMP.@constraint(
+            m,
+            rolling_load_balance[
+                i in 1:sets.num_load_bus,
+                k in 1:(interval_length - demand_flexibility.duration)
+            ],
+            sum(
+                m[:load_shift_up][i, j] - m[:load_shift_dn][i, j]
+                for j in k:(k + demand_flexibility.duration)
+            ) >= 0
+        )
+    end
+    if demand_flexibility.interval_balance
+        println("interval load balance: ", Dates.now())
+        JuMP.@constraint(
+            m,
+            interval_load_balance[i in 1:sets.num_load_bus],
+            sum(
+                m[:load_shift_up][i, j] - m[:load_shift_dn][i, j] for j in 1:interval_length
+            ) >= 0
+        )
+    end
+end
+
+
 """
     _build_model(m; case=case, storage=storage, start_index=x,
                  interval_length=y[, kwargs...])
@@ -465,32 +501,9 @@ function _build_model(
     end
 
     if demand_flexibility.enabled
-        if demand_flexibility.rolling_balance && (
-            demand_flexibility.duration < interval_length
+        _add_constraints_demand_flexibility!(
+            m, case, sets, demand_flexibility, interval_length
         )
-            println("rolling load balance: ", Dates.now())
-            JuMP.@constraint(
-                m, 
-                rolling_load_balance[
-                    i in 1:sets.num_load_bus, 
-                    k in 1:(interval_length - demand_flexibility.duration)
-                ], 
-                sum(
-                    load_shift_up[i, j] - load_shift_dn[i, j] 
-                    for j in k:(k + demand_flexibility.duration)
-                ) >= 0
-            )
-        end
-        if demand_flexibility.interval_balance
-            println("interval load balance: ", Dates.now())
-            JuMP.@constraint(
-                m, 
-                interval_load_balance[i in 1:sets.num_load_bus], 
-                sum(
-                    load_shift_up[i, j] - load_shift_dn[i, j] for j in 1:interval_length
-                ) >= 0
-            )
-        end
     end
 
     noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
