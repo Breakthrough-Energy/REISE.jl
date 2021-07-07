@@ -280,6 +280,45 @@ function _add_constraint_load_shed!(
 end
 
 
+function _add_constraints_storage_operation!(
+    m::JuMP.Model,
+    case::Case,
+    sets::Sets,
+    storage::Storage,
+    interval_length::Int,
+    storage_e0::Array{Float64,1},
+)
+    num_hour = interval_length
+
+    println("storage soc_tracking: ", Dates.now())
+    JuMP.@constraint(m,
+        soc_tracking[i in 1:sets.num_storage, h in 1:(num_hour-1)],
+        m[:storage_soc][i, h+1] == (
+            m[:storage_soc][i, h] * (1 - storage.sd_table.LossFactor[i])
+            + storage.sd_table.InEff[i] * m[:storage_chg][i, h+1]
+            - (1 / storage.sd_table.OutEff[i]) * m[:storage_dis][i, h+1]),
+        container=Array)
+    println("storage initial_soc: ", Dates.now())
+    JuMP.@constraint(m,
+        initial_soc[i in 1:sets.num_storage],
+        m[:storage_soc][i, 1] == (
+            storage_e0[i]
+            + storage.sd_table.InEff[i] * m[:storage_chg][i, 1]
+            - (1 / storage.sd_table.OutEff[i]) * m[:storage_dis][i, 1]),
+        container=Array)
+    println("storage final_soc_min: ", Dates.now())
+    JuMP.@constraint(m,
+        soc_terminal_min[i in 1:sets.num_storage],
+        m[:storage_soc][i, num_hour] >= storage.sd_table.ExpectedTerminalStorageMin[i],
+        container=Array)
+    println("storage final_soc_max: ", Dates.now())
+    JuMP.@constraint(m,
+        soc_terminal_max[i in 1:sets.num_storage],
+        m[:storage_soc][i, num_hour] <= storage.sd_table.ExpectedTerminalStorageMax[i],
+        container=Array)
+end
+
+
 """
     _build_model(m; case=case, storage=storage, start_index=x,
                  interval_length=y[, kwargs...])
@@ -420,32 +459,9 @@ function _build_model(
     end
 
     if storage_enabled
-        println("storage soc_tracking: ", Dates.now())
-        JuMP.@constraint(m,
-            soc_tracking[i in 1:sets.num_storage, h in 1:(num_hour-1)],
-            storage_soc[i, h+1] == (
-                storage_soc[i, h] * (1 - storage.sd_table.LossFactor[i])
-                + storage.sd_table.InEff[i] * storage_chg[i, h+1]
-                - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, h+1]),
-            container=Array)
-        println("storage initial_soc: ", Dates.now())
-        JuMP.@constraint(m,
-            initial_soc[i in 1:sets.num_storage],
-            storage_soc[i, 1] == (
-                storage_e0[i]
-                + storage.sd_table.InEff[i] * storage_chg[i, 1]
-                - (1 / storage.sd_table.OutEff[i]) * storage_dis[i, 1]),
-            container=Array)
-        println("storage final_soc_min: ", Dates.now())
-        JuMP.@constraint(m,
-            soc_terminal_min[i in 1:sets.num_storage],
-            storage_soc[i, num_hour] >= storage.sd_table.ExpectedTerminalStorageMin[i],
-            container=Array)
-        println("storage final_soc_max: ", Dates.now())
-        JuMP.@constraint(m,
-            soc_terminal_max[i in 1:sets.num_storage],
-            storage_soc[i, num_hour] <= storage.sd_table.ExpectedTerminalStorageMax[i],
-            container=Array)
+        _add_constraints_storage_operation!(
+            m, case, sets, storage, interval_length, storage_e0
+        )
     end
 
     if demand_flexibility.enabled
