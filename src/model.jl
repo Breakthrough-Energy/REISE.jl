@@ -453,6 +453,22 @@ function _add_constraints_branch_flow_limits!(
 end
 
 
+function _add_branch_angle_constraints!(
+    m::JuMP.Model,
+    case::Case,
+    sets::Sets,
+    hour_idx,
+)
+    # Explicit numbering here so that we constrain AC branches but not DC
+    JuMP.@constraint(m,
+        branch_angle[br in 1:sets.num_branch_ac, h in hour_idx],
+        (case.branch_reactance[br] * m[:pf][br, h]
+            == (m[:theta][sets.branch_to_idx[br], h]
+                - m[:theta][sets.branch_from_idx[br], h])))
+end
+
+
+
 """
     _build_model(m; case=case, storage=storage, start_index=x,
                  interval_length=y[, kwargs...])
@@ -612,12 +628,7 @@ function _build_model(
     )
 
     println("branch_angle: ", Dates.now())
-    # Explicit numbering here so that we constrain AC branches but not DC
-    JuMP.@constraint(m,
-        branch_angle[br in 1:sets.num_branch_ac, h in hour_idx],
-        (case.branch_reactance[br] * pf[br, h]
-            == (theta[sets.branch_to_idx[br], h]
-                - theta[sets.branch_from_idx[br], h])))
+    _add_branch_angle_constraints!(m, case, sets, hour_idx)
 
     # Constrain variable generators based on profiles
     println("hydro_fixed: ", Dates.now())
