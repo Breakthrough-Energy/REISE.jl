@@ -488,6 +488,61 @@ function _add_profile_generator_limits!(
 end
 
 
+function _add_objective_function!(
+    m::JuMP.Model,
+    case::Case,
+    sets::Sets,
+    storage::Storage,
+    interval_length::Int,
+    load_shed_enabled::Bool,
+    load_shed_penalty::Number,
+    trans_viol_enabled::Bool,
+    storage_enabled::Bool,
+    storage_e0::Array{Float64,1},
+)
+    # Positional indices from mpc.gencost
+    COST = 5
+    fixed_cost = case.gencost[:, COST+1]
+    segment_width = (case.gen_pmax - case.gen_pmin) ./ sets.num_segments
+    segment_slope = _build_segment_slope(case, sets.segment_idx, segment_width)
+
+    # Start with generator variable O & M, piecewise
+    obj = JuMP.@expression(
+        m,
+        sum(segment_slope[sets.noninf_pmax, :] .* m[:pg_seg][sets.noninf_pmax, :, :]),
+    )
+    # Add fixed costs
+    JuMP.add_to_expression!(
+        obj, JuMP.@expression(m, interval_length * sum(fixed_cost))
+    )
+    # Add load shed penalty (if necessary)
+    if load_shed_enabled
+        JuMP.add_to_expression!(
+            obj, JuMP.@expression(m, load_shed_penalty * sum(m[:load_shed]))
+        )
+    end
+    # Add transmission violation penalty (if necessary)
+    if trans_viol_enabled
+        JuMP.add_to_expression!(
+            obj, JuMP.@expression(m, trans_viol_penalty * sum(m[:trans_viol]))
+        )
+    end
+    # Pay for ending with less storage energy than initial
+    if storage_enabled
+        storage_penalty = JuMP.@expression(
+            m,
+            sum(
+                (storage_e0 - m[:storage_soc][:, end])
+                .* storage.sd_table.TerminalStoragePrice
+            ),
+        )
+        JuMP.add_to_expression!(obj, storage_penalty)
+    end
+    # Finally, set as objective of model
+    JuMP.@objective(m, Min, obj)
+end
+
+
 """
     _build_model(m; case=case, storage=storage, start_index=x,
                  interval_length=y[, kwargs...])
@@ -511,8 +566,6 @@ function _build_model(
     initial_ramp_g0::Array{Float64,1}=Float64[],
     storage_e0::Array{Float64,1}=Float64[]
 )::Tuple{JuMP.Model, VariablesOfInterest}
-    # Positional indices from mpc.gencost
-    COST = 5
     # Positional indices from mpc.gen
     PMAX = 9
     PMIN = 10
@@ -629,32 +682,18 @@ function _build_model(
     _add_profile_generator_limits!(m, case, sets, hour_idx, start_index, interval_length)
 
     println("objective: ", Dates.now())
-    # Start with generator variable O & M, piecewise
-    obj = JuMP.@expression(m,
-        sum(segment_slope[sets.noninf_pmax, :]
-            .* pg_seg[sets.noninf_pmax, :, :]))
-    # Add fixed costs
-    JuMP.add_to_expression!(
-        obj, JuMP.@expression(m, num_hour * sum(fixed_cost)))
-    # Add load shed penalty (if necessary)
-    if load_shed_enabled
-        JuMP.add_to_expression!(
-            obj, JuMP.@expression(m, load_shed_penalty * sum(load_shed)))
-    end
-    # Add transmission violation penalty (if necessary)
-    if trans_viol_enabled
-        JuMP.add_to_expression!(
-            obj, JuMP.@expression(m, trans_viol_penalty * sum(trans_viol)))
-    end
-    # Pay for ending with less storage energy than initial
-    if storage_enabled
-        storage_penalty = JuMP.@expression(m,
-            sum((storage_e0 - storage_soc[:, end])
-                .* storage.sd_table.TerminalStoragePrice))
-        JuMP.add_to_expression!(obj, storage_penalty)
-    end
-    # Finally, set as objective of model
-    JuMP.@objective(m, Min, obj)
+    _add_objective_function!(
+        m,
+        case,
+        sets,
+        storage,
+        interval_length,
+        load_shed_enabled,
+        load_shed_penalty,
+        trans_viol_enabled,
+        storage_enabled,
+        storage_e0,
+    )
 
     println(Dates.now())
     # For non-existent variables/constraints, define as `nothing`
