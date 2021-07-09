@@ -291,31 +291,41 @@ function _add_constraints_storage_operation!(
     num_hour = interval_length
 
     println("storage soc_tracking: ", Dates.now())
-    JuMP.@constraint(m,
+    JuMP.@constraint(
+        m,
         soc_tracking[i in 1:sets.num_storage, h in 1:(num_hour-1)],
         m[:storage_soc][i, h+1] == (
             m[:storage_soc][i, h] * (1 - storage.sd_table.LossFactor[i])
             + storage.sd_table.InEff[i] * m[:storage_chg][i, h+1]
-            - (1 / storage.sd_table.OutEff[i]) * m[:storage_dis][i, h+1]),
-        container=Array)
+            - (1 / storage.sd_table.OutEff[i]) * m[:storage_dis][i, h+1]
+        ),
+        container=Array,
+    )
     println("storage initial_soc: ", Dates.now())
-    JuMP.@constraint(m,
+    JuMP.@constraint(
+        m,
         initial_soc[i in 1:sets.num_storage],
         m[:storage_soc][i, 1] == (
             storage_e0[i]
             + storage.sd_table.InEff[i] * m[:storage_chg][i, 1]
-            - (1 / storage.sd_table.OutEff[i]) * m[:storage_dis][i, 1]),
-        container=Array)
+            - (1 / storage.sd_table.OutEff[i]) * m[:storage_dis][i, 1]
+        ),
+        container=Array,
+    )
     println("storage final_soc_min: ", Dates.now())
-    JuMP.@constraint(m,
+    JuMP.@constraint(
+        m,
         soc_terminal_min[i in 1:sets.num_storage],
         m[:storage_soc][i, num_hour] >= storage.sd_table.ExpectedTerminalStorageMin[i],
-        container=Array)
+        container=Array,
+    )
     println("storage final_soc_max: ", Dates.now())
-    JuMP.@constraint(m,
+    JuMP.@constraint(
+        m,
         soc_terminal_max[i in 1:sets.num_storage],
         m[:storage_soc][i, num_hour] <= storage.sd_table.ExpectedTerminalStorageMax[i],
-        container=Array)
+        container=Array,
+    )
 end
 
 
