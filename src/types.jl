@@ -73,7 +73,7 @@ Base.@kwdef struct VariablesOfInterest
     pg::Array{JuMP.VariableRef,2}
     pf::Array{JuMP.VariableRef,2}
     load_shed::Union{Array{JuMP.VariableRef,2},Nothing}
-    load_shed_ub::Union{JuMP.Containers.DenseAxisArray,Nothing}
+    load_shed_ub::Union{Array{JuMP.ConstraintRef,2},Nothing}
     load_shift_up::Union{Array{JuMP.VariableRef,2},Nothing}
     load_shift_dn::Union{Array{JuMP.VariableRef,2},Nothing}
     powerbalance::Array{JuMP.ConstraintRef,2}
