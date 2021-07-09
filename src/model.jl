@@ -470,12 +470,7 @@ end
 
 
 function _add_profile_generator_limits!(
-    m::JuMP.Model,
-    case::Case,
-    sets::Sets,
-    hour_idx,
-    start_index,
-    interval_length,
+    m::JuMP.Model, case::Case, sets::Sets, hour_idx, start_index, interval_length
 )
     end_index = start_index + interval_length - 1
     # Generation segments
@@ -486,19 +481,19 @@ function _add_profile_generator_limits!(
     JuMP.@constraint(
         m,
         hydro_fixed[i in 1:sets.num_hydro, h in hour_idx],
-        m[:pg][sets.gen_hydro_idx[i], h] == simulation_hydro[h, i]
+        m[:pg][sets.gen_hydro_idx[i], h] == simulation_hydro[h, i],
     )
     println("solar_max: ", Dates.now())
     JuMP.@constraint(
         m,
         solar_max[i in 1:sets.num_solar, h in hour_idx],
-        m[:pg][sets.gen_solar_idx[i], h] <= simulation_solar[h, i]
+        m[:pg][sets.gen_solar_idx[i], h] <= simulation_solar[h, i],
     )
     println("wind_max: ", Dates.now())
     JuMP.@constraint(
         m,
         wind_max[i in 1:sets.num_wind, h in hour_idx],
-        m[:pg][sets.gen_wind_idx[i], h] <= simulation_wind[h, i]
+        m[:pg][sets.gen_wind_idx[i], h] <= simulation_wind[h, i],
     )
 end
 
