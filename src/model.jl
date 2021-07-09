@@ -733,19 +733,20 @@ function _build_model(
     storage_dis = storage_enabled ? storage_dis : nothing
     storage_chg = storage_enabled ? storage_chg : nothing
     storage_soc = storage_enabled ? storage_soc : nothing
-    initial_soc = storage_enabled ? initial_soc : nothing
-    initial_rampup = initial_ramp_enabled ? initial_rampup : nothing
-    initial_rampdown = initial_ramp_enabled ? initial_rampdown : nothing
-    load_shed_ub = load_shed_enabled ? load_shed_ub : nothing
+    initial_soc = storage_enabled ? m[:initial_soc] : nothing
+    initial_rampup = initial_ramp_enabled ? m[:initial_rampup] : nothing
+    initial_rampdown = initial_ramp_enabled ? m[:initial_rampdown] : nothing
+    load_shed_ub = load_shed_enabled ? m[:load_shed_ub] : nothing
     voi = VariablesOfInterest(;
         # Variables
         pg=pg, pf=pf, 
         load_shed=load_shed, load_shift_up=load_shift_up, load_shift_dn=load_shift_dn, 
         storage_soc=storage_soc, storage_dis=storage_dis, storage_chg=storage_chg,
         # Constraints
-        branch_min=branch_min, branch_max=branch_max, powerbalance=powerbalance,
+        branch_min=m[:branch_min], branch_max=m[:branch_max], powerbalance=m[:powerbalance],
         initial_soc=initial_soc, load_shed_ub=load_shed_ub, 
         initial_rampup=initial_rampup, initial_rampdown=initial_rampdown,
-        hydro_fixed=hydro_fixed, solar_max=solar_max, wind_max=wind_max)
+        hydro_fixed=m[:hydro_fixed], solar_max=m[:solar_max], wind_max=m[:wind_max]
+    )
     return (m, voi)
 end
