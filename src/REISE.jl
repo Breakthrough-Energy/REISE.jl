@@ -61,7 +61,7 @@ function run_scenario(;
     stderr_filepath = joinpath(outputfolder, "stderr.err")
     case = read_case(inputfolder)
     storage = read_storage(inputfolder)
-    demand_flexibility = read_demand_flexibility(inputfolder)
+    demand_flexibility = read_demand_flexibility(inputfolder, interval)
     println("All scenario files loaded!")
     case = reise_data_mods(case, num_segments=num_segments)
     save_input_mat(case, storage, inputfolder, outputfolder)

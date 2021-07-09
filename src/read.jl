@@ -178,6 +178,17 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
                 * "flexibility to occur."
             )
         end
+
+        # Check the feasibility of the duration parameter
+        if demand_flexibility["duration"] == nothing
+            demand_flexibility["duration"] = interval
+        elseif demand_flexibility["duration"] > interval
+            @warn (
+                "Demand flexibility durations greater than the interval length are "
+                * "set equal to the interval length."
+            )
+            demand_flexibility["duration"] = interval
+        end
     end
 
     # Convert Dict to NamedTuple
