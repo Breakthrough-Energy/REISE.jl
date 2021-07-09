@@ -583,7 +583,6 @@ function _build_model(
 
     println("building sets: ", Dates.now())
     # Sets - time periods
-    num_hour = interval_length
     hour_idx = 1:interval_length
     end_index = start_index + interval_length - 1
     # Sets - static
