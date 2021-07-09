@@ -102,7 +102,7 @@ end
 
 
 """Load demand flexibility profile from .csv files into DataFrame(s)."""
-function read_demand_flexibility(filepath)::DemandFlexibility
+function read_demand_flexibility(filepath, interval)::DemandFlexibility
     # Initialize demand flexibility
     demand_flexibility = Dict()
 
@@ -164,6 +164,12 @@ function read_demand_flexibility(filepath)::DemandFlexibility
                 catch e
                     println(demand_flexibility_params_errs[k])
                 end
+            end
+
+            # Set the demand flexibility constraints to false if enabled is false
+            if !demand_flexibility["enabled"]
+                demand_flexibility["interval_balance"] = false
+                demand_flexibility["rolling_balance"] = false
             end
         catch e
             println("Demand flexibility parameters not found in " * filepath)
