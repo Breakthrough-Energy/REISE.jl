@@ -400,21 +400,21 @@ end
 
 
 function _add_constraints_generator_segments!(
-    m::JuMP.Model,
-    case::Case,
-    sets::Sets,
-    hour_idx,
+    m::JuMP.Model, case::Case, sets::Sets, hour_idx,
 )
     segment_width = (case.gen_pmax - case.gen_pmin) ./ sets.num_segments
     println("segment_max: ", Dates.now())
-    JuMP.@constraint(m,
-        segment_max[
-            i in sets.noninf_pmax, s in sets.segment_idx, h in hour_idx],
-        m[:pg_seg][i, s, h] <= segment_width[i])
+    JuMP.@constraint(
+        m,
+        segment_max[i in sets.noninf_pmax, s in sets.segment_idx, h in hour_idx],
+        m[:pg_seg][i, s, h] <= segment_width[i],
+    )
     println("segment_add: ", Dates.now())
-    JuMP.@constraint(m,
+    JuMP.@constraint(
+        m,
         segment_add[i in sets.noninf_pmax, h in hour_idx],
-        m[:pg][i, h] == case.gen_pmin[i] + sum(m[:pg_seg][i, :, h]))
+        m[:pg][i, h] == case.gen_pmin[i] + sum(m[:pg_seg][i, :, h]),
+    )
 end
 
 
