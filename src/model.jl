@@ -590,14 +590,7 @@ function _build_model(
 
     println("parameters: ", Dates.now())
     # Parameters
-    # Storage parameters (if present)
     storage_enabled = (sets.num_storage > 0)
-    if storage_enabled
-        storage_max_dis = storage.gen[:, PMAX]
-        storage_max_chg = -1 * storage.gen[:, PMIN]
-        storage_min_energy = storage.sd_table.MinStorageLevel
-        storage_max_energy = storage.sd_table.MaxStorageLevel
-    end
     # Demand flexibility parameters (if present)
     if demand_flexibility.enabled
         bus_demand_flex_amt = _make_bus_demand_flexibility_amount(
@@ -627,6 +620,10 @@ function _build_model(
             container=Array)
     end
     if storage_enabled
+        storage_max_dis = storage.gen[:, PMAX]
+        storage_max_chg = -1 * storage.gen[:, PMIN]
+        storage_min_energy = storage.sd_table.MinStorageLevel
+        storage_max_energy = storage.sd_table.MaxStorageLevel
         JuMP.@variables(m, begin
             (0 <= storage_chg[i in sets.storage_idx, j in hour_idx]
                 <= storage_max_chg[i]), (container=Array)
