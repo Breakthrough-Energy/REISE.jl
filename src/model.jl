@@ -565,7 +565,7 @@ function _build_model(
     initial_ramp_enabled::Bool=false,
     initial_ramp_g0::Array{Float64,1}=Float64[],
     storage_e0::Array{Float64,1}=Float64[]
-)::Tuple{JuMP.Model, VariablesOfInterest}
+)::JuMP.Model
     # Positional indices from mpc.gen
     PMAX = 9
     PMIN = 10
@@ -696,26 +696,5 @@ function _build_model(
     )
 
     println(Dates.now())
-    # For non-existent variables/constraints, define as `nothing`
-    load_shed = load_shed_enabled ? load_shed : nothing
-    load_shift_up = demand_flexibility.enabled ? load_shift_up : nothing
-    load_shift_dn = demand_flexibility.enabled ? load_shift_dn : nothing
-    storage_dis = storage_enabled ? storage_dis : nothing
-    storage_chg = storage_enabled ? storage_chg : nothing
-    storage_soc = storage_enabled ? storage_soc : nothing
-    initial_soc = storage_enabled ? initial_soc : nothing
-    initial_rampup = initial_ramp_enabled ? initial_rampup : nothing
-    initial_rampdown = initial_ramp_enabled ? initial_rampdown : nothing
-    load_shed_ub = load_shed_enabled ? load_shed_ub : nothing
-    voi = VariablesOfInterest(;
-        # Variables
-        pg=pg, pf=pf, 
-        load_shed=load_shed, load_shift_up=load_shift_up, load_shift_dn=load_shift_dn, 
-        storage_soc=storage_soc, storage_dis=storage_dis, storage_chg=storage_chg,
-        # Constraints
-        branch_min=branch_min, branch_max=branch_max, powerbalance=powerbalance,
-        initial_soc=initial_soc, load_shed_ub=load_shed_ub, 
-        initial_rampup=initial_rampup, initial_rampdown=initial_rampdown,
-        hydro_fixed=hydro_fixed, solar_max=solar_max, wind_max=wind_max)
-    return (m, voi)
+    return m
 end
