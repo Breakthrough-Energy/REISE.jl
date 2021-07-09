@@ -504,11 +504,11 @@ function _add_objective_function!(
     sets::Sets,
     storage::Storage,
     interval_length::Int,
-    load_shed_enabled,
-    load_shed_penalty,
-    trans_viol_enabled,
-    storage_enabled,
-    storage_e0,
+    load_shed_enabled::Bool,
+    load_shed_penalty::Number,
+    trans_viol_enabled::Bool,
+    storage_enabled::Bool,
+    storage_e0::Array{Float64,1},
 )
     # Positional indices from mpc.gencost
     COST = 5
@@ -519,7 +519,7 @@ function _add_objective_function!(
     # Start with generator variable O & M, piecewise
     obj = JuMP.@expression(
         m,
-        sum(segment_slope[sets.noninf_pmax, :] .* m[:pg_seg][sets.noninf_pmax, :, :])
+        sum(segment_slope[sets.noninf_pmax, :] .* m[:pg_seg][sets.noninf_pmax, :, :]),
     )
     # Add fixed costs
     JuMP.add_to_expression!(
@@ -541,7 +541,10 @@ function _add_objective_function!(
     if storage_enabled
         storage_penalty = JuMP.@expression(
             m,
-            sum((storage_e0 - m[:storage_soc][:, end]) .* storage.sd_table.TerminalStoragePrice)
+            sum(
+                (storage_e0 - m[:storage_soc][:, end])
+                .* storage.sd_table.TerminalStoragePrice
+            ),
         )
         JuMP.add_to_expression!(obj, storage_penalty)
     end
