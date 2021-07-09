@@ -362,20 +362,21 @@ end
 
 
 function _add_constraints_initial_ramping!(
-    m::JuMP.Model,
-    case::Case,
-    sets::Sets,
-    initial_ramp_g0,
+    m::JuMP.Model, case::Case, sets::Sets, initial_ramp_g0
 )
     noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
     println("initial rampup: ", Dates.now())
-    JuMP.@constraint(m,
+    JuMP.@constraint(
+        m,
         initial_rampup[i in noninf_ramp_idx],
-        m[:pg][i, 1] - initial_ramp_g0[i] <= case.gen_ramp30[i] * 2)
+        m[:pg][i, 1] - initial_ramp_g0[i] <= case.gen_ramp30[i] * 2,
+    )
     println("initial rampdown: ", Dates.now())
-    JuMP.@constraint(m,
+    JuMP.@constraint(
+        m,
         initial_rampdown[i in noninf_ramp_idx],
-        case.gen_ramp30[i] * -2 <= m[:pg][i, 1] - initial_ramp_g0[i])
+        case.gen_ramp30[i] * -2 <= m[:pg][i, 1] - initial_ramp_g0[i],
+    )
 end
 
 
