@@ -257,25 +257,24 @@ function _add_constraint_load_shed!(
 )
     # Demand by bus
     end_index = start_index + interval_length - 1
-    bus_demand = _make_bus_demand(case, start_index, end_index)
-    bus_demand *= demand_scaling
+    bus_demand = _make_bus_demand(case, start_index, end_index) * demand_scaling
 
     demand_for_load_shed = JuMP.@expression(
         m,
         [i=1:sets.num_load_bus, j=1:interval_length],
-        bus_demand[sets.load_bus_idx[i], j]
+        bus_demand[sets.load_bus_idx[i], j],
     )
     if demand_flexibility.enabled
         demand_for_load_shed = JuMP.@expression(
             m,
             [i=1:sets.num_load_bus, j=1:interval_length],
-            demand_for_load_shed[i, j] + m[:load_shift_up][i, j] - m[:load_shift_dn][i, j]
+            demand_for_load_shed[i, j] + m[:load_shift_up][i, j] - m[:load_shift_dn][i, j],
         )
     end
     JuMP.@constraint(
         m,
         load_shed_ub[i in 1:sets.num_load_bus, j in 1:interval_length],
-        m[:load_shed][i, j] <= demand_for_load_shed[i, j]
+        m[:load_shed][i, j] <= demand_for_load_shed[i, j],
     )
 end
 
