@@ -201,16 +201,12 @@ function _add_constraint_power_balance!(
     demand_scaling::Number,
     load_shed_enabled::Bool,
 )
-    num_hour = interval_length
-    hour_idx = 1:interval_length
-    end_index = start_index + interval_length - 1
-
     # Generator topology matrix
     gen_map = _make_gen_map(case)
     # Branch connectivity matrix
     branch_map = _make_branch_map(case)
     # Demand by bus
-    bus_demand = _make_bus_demand(case, start_index, end_index)
+    bus_demand = _make_bus_demand(case, start_index, start_index + interval_length - 1)
     bus_demand *= demand_scaling
 
     gen_injections = JuMP.@expression(m, gen_map * m[:pg])
@@ -239,9 +235,10 @@ function _add_constraint_power_balance!(
     end
     JuMP.@constraint(m, powerbalance, (injections .== withdrawals))
     println("powerbalance, setting names: ", Dates.now())
-    for i in sets.bus_idx, j in hour_idx
-        JuMP.set_name(powerbalance[i, j],
-                      "powerbalance[" * string(i) * "," * string(j) * "]")
+    for i in sets.bus_idx, j in 1:interval_length
+        JuMP.set_name(
+            powerbalance[i, j], "powerbalance[" * string(i) * "," * string(j) * "]"
+        )
     end
 end
 
