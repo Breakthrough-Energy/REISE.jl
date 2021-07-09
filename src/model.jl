@@ -345,7 +345,7 @@ function _add_constraints_demand_flexibility!(
             sum(
                 m[:load_shift_up][i, j] - m[:load_shift_dn][i, j]
                 for j in k:(k + demand_flexibility.duration)
-            ) >= 0
+            ) >= 0,
         )
     end
     if demand_flexibility.interval_balance
@@ -355,7 +355,7 @@ function _add_constraints_demand_flexibility!(
             interval_load_balance[i in 1:sets.num_load_bus],
             sum(
                 m[:load_shift_up][i, j] - m[:load_shift_dn][i, j] for j in 1:interval_length
-            ) >= 0
+            ) >= 0,
         )
     end
 end
