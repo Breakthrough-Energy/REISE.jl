@@ -69,28 +69,6 @@ Base.@kwdef struct Results
 end
 
 
-Base.@kwdef struct VariablesOfInterest
-    pg::Array{JuMP.VariableRef,2}
-    pf::Array{JuMP.VariableRef,2}
-    load_shed::Union{Array{JuMP.VariableRef,2},Nothing}
-    load_shed_ub::Union{Array{JuMP.ConstraintRef,2},Nothing}
-    load_shift_up::Union{Array{JuMP.VariableRef,2},Nothing}
-    load_shift_dn::Union{Array{JuMP.VariableRef,2},Nothing}
-    powerbalance::Array{JuMP.ConstraintRef,2}
-    branch_min::JuMP.Containers.DenseAxisArray
-    branch_max::JuMP.Containers.DenseAxisArray
-    initial_rampup::Union{JuMP.Containers.DenseAxisArray,Nothing}
-    initial_rampdown::Union{JuMP.Containers.DenseAxisArray,Nothing}
-    hydro_fixed::JuMP.Containers.DenseAxisArray
-    solar_max::JuMP.Containers.DenseAxisArray
-    wind_max::JuMP.Containers.DenseAxisArray
-    storage_dis::Union{Array{JuMP.VariableRef,2},Nothing}
-    storage_chg::Union{Array{JuMP.VariableRef,2},Nothing}
-    storage_soc::Union{Array{JuMP.VariableRef,2},Nothing}
-    initial_soc::Union{Array{JuMP.ConstraintRef,1},Nothing}
-end
-
-
 Base.@kwdef struct Sets
     # Branch and branch subsets
     num_branch::Int64
