@@ -42,7 +42,6 @@ function interval_loop(factory_like, model_kwargs::Dict,
     storage = model_kwargs["storage"]
     demand_flexibility = model_kwargs["demand_flexibility"]
     sets = _make_sets(case, storage)
-    storage_enabled = (sets.num_storage > 0)
     unused_load_shed_intervals_turnoff = 14
     # Start looping
     for i in 1:n_interval
@@ -60,7 +59,7 @@ function interval_loop(factory_like, model_kwargs::Dict,
         end
         if i == 1
             # Build a model with no initial ramp constraint
-            if storage_enabled
+            if storage.enabled
                 model_kwargs["storage_e0"] = storage.sd_table.InitialStorage
             end
             m = new_model(factory_like)
@@ -70,7 +69,7 @@ function interval_loop(factory_like, model_kwargs::Dict,
             # Build a model with an initial ramp constraint
             model_kwargs["initial_ramp_enabled"] = true
             model_kwargs["initial_ramp_g0"] = pg0
-            if storage_enabled
+            if storage.enabled
                 model_kwargs["storage_e0"] = storage_e0
             end
             m = new_model(factory_like)
@@ -117,7 +116,7 @@ function interval_loop(factory_like, model_kwargs::Dict,
                 rhs = case.gen_ramp30[g] * 2 - pg0[g]
                 JuMP.set_normalized_rhs(m[:initial_rampdown][g], rhs)
             end
-            if storage_enabled
+            if storage.enabled
                 for s in 1:sets.num_storage
                     JuMP.set_normalized_rhs(m[:initial_soc][s], storage_e0[s])
                 end
@@ -203,7 +202,7 @@ function interval_loop(factory_like, model_kwargs::Dict,
 
         # Save initial conditions for next interval
         pg0 = results.pg[:,end]
-        if storage_enabled
+        if storage.enabled
             storage_e0 = results.storage_e[:,end]
         end
 

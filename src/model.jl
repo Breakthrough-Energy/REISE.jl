@@ -170,7 +170,7 @@ function _make_sets(case::Case, storage::Union{Storage,Nothing})::Sets
     num_segments = convert(Int, maximum(case.gencost[:, NCOST])) - 1
     segment_idx = 1:num_segments
     # Storage
-    storage_enabled = isa(storage, Storage) && (size(storage.gen, 1) > 0)
+    storage_enabled = isa(storage, Storage) && storage.enabled
     num_storage = storage_enabled ? size(storage.gen, 1) : 0
     storage_idx = storage_enabled ? (1:num_storage) : nothing
 
@@ -211,8 +211,7 @@ function _add_constraint_power_balance!(
         injections = JuMP.@expression(m, injections + sets.load_bus_map * m[:load_shed])
     end
     withdrawals = JuMP.@expression(m, bus_demand)
-    storage_enabled = (sets.num_storage > 0)
-    if storage_enabled
+    if storage.enabled
         storage_bus_idx = [sets.bus_id2idx[b] for b in storage.gen[:, 1]]
         storage_map = sparse(
             storage_bus_idx, sets.storage_idx, 1, sets.num_bus, sets.num_storage
@@ -497,7 +496,6 @@ function _add_objective_function!(
     load_shed_enabled::Bool,
     load_shed_penalty::Number,
     trans_viol_enabled::Bool,
-    storage_enabled::Bool,
     storage_e0::Array{Float64,1},
 )
     # Positional indices from mpc.gencost
@@ -528,7 +526,7 @@ function _add_objective_function!(
         )
     end
     # Pay for ending with less storage energy than initial
-    if storage_enabled
+    if storage.enabled
         storage_penalty = JuMP.@expression(
             m,
             sum(
@@ -579,7 +577,6 @@ function _build_model(
 
     println("parameters: ", Dates.now())
     # Parameters
-    storage_enabled = (sets.num_storage > 0)
     bus_demand = _make_bus_demand(case, start_index, end_index) * demand_scaling
     # Demand flexibility parameters (if present)
     if demand_flexibility.enabled
@@ -609,7 +606,7 @@ function _build_model(
             0 <= trans_viol[i in sets.branch_idx, j in hour_idx],
             container=Array)
     end
-    if storage_enabled
+    if storage.enabled
         storage_max_dis = storage.gen[:, PMAX]
         storage_max_chg = -1 * storage.gen[:, PMIN]
         storage_min_energy = storage.sd_table.MinStorageLevel
@@ -652,7 +649,7 @@ function _build_model(
         _add_constraint_load_shed!(m, case, sets, demand_flexibility, bus_demand)
     end
 
-    if storage_enabled
+    if storage.enabled
         _add_constraints_storage_operation!(
             m, case, sets, storage, interval_length, storage_e0
         )
@@ -691,7 +688,6 @@ function _build_model(
         load_shed_enabled,
         load_shed_penalty,
         trans_viol_enabled,
-        storage_enabled,
         storage_e0,
     )
 
