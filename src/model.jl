@@ -721,16 +721,5 @@ function _build_model(
     )
 
     println(Dates.now())
-    # For non-existent variables/constraints, define as `nothing`
-    m[:load_shed] = load_shed_enabled ? load_shed : nothing
-    m[:load_shift_up] = demand_flexibility.enabled ? load_shift_up : nothing
-    m[:load_shift_dn] = demand_flexibility.enabled ? load_shift_dn : nothing
-    m[:storage_dis] = storage_enabled ? storage_dis : nothing
-    m[:storage_chg] = storage_enabled ? storage_chg : nothing
-    m[:storage_soc] = storage_enabled ? storage_soc : nothing
-    m[:initial_soc] = storage_enabled ? m[:initial_soc] : nothing
-    m[:initial_rampup] = initial_ramp_enabled ? m[:initial_rampup] : nothing
-    m[:initial_rampdown] = initial_ramp_enabled ? m[:initial_rampdown] : nothing
-    m[:load_shed_ub] = load_shed_enabled ? m[:load_shed_ub] : nothing
     return m
 end
