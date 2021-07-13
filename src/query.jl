@@ -39,8 +39,8 @@ function get_results(f::Float64, case::Case)::Results
         storage_e = JuMP.value.(m[:storage_soc])
         storage_pg = storage_dis - storage_chg
     catch e
-        if isa(e, MethodError)
-            # Thrown when storage variables are `nothing`
+        if isa(e, KeyError)
+            # Thrown when storage variables are not defined in the model
         else
             # Unknown error, rethrow it
             rethrow(e)
@@ -54,8 +54,8 @@ function get_results(f::Float64, case::Case)::Results
         load_shed_temp = JuMP.value.(m[:load_shed])
         load_shed = sets.load_bus_map * load_shed_temp
     catch e
-        if isa(e, MethodError)
-            # Thrown when load_shed is `nothing`
+        if isa(e, KeyError)
+            # Thrown when load_shed is not defined in the model
         else
             # Unknown error, rethrow it
             rethrow(e)
@@ -72,7 +72,7 @@ function get_results(f::Float64, case::Case)::Results
         load_shift_up = sets.load_bus_map * load_shift_up_temp
         load_shift_dn = sets.load_bus_map * load_shift_dn_temp
     catch e
-        if isa(e, MethodError)
+        if isa(e, KeyError)
             # Thrown when load shift variables are `nothing`
         else
             # Unknown error, rethrow it
