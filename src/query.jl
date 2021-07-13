@@ -1,17 +1,17 @@
 """
-    get_results(model)
+    get_results(model, case)
 
 Extract the results of a simulation, store in a struct.
 """
-function get_results(f::Float64, voi::VariablesOfInterest, case::Case)::Results
+function get_results(f::Float64, case::Case)::Results
     status = "OPTIMAL"
     sets = _make_sets(case)
     # These variables will always be in the results
-    pg = JuMP.value.(voi.pg)
-    pf = JuMP.value.(voi.pf)
-    lmp = -1 * JuMP.shadow_price.(voi.powerbalance)
-    congl_temp = -1 * JuMP.shadow_price.(voi.branch_min)
-    congu_temp = -1 * JuMP.shadow_price.(voi.branch_max)
+    pg = JuMP.value.(m[:pg])
+    pf = JuMP.value.(m[:pf])
+    lmp = -1 * JuMP.shadow_price.(m[:powerbalance])
+    congl_temp = -1 * JuMP.shadow_price.(m[:branch_min])
+    congu_temp = -1 * JuMP.shadow_price.(m[:branch_max])
     # If DC lines are present, separate their results
     # Initialize with empty arrays, to be discarded later if they stay empty
     pf_dcline = zeros(0, 0)
@@ -34,13 +34,13 @@ function get_results(f::Float64, voi::VariablesOfInterest, case::Case)::Results
     storage_pg = zeros(0, 0)
     storage_e = zeros(0, 0)
     try
-        storage_dis = JuMP.value.(voi.storage_dis)
-        storage_chg = JuMP.value.(voi.storage_chg)
-        storage_e = JuMP.value.(voi.storage_soc)
+        storage_dis = JuMP.value.(m[:storage_dis])
+        storage_chg = JuMP.value.(m[:storage_chg])
+        storage_e = JuMP.value.(m[:storage_soc])
         storage_pg = storage_dis - storage_chg
     catch e
-        if isa(e, MethodError)
-            # Thrown when storage variables are `nothing`
+        if isa(e, KeyError)
+            # Thrown when storage variables are not defined in the model
         else
             # Unknown error, rethrow it
             rethrow(e)
@@ -51,11 +51,11 @@ function get_results(f::Float64, voi::VariablesOfInterest, case::Case)::Results
     # Initialize with empty arrays, to be discarded later if they stay empty
     load_shed = zeros(0, 0)
     try
-        load_shed_temp = JuMP.value.(voi.load_shed)
+        load_shed_temp = JuMP.value.(m[:load_shed])
         load_shed = sets.load_bus_map * load_shed_temp
     catch e
-        if isa(e, MethodError)
-            # Thrown when load_shed is `nothing`
+        if isa(e, KeyError)
+            # Thrown when load_shed is not defined in the model
         else
             # Unknown error, rethrow it
             rethrow(e)
@@ -67,12 +67,12 @@ function get_results(f::Float64, voi::VariablesOfInterest, case::Case)::Results
     load_shift_up = zeros(0, 0)
     load_shift_dn = zeros(0, 0)
     try
-        load_shift_up_temp = JuMP.value.(voi.load_shift_up)
-        load_shift_dn_temp = JuMP.value.(voi.load_shift_dn)
+        load_shift_up_temp = JuMP.value.(m[:load_shift_up])
+        load_shift_dn_temp = JuMP.value.(m[:load_shift_dn])
         load_shift_up = sets.load_bus_map * load_shift_up_temp
         load_shift_dn = sets.load_bus_map * load_shift_dn_temp
     catch e
-        if isa(e, MethodError)
+        if isa(e, KeyError)
             # Thrown when load shift variables are `nothing`
         else
             # Unknown error, rethrow it
