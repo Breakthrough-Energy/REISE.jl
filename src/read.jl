@@ -113,12 +113,12 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
     for s in ["up", "dn"]
         try
             demand_flexibility["flex_amt_" * s] = CSV.File(
-                joinpath(filepath, "demand_flexibility_" * s * ".csv"))
+                joinpath(filepath, "demand_flexibility_" * s * ".csv")
             ) |> DataFrames.DataFrame
             println("...loading demand flexibility " * s * " profiles")
         catch e
-            println("Demand flexibility " * s " profile not found in " * filepath)
-            demand_flexibility[string("flex_amt_", s)] = nothing
+            println("Demand flexibility " * s * " profile not found in " * filepath)
+            demand_flexibility["flex_amt_" * s] = nothing
         end
     end
     
@@ -203,7 +203,14 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
             )
             demand_flexibility["duration"] = interval
         end
-        
+
+        # Prevent the rolling_balance constraint according to the duration parameter
+        if demand_flexibility["rolling_balance"]
+            if demand_flexibility["duration"] == interval
+                demand_flexibility["rolling_balance"] = false
+            end
+        end
+
         # Try reading the cost for up- and down-shifting loads
         for cost_file_suffix in ("up", "dn")
             try 

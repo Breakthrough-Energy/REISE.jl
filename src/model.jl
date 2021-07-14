@@ -88,7 +88,7 @@ Given a Case object and a DemandFlexibility object, build a matrix of demand fle
 """
 function _make_bus_demand_flexibility_amount(
     case::Case, demand_flexibility::DemandFlexibility, start_index::Int, end_index::Int
-)::Matrix
+)::Tuple{Matrix,Matrix}
     # Bus weighting
     zone_to_bus_shares = _make_bus_demand_weighting(case)
 
@@ -333,9 +333,7 @@ function _add_constraints_demand_flexibility!(
     demand_flexibility::DemandFlexibility,
     interval_length::Int,
 )
-    if demand_flexibility.rolling_balance && (
-        demand_flexibility.duration < interval_length
-    )
+    if demand_flexibility.rolling_balance
         println("rolling load balance: ", Dates.now())
         JuMP.@constraint(
             m,
@@ -673,14 +671,14 @@ function _build_model(
         JuMP.@variable(
             m, 
             0 <= load_shift_dn[i in 1:sets.num_load_bus, j in 1:interval_length] 
-                <= bus_demand_flex_amt_dn[sets.load_bus_idx[i], j]
+                <= bus_demand_flex_amt_dn[sets.load_bus_idx[i], j],
         )
 
         # The amount of demand that is added to the base load
         JuMP.@variable(
             m, 
             0 <= load_shift_up[i in 1:sets.num_load_bus, j in 1:interval_length]
-                <= bus_demand_flex_amt_up[sets.load_bus_idx[i], j]
+                <= bus_demand_flex_amt_up[sets.load_bus_idx[i], j],
         )
     end
 
