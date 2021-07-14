@@ -75,7 +75,9 @@ end
 """Read input matfile (if present), return parsed data in a Storage struct."""
 function read_storage(filepath)::Storage
     # Fallback dataframe, in case there's no case_storage.mat file
-    storage = Dict("gen" => zeros(0, 21), "sd_table" => DataFrames.DataFrame())
+    storage = Dict(
+        "enabled" => false, "gen" => zeros(0, 21), "sd_table" => DataFrames.DataFrame()
+    )
     try
         case_storage_file = MAT.matopen(joinpath(filepath, "case_storage.mat"))
         storage_mat_data = read(case_storage_file, "storage")
@@ -83,6 +85,7 @@ function read_storage(filepath)::Storage
         # Convert N x 1 array of strings into 1D array of Symbols (length N)
         column_symbols = Symbol.(vec(storage_mat_data["sd_table"]["colnames"]))
         storage = Dict(
+            "enabled" => true,
             "gen" => storage_mat_data["gen"],
             "sd_table" => DataFrames.DataFrame(
                 storage_mat_data["sd_table"]["data"], column_symbols
