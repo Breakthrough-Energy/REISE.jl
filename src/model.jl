@@ -394,7 +394,9 @@ function _add_constraints_demand_flexibility!(
             m,
             interval_load_balance[i in 1:sets.num_flexible_bus],
             sum(
-                m[:load_shift_up][i, j] - m[:load_shift_dn][i, j] for j in 1:interval_length
+                m[:load_shift_up][i, j] 
+                - m[:load_shift_dn][i, j] 
+                for j in 1:interval_length
             ) >= -1 * init_shifted_demand[i],
         )
     end
@@ -740,7 +742,7 @@ function _build_model(
 
     if demand_flexibility.enabled
         _add_constraints_demand_flexibility!(
-            m, case, sets, demand_flexibility, interval_length
+            m, case, sets, demand_flexibility, interval_length, init_shifted_demand
         )
     end
 

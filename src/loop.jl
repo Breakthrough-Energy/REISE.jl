@@ -66,7 +66,15 @@ function interval_loop(factory_like, model_kwargs::Dict,
                 model_kwargs["storage_e0"] = storage.sd_table.InitialStorage
             end
             if demand_flexibility.enabled
-                model_kwargs["init_shifted_demand"] = zeros(size(bus_flex_amt, 1))
+                try
+                    model_kwargs["init_shifted_demand"] = zeros(
+                        size(bus_demand_flex_amt_dn, 1)
+                    )
+                catch e
+                    model_kwargs["init_shifted_demand"] = zeros(
+                        size(bus_demand_flex_amt_up, 1)
+                    )
+                end
             end
             m = new_model(factory_like)
             JuMP.set_optimizer_attributes(m, pairs(solver_kwargs)...)
@@ -174,12 +182,17 @@ function interval_loop(factory_like, model_kwargs::Dict,
                             )
                         end
                     end
-                    JuMP.set_normalized_rhs(
-                        m[:rolling_load_balance_first][l], -1 * init_shifted_demand[l]
-                    )
-                    JuMP.set_normalized_rhs(
-                        m[:interval_load_balance][l], -1 * init_shifted_demand[l]
-                    )
+                    if demand_flexibility.rolling_balance
+                        JuMP.set_normalized_rhs(
+                            m[:rolling_load_balance_first][l], 
+                            -1 * init_shifted_demand[l],
+                        )
+                    end
+                    if demand_flexibility.interval_balance
+                        JuMP.set_normalized_rhs(
+                            m[:interval_load_balance][l], -1 * init_shifted_demand[l]
+                        )
+                    end
                 end
             end
         end
@@ -257,18 +270,7 @@ function interval_loop(factory_like, model_kwargs::Dict,
             storage_e0 = results.storage_e[:,end]
         end
         if demand_flexibility.enabled
-            if demand_flexibility.rolling_balance && (
-                demand_flexibility.duration < interval
-            )
-                init_shifted_demand = sum(
-                    results.load_shift_up[
-                        :, (interval - demand_flexibility.duration + 1):end
-                    ] - results.load_shift_dn[
-                        :, (interval - demand_flexibility.duration + 1):end
-                    ],
-                    dims=2
-                )[:, 1]
-            else
+            if demand_flexibility.interval_balance || demand_flexibility.rolling_balance
                 init_shifted_demand = sum(
                     results.load_shift_up - results.load_shift_dn,
                     dims=2
