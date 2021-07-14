@@ -53,7 +53,10 @@ function interval_loop(factory_like, model_kwargs::Dict,
         interval_end = interval_start + interval - 1
         model_kwargs["start_index"] = interval_start
         if demand_flexibility.enabled
-            bus_flex_amt = _make_bus_demand_flexibility_amount(
+            (
+                bus_demand_flex_amt_up, 
+                bus_demand_flex_amt_dn,
+            ) = _make_bus_demand_flexibility_amount(
                 case, demand_flexibility, interval_start, interval_end
             )
         end
@@ -138,10 +141,12 @@ function interval_loop(factory_like, model_kwargs::Dict,
                 end
                 for t in 1:interval, i in 1:length(sets.load_bus_idx)
                     JuMP.set_upper_bound(
-                        m[:load_shift_up][i, t], bus_flex_amt[sets.load_bus_idx[i], t]
+                        m[:load_shift_up][i, t], 
+                        bus_demand_flex_amt_up[sets.load_bus_idx[i], t],
                     )
                     JuMP.set_upper_bound(
-                        m[:load_shift_dn][i, t], bus_flex_amt[sets.load_bus_idx[i], t]
+                        m[:load_shift_dn][i, t], 
+                        bus_demand_flex_amt_dn[sets.load_bus_idx[i], t],
                     )
                     
                     if !isnothing(demand_flexibility.cost_up)

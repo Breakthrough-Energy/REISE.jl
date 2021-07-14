@@ -109,16 +109,25 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
     # Initialize demand flexibility
     demand_flexibility = Dict()
 
-    # Try loading demand flexibility profiles. Otherwise, create a DataFrame of zeros
-    try
-        demand_flexibility["flex_amt"] = CSV.File(
-            joinpath(filepath, "demand_flexibility.csv")
-        ) |> DataFrames.DataFrame
-        println("...loading demand flexibility profiles")
+    # Try loading demand flexibility profiles
+    for s in ["up", "dn"]
+        try
+            demand_flexibility["flex_amt_" * s] = CSV.File(
+                joinpath(filepath, "demand_flexibility_" * s * ".csv"))
+            ) |> DataFrames.DataFrame
+            println("...loading demand flexibility " * s * " profiles")
+        catch e
+            println("Demand flexibility " * s " profile not found in " * filepath)
+            demand_flexibility[string("flex_amt_", s)] = nothing
+        end
+    end
+    
+    # If both demand flexibility profiles exist, demand flexibility is enabled
+    if !isnothing(demand_flexibility["flex_amt_up"]) && (
+        !isnothing(demand_flexibility["flex_amt_dn"])
+    )
         demand_flexibility["enabled"] = true
-    catch e
-        println("Demand flexibility profiles not found in " * filepath)
-        demand_flexibility["flex_amt"] = nothing
+    else
         demand_flexibility["enabled"] = false
         demand_flexibility["duration"] = nothing
         demand_flexibility["interval_balance"] = false
