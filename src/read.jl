@@ -128,6 +128,14 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
     )
         demand_flexibility["enabled"] = true
     else
+        if !isnothing(demand_flexibility["flex_amt_up"]) || (
+            !isnothing(demand_flexibility["flex_amt_dn"])
+        )
+            @warn (
+                "The exclusion of one of the demand flexibility profiles has resulted "
+                * "in demand flexibility not being enabled."
+            )
+        end
         demand_flexibility["enabled"] = false
         demand_flexibility["duration"] = nothing
         demand_flexibility["interval_balance"] = false
