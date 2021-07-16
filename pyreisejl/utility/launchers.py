@@ -129,6 +129,34 @@ class Launcher:
         raise NotImplementedError
 
 
+class ClpLauncher(Launcher):
+    def launch_scenario(self):
+        """Launches the scenario.
+
+        :return: (*int*) runtime of scenario in seconds
+        """
+        self._print_settings()
+        print("INFO: Clp functionality is still in the testing stage, no guarantees")
+        print("INFO: threads not supported by Clp, ignoring")
+
+        Clp, REISE = self.init_julia(imports=["Clp", "REISE"])
+
+        start = time()
+        REISE.run_scenario(
+            interval=self.interval,
+            n_interval=self.n_interval,
+            start_index=self.start_index,
+            inputfolder=self.input_dir,
+            outputfolder=self.execute_dir,
+            optimizer_factory=Clp.Optimizer,
+            solver_kwargs=self.solver_kwargs,
+            num_segments=self.num_segments,
+        )
+        end = time()
+
+        return self.parse_runtime(start, end)
+
+
 class GLPKLauncher(Launcher):
     def launch_scenario(self):
         """Launches the scenario.
@@ -183,7 +211,7 @@ class GurobiLauncher(Launcher):
         return self.parse_runtime(start, end)
 
 
-_launch_map = {"gurobi": GurobiLauncher, "glpk": GLPKLauncher}
+_launch_map = {"clp": ClpLauncher, "glpk": GLPKLauncher, "gurobi": GurobiLauncher}
 
 
 def get_available_solvers():
