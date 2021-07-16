@@ -29,12 +29,14 @@ RUN mkdir src && touch src/REISE.jl
 RUN julia -e 'using Pkg; \
 	Pkg.activate("."); \
 	Pkg.instantiate(); \
+	Pkg.add("GLPK"); \
 	Pkg.add("Gurobi"); \
-	Pkg.add("GLPK")'
+	Pkg.add("Clp")'
 
 COPY src src
 
 RUN julia -e 'import Gurobi; \
+	import Clp; \
 	import GLPK; \
 	using REISE'
 
