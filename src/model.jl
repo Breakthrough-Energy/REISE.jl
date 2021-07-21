@@ -499,6 +499,7 @@ function _add_objective_function!(
     load_shed_penalty::Number,
     trans_viol_enabled::Bool,
     storage_e0::Array{Float64,1},
+    demand_flexibility::DemandFlexibility,
 )
     # Positional indices from mpc.gencost
     COST = 5

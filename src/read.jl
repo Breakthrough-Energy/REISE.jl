@@ -194,6 +194,21 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
             )
             demand_flexibility["duration"] = interval
         end
+        
+        # Try reading the cost for up- and down-shifting loads
+        for cost_file_suffix in ("up", "dn")
+            try 
+                demand_flexibility["cost_$cost_file_suffix"] = CSV.File(
+                    joinpath(filepath, "demand_flexibility_cost_$cost_file_suffix.csv")
+                ) |> DataFrames.DataFrame
+                println("...loading demand flexibility $cost_file_suffix-shift cost profiles")
+            catch e
+                println(
+                    "Demand flexibility down-shift cost profiles not found in " * filepath
+                )
+                demand_flexibility["cost_$cost_file_suffix"] = nothing
+            end
+        end
     end
 
     # Convert Dict to NamedTuple
