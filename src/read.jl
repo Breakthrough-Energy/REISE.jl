@@ -123,9 +123,11 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
         demand_flexibility["duration"] = nothing
         demand_flexibility["interval_balance"] = false
         demand_flexibility["rolling_balance"] = false
+        demand_flexibility["cost_up"] = nothing
+        demand_flexibility["cost_dn"] = nothing
     end
 
-    # Set the demand flexibility parameters
+    # Set the demand flexibility costs and parameters
     if demand_flexibility["enabled"]
         # Pre-specify the demand flexibility parameters
         demand_flexibility["duration"] = nothing
