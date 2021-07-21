@@ -492,11 +492,14 @@ function _add_objective_function!(
     case::Case,
     sets::Sets,
     storage::Storage,
+    start_index::Int, 
+    end_index::Int, 
     interval_length::Int,
     load_shed_enabled::Bool,
     load_shed_penalty::Number,
     trans_viol_enabled::Bool,
     storage_e0::Array{Float64,1},
+    demand_flexibility::DemandFlexibility,
 )
     # Positional indices from mpc.gencost
     COST = 5
@@ -536,6 +539,35 @@ function _add_objective_function!(
         )
         JuMP.add_to_expression!(obj, storage_penalty)
     end
+    
+    # Pay for the cost of DR programs based on committed flexible demand
+    if demand_flexibility.enabled
+        # cost for increasing flexible load
+        if !isnothing(demand_flexibility.cost_up)
+            bus_demand_flex_cost_up = permutedims(
+                Matrix(
+                    demand_flexibility.cost_up[start_index:end_index, 2:end]
+                )
+            )
+            demand_response_penalty_up = JuMP.@expression(
+                m, sum(sum(bus_demand_flex_cost_up .* m[:load_shift_up]))
+            )
+            JuMP.add_to_expression!(obj, demand_response_penalty_up)
+        end
+        # cost for decreasing flexible load
+        if !isnothing(demand_flexibility.cost_dn)
+            bus_demand_flex_cost_dn = permutedims(
+                Matrix(
+                    demand_flexibility.cost_dn[start_index:end_index, 2:end]
+                )
+            )
+            demand_response_penalty_dn = JuMP.@expression(
+                m, sum(sum(bus_demand_flex_cost_dn .* m[:load_shift_dn]))
+            )
+            JuMP.add_to_expression!(obj, demand_response_penalty_dn)
+        end
+    end
+    
     # Finally, set as objective of model
     JuMP.@objective(m, Min, obj)
 end
@@ -684,11 +716,14 @@ function _build_model(
         case,
         sets,
         storage,
+        start_index, 
+        end_index,
         interval_length,
         load_shed_enabled,
         load_shed_penalty,
         trans_viol_enabled,
         storage_e0,
+        demand_flexibility,
     )
 
     println(Dates.now())
