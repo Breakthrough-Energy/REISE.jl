@@ -104,135 +104,156 @@ function read_storage(filepath)::Storage
 end
 
 
-"""Load demand flexibility profile from .csv files into DataFrame(s)."""
+"""
+    read_demand_flexibility(filepath, interval)
+
+Load demand flexibility profiles and parameters from .csv files and return them in a 
+DemandFlexibility struct.
+"""
 function read_demand_flexibility(filepath, interval)::DemandFlexibility
     # Initialize demand flexibility
-    demand_flexibility = Dict()
-
-    # Try loading demand flexibility profiles
-    for s in ["up", "dn"]
-        try
-            demand_flexibility["flex_amt_" * s] = CSV.File(
-                joinpath(filepath, "demand_flexibility_" * s * ".csv")
-            ) |> DataFrames.DataFrame
-            println("...loading demand flexibility " * s * " profiles")
-        catch e
-            println("Demand flexibility " * s * " profile not found in " * filepath)
-            demand_flexibility["flex_amt_" * s] = nothing
-        end
-    end
-    
-    # If both demand flexibility profiles exist, demand flexibility is enabled
-    if !isnothing(demand_flexibility["flex_amt_up"]) && (
-        !isnothing(demand_flexibility["flex_amt_dn"])
+    demand_flexibility = Dict(
+        "duration" => interval,
+        "enabled" => "not_specified",  
+        "interval_balance" => true, 
+        "rolling_balance" => true,
     )
-        demand_flexibility["enabled"] = true
-    else
-        if !isnothing(demand_flexibility["flex_amt_up"]) || (
-            !isnothing(demand_flexibility["flex_amt_dn"])
-        )
-            @warn (
-                "The exclusion of one of the demand flexibility profiles has resulted "
-                * "in demand flexibility not being enabled."
-            )
-        end
-        demand_flexibility["enabled"] = false
-        demand_flexibility["duration"] = nothing
-        demand_flexibility["interval_balance"] = false
-        demand_flexibility["rolling_balance"] = false
-        demand_flexibility["cost_up"] = nothing
-        demand_flexibility["cost_dn"] = nothing
-    end
 
-    # Set the demand flexibility costs and parameters
-    if demand_flexibility["enabled"]
-        # Pre-specify the demand flexibility parameters
-        demand_flexibility["duration"] = nothing
-        demand_flexibility["interval_balance"] = true
-        demand_flexibility["rolling_balance"] = true
+    # Try loading the demand flexibility parameters
+    demand_flexibility_parameters = DataFrames.DataFrame()
+    try
+        demand_flexibility_parameters = CSV.File(
+            joinpath(filepath, "demand_flexibility_parameters.csv")
+        ) |> DataFrames.DataFrame
+        println("...loading demand flexibility parameters")
 
-        # Try loading the demand flexibility parameters
-        demand_flexibility_parameters = DataFrames.DataFrame()
-        try
-            demand_flexibility_parameters = CSV.File(
-                joinpath(filepath, "demand_flexibility_parameters.csv")
-            ) |> DataFrames.DataFrame
-            println("...loading demand flexibility parameters")
-
-            # Create a dictionary to hold the error messages relevant to loading the 
-                # demand flexibility parameters
-            demand_flexibility_params_errs = Dict()
-            demand_flexibility_params_errs["duration"] = (
+        # Create a dictionary to hold the warning messages relevant to loading the 
+        # demand flexibility parameters
+        demand_flexibility_params_warns = Dict(
+            "duration" => (
                 "The demand flexibility duration parameter is not defined. Will "
-                * "default to nothing."
-            )
-            demand_flexibility_params_errs["enabled"] = (
+                * "default to being the size of the interval."
+            ),
+            "enabled" => (
                 "The parameter that indicates if demand flexibility is enabled is not "
                 * "defined. Will default to being enabled."
-            )
-            demand_flexibility_params_errs["interval_balance"] = (
+            ),
+            "interval_balance" => (
                 "The parameter that indicates if the interval load balance constraint "
                 * "is enabled is not defined. Will default to being enabled."
-            )
-            demand_flexibility_params_errs["rolling_balance"] = (
+            ),
+            "rolling_balance" => (
                 "The parameter that indicates if the rolling load balance constraint "
                 * "is enabled is not defined. Will default to being enabled."
-            )
+            ),
+        )
 
-            # Try assigning the different demand flexibility parameters from the file
-            for k in keys(demand_flexibility_params_errs)
-                try
-                    demand_flexibility[k] = demand_flexibility_parameters[1, k]
-                catch e
-                    println(demand_flexibility_params_errs[k])
-                end
-            end
-
-            # Set the demand flexibility constraints to false if enabled is false
-            if !demand_flexibility["enabled"]
-                demand_flexibility["interval_balance"] = false
-                demand_flexibility["rolling_balance"] = false
-            end
-        catch e
-            println("Demand flexibility parameters not found in " * filepath)
-            println(
-                "Demand flexibility parameters will default to allowing demand "
-                * "flexibility to occur."
-            )
-        end
-
-        # Check the feasibility of the duration parameter
-        if demand_flexibility["duration"] == nothing
-            demand_flexibility["duration"] = interval
-        elseif demand_flexibility["duration"] > interval
-            @warn (
-                "Demand flexibility durations greater than the interval length are "
-                * "set equal to the interval length."
-            )
-            demand_flexibility["duration"] = interval
-        end
-
-        # Prevent the rolling_balance constraint according to the duration parameter
-        if demand_flexibility["rolling_balance"]
-            if demand_flexibility["duration"] == interval
-                demand_flexibility["rolling_balance"] = false
+        # Try assigning the different demand flexibility parameters from the file
+        for k in keys(demand_flexibility_params_warns)
+            try
+                demand_flexibility[k] = demand_flexibility_parameters[1, k]
+            catch e
+                println(demand_flexibility_params_warns[k])
             end
         end
 
-        # Try reading the cost for up- and down-shifting loads
-        for cost_file_suffix in ("up", "dn")
-            try 
-                demand_flexibility["cost_$cost_file_suffix"] = CSV.File(
-                    joinpath(filepath, "demand_flexibility_cost_$cost_file_suffix.csv")
+    catch e
+        println("Demand flexibility parameters not found in " * filepath)
+        println(
+            "Demand flexibility parameters will default to allowing demand flexibility "
+            * "to occur."
+        )
+    end
+
+    # Check the feasibility of the duration parameter
+    if demand_flexibility["duration"] > interval
+        @warn (
+            "Demand flexibility durations greater than the interval length are "
+            * "set equal to the interval length."
+        )
+        demand_flexibility["duration"] = interval
+    end
+
+    # Prevent the rolling_balance constraint according to the duration parameter
+    demand_flexibility["rolling_balance"] &= !(
+        demand_flexibility["duration"] == interval
+    )
+
+    # Try loading the demand flexibility and demand flexibility cost profiles
+    for s in ["up", "dn"]
+        # Pre-specify the demand flexibility and demand flexibility cost profiles
+        demand_flexibility["flex_amt_" * s] = nothing
+        demand_flexibility["cost_" * s] = nothing
+
+        # Only try loading the profiles if demand flexibility is enabled
+        if demand_flexibility["enabled"] == "not_specified" || (
+            demand_flexibility["enabled"]
+        )
+            # Try loading the demand flexibility profiles
+            try
+                demand_flexibility["flex_amt_" * s] = CSV.File(
+                    joinpath(filepath, "demand_flexibility_" * s * ".csv")
                 ) |> DataFrames.DataFrame
-                println("...loading demand flexibility $cost_file_suffix-shift cost profiles")
+                println("...loading demand flexibility " * s * " profiles")
+            catch e
+                println("Demand flexibility " * s * " profile not found in " * filepath)
+            end
+
+            # Try loading the demand flexibility cost profiles
+            try
+                demand_flexibility["cost_" * s] = CSV.File(
+                    joinpath(filepath, "demand_flexibility_cost_" * s * ".csv")
+                ) |> DataFrames.DataFrame
+                println("...loading demand flexibility " * s * "-shift cost profiles")
             catch e
                 println(
-                    "Demand flexibility down-shift cost profiles not found in " * filepath
+                    "Demand flexibility " 
+                    * s 
+                    * "-shift cost profiles not found in " 
+                    * filepath 
+                    * ". Will default to no cost for " 
+                    * s 
+                    * "-shifting demand."
                 )
-                demand_flexibility["cost_$cost_file_suffix"] = nothing
             end
         end
+    end
+
+    # If demand flexibility is enabled but at least one demand flexibility profile is nothing
+    if demand_flexibility["enabled"] == true && (
+        isnothing(demand_flexibility["flex_amt_up"]) || (
+            isnothing(demand_flexibility["flex_amt_dn"])
+        )
+    )
+        @error(
+            "Demand flexibility was specified to be enabled, however at least one "
+            * "demand flexibility profile is missing. Please make sure both demand "
+            * "flexibility profiles are included in "
+            * filepath
+        )
+        throw(ErrorException("See above."))
+    elseif demand_flexibility["enabled"] == "not_specified"
+        if !isnothing(demand_flexibility["flex_amt_up"]) && (
+            !isnothing(demand_flexibility["flex_amt_dn"])
+        )
+            demand_flexibility["enabled"] = true
+        else
+            if !isnothing(demand_flexibility["flex_amt_up"]) || (
+                !isnothing(demand_flexibility["flex_amt_dn"])
+            )
+                @warn (
+                    "The exclusion of one of the demand flexibility profiles has resulted "
+                    * "in demand flexibility not being enabled."
+                )
+            end
+            demand_flexibility["enabled"] = false
+        end
+    end
+
+    # Set the demand flexibility constraints to false if enabled is false
+    if !demand_flexibility["enabled"]
+        demand_flexibility["interval_balance"] = false
+        demand_flexibility["rolling_balance"] = false
     end
 
     # Convert Dict to NamedTuple

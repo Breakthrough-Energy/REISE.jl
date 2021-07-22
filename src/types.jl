@@ -48,7 +48,7 @@ Base.@kwdef struct DemandFlexibility
     flex_amt_dn::Union{DataFrames.DataFrame,Nothing}
     cost_dn::Union{DataFrames.DataFrame,Nothing}
     cost_up::Union{DataFrames.DataFrame,Nothing}
-    duration::Union{Int64,Nothing}
+    duration::Int64
     enabled::Bool
     interval_balance::Bool
     rolling_balance::Bool
