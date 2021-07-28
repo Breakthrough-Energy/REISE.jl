@@ -245,6 +245,7 @@ function _add_constraint_load_shed!(
     demand_flexibility::DemandFlexibility,
     bus_demand::Matrix,
 )
+    interval_length = size(bus_demand)[2]
     demand_for_load_shed = JuMP.@expression(
         m,
         [i=1:sets.num_load_bus, j=1:interval_length],
