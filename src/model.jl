@@ -91,23 +91,29 @@ function _make_bus_demand_flexibility_amount(
 )::Tuple{Matrix,Matrix}
     # Bus weighting
     zone_to_bus_shares = _make_bus_demand_weighting(case)
-
     # Demand flexibility up profile
     simulation_demand_flex_amt_up = Matrix(
         demand_flexibility.flex_amt_up[start_index:end_index, 2:end]
     )
-    bus_demand_flex_amt_up = permutedims(
-        simulation_demand_flex_amt_up * zone_to_bus_shares
-    )
-
     # Demand flexibility down profile
     simulation_demand_flex_amt_dn = Matrix(
         demand_flexibility.flex_amt_dn[start_index:end_index, 2:end]
     )
-    bus_demand_flex_amt_dn = permutedims(
-        simulation_demand_flex_amt_dn * zone_to_bus_shares
-    )
-
+    # convert per-area input to per-bus values
+    if demand_flexibility.input_granularity == "AREA"
+        bus_demand_flex_amt_up = permutedims(
+            simulation_demand_flex_amt_up * zone_to_bus_shares
+        )
+        bus_demand_flex_amt_dn = permutedims(
+            simulation_demand_flex_amt_dn * zone_to_bus_shares
+        )
+    # input is already per-bus, copy to new container
+    elseif demand_flexibility.input_granularity == "BUS"
+        bus_demand_flex_amt_up = permutedims(simulation_demand_flex_amt_up)
+        bus_demand_flex_amt_dn = permutedims(simulation_demand_flex_amt_dn)
+    else
+        println("Warning! Invalid demand flexibility parameter input_granularity!")
+    end
     return (bus_demand_flex_amt_up, bus_demand_flex_amt_dn)
 end
 
@@ -133,12 +139,10 @@ function _build_segment_slope(case::Case, segment_idx, segment_width)::Matrix
 end
 
 
-function _make_sets(case::Case)::Sets
-    _make_sets(case, nothing)
-end
-
-
-function _make_sets(case::Case, storage::Union{Storage,Nothing})::Sets
+function _make_sets(case::Case, 
+                    storage::Union{Storage,Nothing}=nothing, 
+                    demand_flexibility::Union{DemandFlexibility, Nothing}=nothing
+        )::Sets
     # Positional indices from mpc.gencost
     MODEL = 1
     NCOST = 4
@@ -180,11 +184,31 @@ function _make_sets(case::Case, storage::Union{Storage,Nothing})::Sets
                                * "Did you forget to linearize_gencost?")
     num_segments = convert(Int, maximum(case.gencost[:, NCOST])) - 1
     segment_idx = 1:num_segments
+    # Demand flexibility, additional info for input->bus conversion
+    if demand_flexibility.enabled
+        if demand_flexibility.input_granularity == "BUS"
+            # assume each flexible bus can go up/dn, so only use the Dataframe for up
+            flexible_bus_str = names(demand_flexibility.flex_amt_up)[2:end]
+            flexible_bus_id = [parse(Int64, bus) for bus in flexible_bus_str]
+            flexible_bus_idx = [bus_id2idx[bus] for bus in flexible_bus_id]
+            num_flexible_bus = length(flexible_bus_idx)
+            flexible_load_bus_map = sparse(
+                    flexible_bus_idx, 1:num_flexible_bus, 1, num_bus, num_flexible_bus
+                )::SparseMatrixCSC
+        elseif demand_flexibility.input_granularity == "AREA"
+            flexible_bus_idx = load_bus_idx
+            num_flexible_bus = num_load_bus
+            flexible_load_bus_map = load_bus_map
+        end
+    else
+        flexible_bus_idx = nothing
+        num_flexible_bus = 0
+        flexible_load_bus_map = nothing
+    end
     # Storage
     storage_enabled = isa(storage, Storage) && storage.enabled
     num_storage = storage_enabled ? size(storage.gen, 1) : 0
     storage_idx = storage_enabled ? (1:num_storage) : nothing
-
     sets = Sets(;
         num_bus=num_bus, bus_idx=bus_idx, bus_id2idx=bus_id2idx,
         load_bus_idx=load_bus_idx, num_load_bus=num_load_bus, load_bus_map=load_bus_map,
@@ -196,7 +220,9 @@ function _make_sets(case::Case, storage::Union{Storage,Nothing})::Sets
         gen_wind_idx=gen_wind_idx, renewable_idx=renewable_idx,
         num_wind=num_wind, num_solar=num_solar, num_hydro=num_hydro,
         num_segments=num_segments, segment_idx=segment_idx,
-        num_storage=num_storage, storage_idx=storage_idx)
+        num_storage=num_storage, storage_idx=storage_idx, 
+        flexible_bus_idx=flexible_bus_idx, num_flexible_bus=num_flexible_bus,
+        flexible_load_bus_map=flexible_load_bus_map)     
     return sets
 end
 
@@ -232,10 +258,10 @@ function _add_constraint_power_balance!(
     end
     if demand_flexibility.enabled
         injections = JuMP.@expression(
-            m, injections + sets.load_bus_map * m[:load_shift_dn]
+            m, injections + sets.flexible_load_bus_map * m[:load_shift_dn]
         )
         withdrawals = JuMP.@expression(
-            m, withdrawals + sets.load_bus_map * m[:load_shift_up]
+            m, withdrawals + sets.flexible_load_bus_map * m[:load_shift_up]
         )
     end
     JuMP.@constraint(m, powerbalance, (injections .== withdrawals))
@@ -263,10 +289,15 @@ function _add_constraint_load_shed!(
         bus_demand[sets.load_bus_idx[i], j],
     )
     if demand_flexibility.enabled
+        flexible_load_bus_idx = indexin(sets.flexible_bus_idx, sets.load_bus_idx)
+        flexible_load_map = sparse(
+                flexible_load_bus_idx, 1:sets.num_flexible_bus, 1, sets.num_load_bus, sets.num_flexible_bus
+            )::SparseMatrixCSC
         demand_for_load_shed = JuMP.@expression(
-            m,
-            [i=1:sets.num_load_bus, j=1:interval_length],
-            demand_for_load_shed[i, j] + m[:load_shift_up][i, j] - m[:load_shift_dn][i, j],
+            m, 
+            demand_for_load_shed
+            + flexible_load_map * m[:load_shift_up]
+            - flexible_load_map * m[:load_shift_dn],
         )
     end
     JuMP.@constraint(
@@ -338,7 +369,7 @@ function _add_constraints_demand_flexibility!(
         JuMP.@constraint(
             m,
             rolling_load_balance[
-                i in 1:sets.num_load_bus,
+                i in 1:sets.num_flexible_bus,
                 k in 1:(interval_length - demand_flexibility.duration)
             ],
             sum(
@@ -351,7 +382,7 @@ function _add_constraints_demand_flexibility!(
         println("interval load balance: ", Dates.now())
         JuMP.@constraint(
             m,
-            interval_load_balance[i in 1:sets.num_load_bus],
+            interval_load_balance[i in 1:sets.num_flexible_bus],
             sum(
                 m[:load_shift_up][i, j] - m[:load_shift_dn][i, j] for j in 1:interval_length
             ) >= 0,
@@ -577,7 +608,6 @@ function _add_objective_function!(
             JuMP.add_to_expression!(obj, demand_response_penalty_dn)
         end
     end
-    
     # Finally, set as objective of model
     JuMP.@objective(m, Min, obj)
 end
@@ -609,14 +639,12 @@ function _build_model(
     # Positional indices from mpc.gen
     PMAX = 9
     PMIN = 10
-
     println("building sets: ", Dates.now())
     # Sets - time periods
     hour_idx = 1:interval_length
     end_index = start_index + interval_length - 1
     # Sets - static
-    sets = _make_sets(case, storage)
-
+    sets = _make_sets(case, storage, demand_flexibility)
     println("parameters: ", Dates.now())
     # Parameters
     bus_demand = _make_bus_demand(case, start_index, end_index) * demand_scaling
@@ -669,16 +697,15 @@ function _build_model(
     if demand_flexibility.enabled
         # The amount of demand that is curtailed from the base load
         JuMP.@variable(
-            m, 
-            0 <= load_shift_dn[i in 1:sets.num_load_bus, j in 1:interval_length] 
-                <= bus_demand_flex_amt_dn[sets.load_bus_idx[i], j],
+            m,
+            0 <= load_shift_dn[i in 1:sets.num_flexible_bus, j in 1:interval_length]
+                <= bus_demand_flex_amt_dn[i, j],
         )
-
-        # The amount of demand that is added to the base load
+        # The amount of demand that is added from the base load
         JuMP.@variable(
-            m, 
-            0 <= load_shift_up[i in 1:sets.num_load_bus, j in 1:interval_length]
-                <= bus_demand_flex_amt_up[sets.load_bus_idx[i], j],
+            m,
+            0 <= load_shift_up[i in 1:sets.num_flexible_bus, j in 1:interval_length]
+                <= bus_demand_flex_amt_up[i, j],
         )
     end
 

@@ -3,9 +3,9 @@
 
 Extract the results of a simulation, store in a struct.
 """
-function get_results(f::Float64, case::Case)::Results
+function get_results(f::Float64, case::Case, demand_flexibility::DemandFlexibility)::Results
     status = "OPTIMAL"
-    sets = _make_sets(case)
+    sets = _make_sets(case, nothing, demand_flexibility)
     # These variables will always be in the results
     pg = JuMP.value.(m[:pg])
     pf = JuMP.value.(m[:pf])
@@ -69,8 +69,8 @@ function get_results(f::Float64, case::Case)::Results
     try
         load_shift_up_temp = JuMP.value.(m[:load_shift_up])
         load_shift_dn_temp = JuMP.value.(m[:load_shift_dn])
-        load_shift_up = sets.load_bus_map * load_shift_up_temp
-        load_shift_dn = sets.load_bus_map * load_shift_dn_temp
+        load_shift_up = sets.flexible_load_bus_map * load_shift_up_temp
+        load_shift_dn = sets.flexible_load_bus_map * load_shift_dn_temp
     catch e
         if isa(e, KeyError)
             # Thrown when load shift variables are `nothing`

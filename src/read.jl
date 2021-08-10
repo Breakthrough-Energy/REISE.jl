@@ -117,6 +117,7 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
         "enabled" => "not_specified",  
         "interval_balance" => true, 
         "rolling_balance" => true,
+        "input_granularity" => "AREA",
     )
 
     # Try loading the demand flexibility parameters
@@ -145,6 +146,11 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
             "rolling_balance" => (
                 "The parameter that indicates if the rolling load balance constraint "
                 * "is enabled is not defined. Will default to being enabled."
+            ),
+            "input_granularity" => (
+                "The parameter that indicates the way demand flexibility "
+                * "and demand flexibility cost are provided is not defined. "
+                * "Will default to being area-based."
             ),
         )
 

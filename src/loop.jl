@@ -41,7 +41,7 @@ function interval_loop(factory_like, model_kwargs::Dict,
     case = model_kwargs["case"]
     storage = model_kwargs["storage"]
     demand_flexibility = model_kwargs["demand_flexibility"]
-    sets = _make_sets(case, storage)
+    sets = _make_sets(case, storage, demand_flexibility)
     unused_load_shed_intervals_turnoff = 14
     # Start looping
     for i in 1:n_interval
@@ -139,14 +139,14 @@ function interval_loop(factory_like, model_kwargs::Dict,
                         )
                     )
                 end
-                for t in 1:interval, i in 1:length(sets.load_bus_idx)
+                for t in 1:interval, i in 1:sets.num_flexible_bus
                     JuMP.set_upper_bound(
                         m[:load_shift_up][i, t], 
-                        bus_demand_flex_amt_up[sets.load_bus_idx[i], t],
+                        bus_demand_flex_amt_up[i, t],
                     )
                     JuMP.set_upper_bound(
                         m[:load_shift_dn][i, t], 
-                        bus_demand_flex_amt_dn[sets.load_bus_idx[i], t],
+                        bus_demand_flex_amt_dn[i, t],
                     )
                     
                     if !isnothing(demand_flexibility.cost_up)
@@ -172,13 +172,13 @@ function interval_loop(factory_like, model_kwargs::Dict,
             status = JuMP.termination_status(m)
             if status == JuMP.MOI.OPTIMAL
                 f = JuMP.objective_value(m)
-                results = get_results(f, model_kwargs["case"])
+                results = get_results(f, model_kwargs["case"], demand_flexibility)
                 break
             elseif ((status == JuMP.MOI.LOCALLY_SOLVED)
                     & ("load_shed_enabled" in keys(model_kwargs)))
                 # if load shedding is enabled, we'll accept 'suboptimal'
                 f = JuMP.objective_value(m)
-                results = get_results(f, model_kwargs["case"])
+                results = get_results(f, model_kwargs["case"], demand_flexibility)
                 break
             elseif ((status in numeric_statuses)
                     & (JuMP.solver_name(m) == "Gurobi")
