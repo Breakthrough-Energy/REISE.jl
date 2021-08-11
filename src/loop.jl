@@ -265,10 +265,13 @@ function interval_loop(factory_like, model_kwargs::Dict,
         end
         if demand_flexibility.enabled
             if demand_flexibility.interval_balance || demand_flexibility.rolling_balance
-                init_shifted_demand = sum(
-                    results.load_shift_up - results.load_shift_dn,
-                    dims=2
-                )[:, 1]
+                init_shifted_demand = dropdims(
+                    sum(results.load_shift_up - results.load_shift_dn, dims=2); dims=2
+                )
+            else
+                init_shifted_demand = zeros(
+                    size(bus_demand_flex_amt_dn, 1)
+                )
             end
         end
 
