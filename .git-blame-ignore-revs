@@ -1,0 +1,7 @@
+# When making commits that are strictly formatting/style changes, add the
+# commit hash here, so git blame can ignore the change. See docs for more
+# details:
+# https://git-scm.com/docs/git-config#Documentation/git-config.txt-blameignoreRevsFile
+#
+
+d009facbb44261e041e4f21517bd2041cc4a0295 # Apply Blue formatting
