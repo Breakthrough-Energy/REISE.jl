@@ -52,6 +52,7 @@ Base.@kwdef struct DemandFlexibility
     enabled::Bool
     interval_balance::Bool
     rolling_balance::Bool
+    input_granularity::String
 end
 
 
@@ -102,6 +103,10 @@ Base.@kwdef struct Sets
     # Segments
     num_segments::Int64
     segment_idx::UnitRange{Int64}
+    ## Demand Flexibility
+    flexible_bus_idx::Union{Array{Int64,1}, Nothing}
+    num_flexible_bus::Int64
+    flexible_load_bus_map::Union{SparseMatrixCSC, Nothing}
     # Storage
     num_storage::Int64
     storage_idx::Union{UnitRange{Int64},Nothing}
