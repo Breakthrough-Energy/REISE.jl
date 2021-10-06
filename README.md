@@ -1,3 +1,5 @@
+[![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/invenia/BlueStyle)
+
 # REISE.jl
 Renewable Energy Integration Simulation Engine.
 
@@ -498,6 +500,24 @@ so there may not be any output in this time.
 
 ## Package Structure
 `REISE.jl` contains only imports and includes. Individual type and function definitions are all in the other files in the `src` folder.
+
+
+## Contribution
+Contributions are welcome!
+For anything but small fixes, please open an Issue describing the bug you're encountering,
+or additional capabilities you wish were included.
+This allows other people to offer guidance on design and implementation and gives context for an eventual pull request.
+This package is formatted to [Blue](https://github.com/invenia/BlueStyle) style,
+and pull requests will be automatically checked against consistency to this style guide.
+Formatting is as easy as:
+```julia
+julia> using JuliaFormatter
+
+julia> format(FILE_OR_DIRECTORY)
+```
+If an individual file is passed, that file will be formatted;
+if a directory is passed, all julia files in that directory and subdirectories will be formatted.
+`format(".")` can be used from the package root for convenience.
 
 
 ## Formulation
