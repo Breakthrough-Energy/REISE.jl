@@ -27,12 +27,10 @@ function reise_data_mods(case::Dict; num_segments::Int=1)::Case
         "coal" => Dict("xs" => (200, 1400), "ys" => (0.4, 0.15)),
         "dfo" => Dict("xs" => (200, 1200), "ys" => (0.5, 0.2)),
         "ng" => Dict("xs" => (200, 600), "ys" => (0.5, 0.2)),
-        )
+    )
     for (fuel, points) in ramp30_points
         fuel_idx = findall(case["genfuel"] .== fuel)
-        slope = (
-            (points["ys"][2] - points["ys"][1])
-            / (points["xs"][2] - points["xs"][1]))
+        slope = ((points["ys"][2] - points["ys"][1]) / (points["xs"][2] - points["xs"][1]))
         intercept = points["ys"][1] - slope * points["xs"][1]
         for idx in fuel_idx
             norm_ramp = case["gen_pmax"][idx] * slope + intercept
@@ -47,13 +45,12 @@ function reise_data_mods(case::Dict; num_segments::Int=1)::Case
     end
 
     # Convert Dict to NamedTuple
-    case = (; (Symbol(k) => v for (k,v) in case)...)
+    case = (; (Symbol(k) => v for (k, v) in case)...)
     # Convert NamedTuple to Case
     case = Case(; case...)
 
     return case
 end
-
 
 """
     _linearize_gencost(case)
@@ -71,34 +68,34 @@ function _linearize_gencost(case::Dict; num_segments::Int=1)::Array{Float64,2}
 
     println("linearizing")
     num_gens = size(case["gencost"], 1)
-    non_polynomial = (case["gencost"][:,MODEL] .!= 2)::BitArray{1}
+    non_polynomial = (case["gencost"][:, MODEL] .!= 2)::BitArray{1}
     if sum(non_polynomial) > 0
         throw(ArgumentError("gencost currently limited to polynomial"))
     end
-    non_quadratic = (case["gencost"][:,NCOST] .!= 3)::BitArray{1}
+    non_quadratic = (case["gencost"][:, NCOST] .!= 3)::BitArray{1}
     if sum(non_quadratic) > 0
         throw(ArgumentError("gencost currently limited to quadratic"))
     end
-    old_a = case["gencost"][:,COST]
-    old_b = case["gencost"][:,COST+1]
-    old_c = case["gencost"][:,COST+2]
+    old_a = case["gencost"][:, COST]
+    old_b = case["gencost"][:, COST + 1]
+    old_c = case["gencost"][:, COST + 2]
     diffP_mask = (case["gen_pmin"] .!= case["gen_pmax"])::BitArray{1}
     # Convert non-fixed generators to piecewise segments
     if sum(diffP_mask) > 0
         # If we are linearizing at least one generator, need to expand gencost
         gencost_width = 6 + 2 * num_segments
         new_gencost = zeros(num_gens, gencost_width)
-        new_gencost[diffP_mask,MODEL] .= 1
-        new_gencost[:,STARTUP:SHUTDOWN] = case["gencost"][:,STARTUP:SHUTDOWN]
-        new_gencost[diffP_mask,NCOST] .= num_segments + 1
+        new_gencost[diffP_mask, MODEL] .= 1
+        new_gencost[:, STARTUP:SHUTDOWN] = case["gencost"][:, STARTUP:SHUTDOWN]
+        new_gencost[diffP_mask, NCOST] .= num_segments + 1
         power_step = (case["gen_pmax"] - case["gen_pmin"]) / num_segments
-        for i = 0:num_segments
+        for i in 0:num_segments
             x_index = COST + 2 * i
             y_index = COST + 1 + (2 * i)
             x_data = (case["gen_pmin"] + power_step * i)
             y_data = old_a .* x_data .^ 2 + old_b .* x_data + old_c
-            new_gencost[diffP_mask,x_index] = x_data[diffP_mask]
-            new_gencost[diffP_mask,y_index] = y_data[diffP_mask]
+            new_gencost[diffP_mask, x_index] = x_data[diffP_mask]
+            new_gencost[diffP_mask, y_index] = y_data[diffP_mask]
         end
     else
         # If we are not linearizing any segments, gencost can stay as is
@@ -111,8 +108,8 @@ function _linearize_gencost(case::Dict; num_segments::Int=1)::Array{Float64,2}
         new_gencost[sameP_mask, NCOST] = case["gencost"][sameP_mask, NCOST]
         power = case["gen_pmax"]
         y_data = old_a .* power .^ 2 + old_b .* power + old_c
-        new_gencost[sameP_mask, COST:(COST+1)] .= 0
-        new_gencost[sameP_mask, COST+2] = y_data[sameP_mask]
+        new_gencost[sameP_mask, COST:(COST + 1)] .= 0
+        new_gencost[sameP_mask, COST + 2] = y_data[sameP_mask]
     end
 
     return new_gencost

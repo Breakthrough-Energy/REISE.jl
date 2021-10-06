@@ -35,13 +35,11 @@ Base.@kwdef struct Case
     solar::DataFrames.DataFrame
 end
 
-
 Base.@kwdef struct Storage
     enabled::Bool
     gen::Array{Float64,2}
     sd_table::DataFrames.DataFrame
 end
-
 
 Base.@kwdef struct DemandFlexibility
     flex_amt_up::Union{DataFrames.DataFrame,Nothing}
@@ -54,7 +52,6 @@ Base.@kwdef struct DemandFlexibility
     rolling_balance::Bool
     input_granularity::String
 end
-
 
 Base.@kwdef struct Results
     # We create a struct to hold case results in a type-declared format
@@ -72,7 +69,6 @@ Base.@kwdef struct Results
     f::Float64
     status::String
 end
-
 
 Base.@kwdef struct Sets
     # Branch and branch subsets
@@ -104,9 +100,9 @@ Base.@kwdef struct Sets
     num_segments::Int64
     segment_idx::UnitRange{Int64}
     ## Demand Flexibility
-    flexible_bus_idx::Union{Array{Int64,1}, Nothing}
+    flexible_bus_idx::Union{Array{Int64,1},Nothing}
     num_flexible_bus::Int64
-    flexible_load_bus_map::Union{SparseMatrixCSC, Nothing}
+    flexible_load_bus_map::Union{SparseMatrixCSC,Nothing}
     # Storage
     num_storage::Int64
     storage_idx::Union{UnitRange{Int64},Nothing}

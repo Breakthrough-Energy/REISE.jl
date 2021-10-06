@@ -25,7 +25,7 @@ function get_results(f::Float64, case::Case, demand_flexibility::DemandFlexibili
     congl = zeros(sets.num_branch_ac, num_hour)
     congu = zeros(sets.num_branch_ac, num_hour)
     # Access congl_temp via key `i`, then store result in congl at position `i`
-    for i in intersect(Set(sets.noninf_branch_idx), Set(1:sets.num_branch_ac))
+    for i in intersect(Set(sets.noninf_branch_idx), Set(1:(sets.num_branch_ac)))
         congl[i, :] = congl_temp[i, :]
         congu[i, :] = congu_temp[i, :]
     end
@@ -46,7 +46,7 @@ function get_results(f::Float64, case::Case, demand_flexibility::DemandFlexibili
             rethrow(e)
         end
     end
-    
+
     # This variable will only be in the results if load shedding is enabled
     # Initialize with empty arrays, to be discarded later if they stay empty
     load_shed = zeros(0, 0)
@@ -81,8 +81,19 @@ function get_results(f::Float64, case::Case, demand_flexibility::DemandFlexibili
     end
 
     results = Results(;
-        pg=pg, pf=pf, lmp=lmp, congl=congl, congu=congu, pf_dcline=pf_dcline,
-        f=f, storage_pg=storage_pg, storage_e=storage_e, load_shed=load_shed,
-        load_shift_up=load_shift_up, load_shift_dn=load_shift_dn, status=status)
+        pg=pg,
+        pf=pf,
+        lmp=lmp,
+        congl=congl,
+        congu=congu,
+        pf_dcline=pf_dcline,
+        f=f,
+        storage_pg=storage_pg,
+        storage_e=storage_e,
+        load_shed=load_shed,
+        load_shift_up=load_shift_up,
+        load_shift_dn=load_shift_dn,
+        status=status,
+    )
     return results
 end

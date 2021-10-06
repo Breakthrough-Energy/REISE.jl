@@ -1,13 +1,11 @@
 """Convert a dict with string keys to a NamedTuple, for python-eqsue kwargs splatting"""
 function symbolize(d::Dict{String,Any})::NamedTuple
-    return (; (Symbol(k) => v for (k,v) in d)...)
+    return (; (Symbol(k) => v for (k, v) in d)...)
 end
-
 
 function new_model(optimizer_factory)::JuMP.Model
     return JuMP.Model(optimizer_factory)
 end
-
 
 """
     interval_loop(factory_like, model_kwargs, solver_kwargs, interval, n_interval,
@@ -27,16 +25,21 @@ Given:
 Build a model, and run through the intervals, re-building the model and/or
 re-setting constraint right-hand-side values as necessary.
 """
-function interval_loop(factory_like, model_kwargs::Dict,
-                       solver_kwargs::Dict, interval::Int,
-                       n_interval::Int, start_index::Int,
-                       inputfolder::String, outputfolder::String)
+function interval_loop(
+    factory_like,
+    model_kwargs::Dict,
+    solver_kwargs::Dict,
+    interval::Int,
+    n_interval::Int,
+    start_index::Int,
+    inputfolder::String,
+    outputfolder::String,
+)
     # Bad (but known) statuses to match against
     numeric_statuses = (
-        JuMP.MOI.INFEASIBLE_OR_UNBOUNDED, JuMP.MOI.NUMERICAL_ERROR,
-        JuMP.MOI.OTHER_LIMIT)
-    infeasible_statuses = (
-        JuMP.MOI.INFEASIBLE, JuMP.MOI.INFEASIBLE_OR_UNBOUNDED)
+        JuMP.MOI.INFEASIBLE_OR_UNBOUNDED, JuMP.MOI.NUMERICAL_ERROR, JuMP.MOI.OTHER_LIMIT
+    )
+    infeasible_statuses = (JuMP.MOI.INFEASIBLE, JuMP.MOI.INFEASIBLE_OR_UNBOUNDED)
     # Constant parameters
     case = model_kwargs["case"]
     storage = model_kwargs["storage"]
@@ -53,10 +56,7 @@ function interval_loop(factory_like, model_kwargs::Dict,
         interval_end = interval_start + interval - 1
         model_kwargs["start_index"] = interval_start
         if demand_flexibility.enabled
-            (
-                bus_demand_flex_amt_up, 
-                bus_demand_flex_amt_dn,
-            ) = _make_bus_demand_flexibility_amount(
+            (bus_demand_flex_amt_up, bus_demand_flex_amt_dn) = _make_bus_demand_flexibility_amount(
                 case, demand_flexibility, interval_start, interval_end
             )
         end
@@ -66,9 +66,7 @@ function interval_loop(factory_like, model_kwargs::Dict,
                 model_kwargs["storage_e0"] = storage.sd_table.InitialStorage
             end
             if demand_flexibility.enabled
-                model_kwargs["init_shifted_demand"] = zeros(
-                    size(bus_demand_flex_amt_dn, 1)
-                )
+                model_kwargs["init_shifted_demand"] = zeros(size(bus_demand_flex_amt_dn, 1))
             end
             m = new_model(factory_like)
             JuMP.set_optimizer_attributes(m, pairs(solver_kwargs)...)
@@ -89,35 +87,36 @@ function interval_loop(factory_like, model_kwargs::Dict,
         else
             # Reassign right-hand-side of constraints to match profiles
             bus_demand = _make_bus_demand(case, interval_start, interval_end)
-            simulation_hydro = permutedims(Matrix(
-                case.hydro[interval_start:interval_end, 2:end]))
-            simulation_solar = permutedims(Matrix(
-                case.solar[interval_start:interval_end, 2:end]))
-            simulation_wind = permutedims(Matrix(
-                case.wind[interval_start:interval_end, 2:end]))
+            simulation_hydro = permutedims(
+                Matrix(case.hydro[interval_start:interval_end, 2:end])
+            )
+            simulation_solar = permutedims(
+                Matrix(case.solar[interval_start:interval_end, 2:end])
+            )
+            simulation_wind = permutedims(
+                Matrix(case.wind[interval_start:interval_end, 2:end])
+            )
             for t in 1:interval, b in sets.load_bus_idx
-                JuMP.set_normalized_rhs(
-                    m[:powerbalance][b, t], bus_demand[b, t])
+                JuMP.set_normalized_rhs(m[:powerbalance][b, t], bus_demand[b, t])
             end
-            if (("load_shed_enabled" in keys(model_kwargs))
-                && (model_kwargs["load_shed_enabled"] == true))
+            if (
+                ("load_shed_enabled" in keys(model_kwargs)) &&
+                (model_kwargs["load_shed_enabled"] == true)
+            )
                 for t in 1:interval, i in 1:length(sets.load_bus_idx)
                     JuMP.set_normalized_rhs(
                         m[:load_shed_ub][i, t], bus_demand[sets.load_bus_idx[i], t]
                     )
                 end
             end
-            for t in 1:interval, g in 1:sets.num_hydro
-                JuMP.set_normalized_rhs(
-                    m[:hydro_fixed][g, t], simulation_hydro[g, t])
+            for t in 1:interval, g in 1:(sets.num_hydro)
+                JuMP.set_normalized_rhs(m[:hydro_fixed][g, t], simulation_hydro[g, t])
             end
-            for t in 1:interval, g in 1:sets.num_solar
-                JuMP.set_normalized_rhs(
-                    m[:solar_max][g, t], simulation_solar[g, t])
+            for t in 1:interval, g in 1:(sets.num_solar)
+                JuMP.set_normalized_rhs(m[:solar_max][g, t], simulation_solar[g, t])
             end
-            for t in 1:interval, g in 1:sets.num_wind
-                JuMP.set_normalized_rhs(
-                    m[:wind_max][g, t], simulation_wind[g, t])
+            for t in 1:interval, g in 1:(sets.num_wind)
+                JuMP.set_normalized_rhs(m[:wind_max][g, t], simulation_wind[g, t])
             end
             # Re-assign right-hand-side for initial conditions
             noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
@@ -128,7 +127,7 @@ function interval_loop(factory_like, model_kwargs::Dict,
                 JuMP.set_normalized_rhs(m[:initial_rampdown][g], rhs)
             end
             if storage.enabled
-                for s in 1:sets.num_storage
+                for s in 1:(sets.num_storage)
                     JuMP.set_normalized_rhs(m[:initial_soc][s], storage_e0[s])
                 end
             end
@@ -136,50 +135,39 @@ function interval_loop(factory_like, model_kwargs::Dict,
                 if !isnothing(demand_flexibility.cost_up)
                     bus_demand_flex_cost_up = permutedims(
                         Matrix(
-                            demand_flexibility.cost_up[
-                                interval_start:interval_end, 2:end
-                            ]
-                        )
+                            demand_flexibility.cost_up[interval_start:interval_end, 2:end]
+                        ),
                     )
                 end
                 if !isnothing(demand_flexibility.cost_dn)
                     bus_demand_flex_cost_dn = permutedims(
                         Matrix(
-                            demand_flexibility.cost_dn[
-                                interval_start:interval_end, 2:end
-                            ]
-                        )
+                            demand_flexibility.cost_dn[interval_start:interval_end, 2:end]
+                        ),
                     )
                 end
-                for l in 1:sets.num_flexible_bus
+                for l in 1:(sets.num_flexible_bus)
                     for t in 1:interval
                         JuMP.set_upper_bound(
-                            m[:load_shift_up][l, t], 
-                            bus_demand_flex_amt_up[l, t],
+                            m[:load_shift_up][l, t], bus_demand_flex_amt_up[l, t]
                         )
                         JuMP.set_upper_bound(
-                            m[:load_shift_dn][l, t], 
-                            bus_demand_flex_amt_dn[l, t],
+                            m[:load_shift_dn][l, t], bus_demand_flex_amt_dn[l, t]
                         )
                         if !isnothing(demand_flexibility.cost_up)
                             JuMP.set_objective_coefficient(
-                                m, 
-                                m[:load_shift_up][l, t], 
-                                bus_demand_flex_cost_up[l, t],
+                                m, m[:load_shift_up][l, t], bus_demand_flex_cost_up[l, t]
                             )
                         end
                         if !isnothing(demand_flexibility.cost_dn)
                             JuMP.set_objective_coefficient(
-                                m, 
-                                m[:load_shift_dn][l, t], 
-                                bus_demand_flex_cost_dn[l, t],
+                                m, m[:load_shift_dn][l, t], bus_demand_flex_cost_dn[l, t]
                             )
                         end
                     end
                     if demand_flexibility.rolling_balance
                         JuMP.set_normalized_rhs(
-                            m[:rolling_load_balance_first][l], 
-                            -1 * init_shifted_demand[l],
+                            m[:rolling_load_balance_first][l], -1 * init_shifted_demand[l]
                         )
                     end
                     if demand_flexibility.interval_balance
@@ -202,21 +190,27 @@ function interval_loop(factory_like, model_kwargs::Dict,
                 f = JuMP.objective_value(m)
                 results = get_results(f, model_kwargs["case"], demand_flexibility)
                 break
-            elseif ((status == JuMP.MOI.LOCALLY_SOLVED)
-                    & ("load_shed_enabled" in keys(model_kwargs)))
+            elseif (
+                (status == JuMP.MOI.LOCALLY_SOLVED) &
+                ("load_shed_enabled" in keys(model_kwargs))
+            )
                 # if load shedding is enabled, we'll accept 'suboptimal'
                 f = JuMP.objective_value(m)
                 results = get_results(f, model_kwargs["case"], demand_flexibility)
                 break
-            elseif ((status in numeric_statuses)
-                    & (JuMP.solver_name(m) == "Gurobi")
-                    & !("BarHomogeneous" in keys(solver_kwargs)))
+            elseif (
+                (status in numeric_statuses) &
+                (JuMP.solver_name(m) == "Gurobi") &
+                !("BarHomogeneous" in keys(solver_kwargs))
+            )
                 # if Gurobi, and BarHomogeneous is not enabled, enable it and re-solve
                 solver_kwargs["BarHomogeneous"] = 1
                 println("enable BarHomogeneous")
                 JuMP.set_optimizer_attribute(m, "BarHomogeneous", 1)
-            elseif ((status in infeasible_statuses)
-                    & !("load_shed_enabled" in keys(model_kwargs)))
+            elseif (
+                (status in infeasible_statuses) &
+                !("load_shed_enabled" in keys(model_kwargs))
+            )
                 # if load shed not enabled, enable it and re-build the model
                 model_kwargs["load_shed_enabled"] = true
                 println("rebuild with load shed")
@@ -224,8 +218,10 @@ function interval_loop(factory_like, model_kwargs::Dict,
                 JuMP.set_optimizer_attributes(m, pairs(solver_kwargs)...)
                 m = _build_model(m; symbolize(model_kwargs)...)
                 intervals_without_loadshed = 0
-            elseif ((JuMP.solver_name(m) == "Gurobi")
-                    & !("BarHomogeneous" in keys(solver_kwargs)))
+            elseif (
+                (JuMP.solver_name(m) == "Gurobi") &
+                !("BarHomogeneous" in keys(solver_kwargs))
+            )
                 # if Gurobi, and BarHomogeneous is not enabled, enable it and re-solve
                 solver_kwargs["BarHomogeneous"] = 1
                 println("enable BarHomogeneous")
@@ -243,8 +239,10 @@ function interval_loop(factory_like, model_kwargs::Dict,
                 @show keys(model_kwargs)
                 @show keys(solver_kwargs)
                 @show JuMP.objective_value(m)
-                if (("load_shed_enabled" in keys(model_kwargs))
-                    && (model_kwargs["load_shed_enabled"] == true))
+                if (
+                    ("load_shed_enabled" in keys(model_kwargs)) &&
+                    (model_kwargs["load_shed_enabled"] == true)
+                )
                     # Display where load shedding is occurring
                     load_shed_values = JuMP.value.(m[:load_shed])
                     load_shed_indices = findall(load_shed_values .> 1e-6)
@@ -259,30 +257,30 @@ function interval_loop(factory_like, model_kwargs::Dict,
         end
 
         # Save initial conditions for next interval
-        pg0 = results.pg[:,end]
+        pg0 = results.pg[:, end]
         if storage.enabled
-            storage_e0 = results.storage_e[:,end]
+            storage_e0 = results.storage_e[:, end]
         end
         if demand_flexibility.enabled
             if demand_flexibility.interval_balance || demand_flexibility.rolling_balance
                 init_shifted_demand = dropdims(
-                    sum(results.load_shift_up - results.load_shift_dn, dims=2); dims=2
+                    sum(results.load_shift_up - results.load_shift_dn; dims=2); dims=2
                 )
             else
-                init_shifted_demand = zeros(
-                    size(bus_demand_flex_amt_dn, 1)
-                )
+                init_shifted_demand = zeros(size(bus_demand_flex_amt_dn, 1))
             end
         end
 
         # Save results
-        results_filename = "result_" * string(i-1) * ".mat"
+        results_filename = "result_" * string(i - 1) * ".mat"
         results_filepath = joinpath(outputfolder, results_filename)
         save_results(results, results_filepath)
 
         # If load shedding is enabled but hasn't been used for a while, disable
-        if (("load_shed_enabled" in keys(model_kwargs))
-            && (model_kwargs["load_shed_enabled"] == true))
+        if (
+            ("load_shed_enabled" in keys(model_kwargs)) &&
+            (model_kwargs["load_shed_enabled"] == true)
+        )
             total_load_shed = sum(results.load_shed)
             if total_load_shed < 1e-3
                 intervals_without_loadshed += 1
