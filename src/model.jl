@@ -363,18 +363,28 @@ function _add_constraints_demand_flexibility!(
     sets::Sets,
     demand_flexibility::DemandFlexibility,
     interval_length::Int,
+    init_shifted_demand::Array{Float64,1}=Float64[],
 )
     if demand_flexibility.rolling_balance
+        println("rolling load balance, first window: ", Dates.now())
+        JuMP.@constraint(
+            m,
+            rolling_load_balance_first[i in 1:sets.num_load_bus],
+            sum(
+                m[:load_shift_up][i, j] - m[:load_shift_dn][i, j] 
+                for j in 1:(demand_flexibility.duration - 1)
+            ) >= -1 * init_shifted_demand[i],
+        )
         println("rolling load balance: ", Dates.now())
         JuMP.@constraint(
             m,
             rolling_load_balance[
                 i in 1:sets.num_flexible_bus,
-                k in 1:(interval_length - demand_flexibility.duration)
+                k in 1:(interval_length - demand_flexibility.duration + 1)
             ],
             sum(
                 m[:load_shift_up][i, j] - m[:load_shift_dn][i, j]
-                for j in k:(k + demand_flexibility.duration)
+                for j in k:(k + demand_flexibility.duration - 1)
             ) >= 0,
         )
     end
@@ -384,8 +394,10 @@ function _add_constraints_demand_flexibility!(
             m,
             interval_load_balance[i in 1:sets.num_flexible_bus],
             sum(
-                m[:load_shift_up][i, j] - m[:load_shift_dn][i, j] for j in 1:interval_length
-            ) >= 0,
+                m[:load_shift_up][i, j] 
+                - m[:load_shift_dn][i, j] 
+                for j in 1:interval_length
+            ) >= -1 * init_shifted_demand[i],
         )
     end
 end
@@ -634,7 +646,8 @@ function _build_model(
     trans_viol_penalty::Number=100,
     initial_ramp_enabled::Bool=false,
     initial_ramp_g0::Array{Float64,1}=Float64[],
-    storage_e0::Array{Float64,1}=Float64[]
+    storage_e0::Array{Float64,1}=Float64[],
+    init_shifted_demand::Array{Float64,1}=Float64[]
 )::JuMP.Model
     # Positional indices from mpc.gen
     PMAX = 9
@@ -729,7 +742,7 @@ function _build_model(
 
     if demand_flexibility.enabled
         _add_constraints_demand_flexibility!(
-            m, case, sets, demand_flexibility, interval_length
+            m, case, sets, demand_flexibility, interval_length, init_shifted_demand
         )
     end
 
