@@ -1,8 +1,7 @@
 # Importing Gurobi in this way avoids a warning with Requires
-import .Gurobi
+using .Gurobi: Gurobi
 
-
-function run_scenario_gurobi(; solver_kwargs::Union{Dict, Nothing}=nothing, kwargs...)
+function run_scenario_gurobi(; solver_kwargs::Union{Dict,Nothing}=nothing, kwargs...)
     solver_kwargs = something(solver_kwargs, Dict("Method" => 2, "Crossover" => 0))
     try
         global env = Gurobi.Env()
@@ -12,7 +11,8 @@ function run_scenario_gurobi(; solver_kwargs::Union{Dict, Nothing}=nothing, kwar
     end
     try
         global m = run_scenario(;
-            optimizer_factory=env, solver_kwargs=solver_kwargs, kwargs...)
+            optimizer_factory=env, solver_kwargs=solver_kwargs, kwargs...
+        )
     finally
         Gurobi.finalize(JuMP.backend(m))
         Gurobi.finalize(env)
@@ -21,7 +21,6 @@ function run_scenario_gurobi(; solver_kwargs::Union{Dict, Nothing}=nothing, kwar
     # Return `nothing` to prevent `m` from the `try` block from being returned
     return nothing
 end
-
 
 function new_model(env::Gurobi.Env)
     return JuMP.direct_model(Gurobi.Optimizer(env))

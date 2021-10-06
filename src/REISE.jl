@@ -1,16 +1,15 @@
 module REISE
 
-import CSV
-import DataFrames
-import Dates
-import JuMP
-import MAT
-import Requires
+using CSV: CSV
+using DataFrames: DataFrames
+using Dates: Dates
+using JuMP: JuMP
+using MAT: MAT
+using Requires: Requires
 import SparseArrays: sparse, SparseMatrixCSC
 
-
 include("types.jl")         # Defines Case, Results, Storage, DemandFlexibility,
-                            #     VariablesOfInterest
+#     VariablesOfInterest
 include("read.jl")          # Defines read_case, read_storage, read_demand_flexibility
 include("prepare.jl")       # Defines reise_data_mods
 include("model.jl")         # Defines _build_model (used in interval_loop)
@@ -18,13 +17,11 @@ include("loop.jl")          # Defines interval_loop
 include("query.jl")         # Defines get_results (used in interval_loop)
 include("save.jl")          # Defines save_input_mat, save_results
 
-
 function __init__()
-    Requires.@require Gurobi="2e9cd046-0924-5485-92f1-d5272153d98b" begin
+    Requires.@require Gurobi = "2e9cd046-0924-5485-92f1-d5272153d98b" begin
         include(joinpath("solver_specific", "gurobi.jl"))
     end
 end
-
 
 """
     REISE.run_scenario(;
@@ -45,10 +42,16 @@ Run a scenario consisting of several intervals.
     used by default.
 """
 function run_scenario(;
-        num_segments::Int=1, interval::Int, n_interval::Int, start_index::Int,
-        inputfolder::String, outputfolder::Union{String, Nothing}=nothing,
-        threads::Union{Int, Nothing}=nothing, optimizer_factory=nothing,
-        solver_kwargs::Union{Dict, Nothing}=nothing)
+    num_segments::Int=1,
+    interval::Int,
+    n_interval::Int,
+    start_index::Int,
+    inputfolder::String,
+    outputfolder::Union{String,Nothing}=nothing,
+    threads::Union{Int,Nothing}=nothing,
+    optimizer_factory=nothing,
+    solver_kwargs::Union{Dict,Nothing}=nothing,
+)
     isnothing(optimizer_factory) && error("optimizer_factory must be specified")
     # Setup things that build once
     # If no solver kwargs passed, instantiate an empty dict
@@ -63,14 +66,14 @@ function run_scenario(;
     storage = read_storage(inputfolder)
     demand_flexibility = read_demand_flexibility(inputfolder, interval)
     println("All scenario files loaded!")
-    case = reise_data_mods(case, num_segments=num_segments)
+    case = reise_data_mods(case; num_segments=num_segments)
     save_input_mat(case, storage, inputfolder, outputfolder)
     model_kwargs = Dict(
         "case" => case,
         "storage" => storage,
         "demand_flexibility" => demand_flexibility,
         "interval_length" => interval,
-        )
+    )
     # If a number of threads is specified, add to solver settings dict
     isnothing(threads) || (solver_kwargs["Threads"] = threads)
     println("All preparation complete!")
@@ -78,8 +81,16 @@ function run_scenario(;
     println("Redirecting outputs, see stdout.log & stderr.err in outputfolder")
     redirect_stdout_stderr(stdout_filepath, stderr_filepath) do
         # Loop through intervals
-        m = interval_loop(optimizer_factory, model_kwargs, solver_kwargs, interval,
-                          n_interval, start_index, inputfolder, outputfolder)
+        m = interval_loop(
+            optimizer_factory,
+            model_kwargs,
+            solver_kwargs,
+            interval,
+            n_interval,
+            start_index,
+            inputfolder,
+            outputfolder,
+        )
     end
     return m
 end

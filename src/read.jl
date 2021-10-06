@@ -1,7 +1,7 @@
 """Read REISE input matfiles, return parsed relevant data in a Dict."""
 function read_case(filepath)
     println("Reading from folder: " * filepath)
-    
+
     println("...loading case.mat")
     case_mat_file = MAT.matopen(joinpath(filepath, "case.mat"))
     mpc = read(case_mat_file, "mpc")
@@ -11,24 +11,24 @@ function read_case(filepath)
 
     # AC branches
     # dropdims() will remove extraneous dimension
-    case["branchid"] = dropdims(mpc["branchid"], dims=2)
+    case["branchid"] = dropdims(mpc["branchid"]; dims=2)
     # convert() will convert float array to int array
-    case["branch_from"] = convert(Array{Int,1}, mpc["branch"][:,1])
-    case["branch_to"] = convert(Array{Int,1}, mpc["branch"][:,2])
-    case["branch_reactance"] = mpc["branch"][:,4]
-    case["branch_rating"] = mpc["branch"][:,6]
+    case["branch_from"] = convert(Array{Int,1}, mpc["branch"][:, 1])
+    case["branch_to"] = convert(Array{Int,1}, mpc["branch"][:, 2])
+    case["branch_reactance"] = mpc["branch"][:, 4]
+    case["branch_rating"] = mpc["branch"][:, 6]
 
     # DC branches
     if "dcline" in keys(mpc)
         if isa(mpc["dclineid"], Int)
             case["dclineid"] = Int64[mpc["dclineid"]]
         else
-            case["dclineid"] = dropdims(mpc["dclineid"], dims=2)
+            case["dclineid"] = dropdims(mpc["dclineid"]; dims=2)
         end
-        case["dcline_from"] = convert(Array{Int,1}, mpc["dcline"][:,1])
-        case["dcline_to"] = convert(Array{Int,1}, mpc["dcline"][:,2])
-        case["dcline_pmin"] = mpc["dcline"][:,10]
-        case["dcline_pmax"] = mpc["dcline"][:,11]
+        case["dcline_from"] = convert(Array{Int,1}, mpc["dcline"][:, 1])
+        case["dcline_to"] = convert(Array{Int,1}, mpc["dcline"][:, 2])
+        case["dcline_pmin"] = mpc["dcline"][:, 10]
+        case["dcline_pmax"] = mpc["dcline"][:, 11]
     else
         case["dclineid"] = Int64[]
         case["dcline_from"] = Int64[]
@@ -38,39 +38,38 @@ function read_case(filepath)
     end
 
     # Buses
-    case["busid"] = convert(Array{Int,1}, mpc["bus"][:,1])
-    case["bus_demand"] = mpc["bus"][:,3]
-    case["bus_zone"] = convert(Array{Int,1}, mpc["bus"][:,7])
+    case["busid"] = convert(Array{Int,1}, mpc["bus"][:, 1])
+    case["bus_demand"] = mpc["bus"][:, 3]
+    case["bus_zone"] = convert(Array{Int,1}, mpc["bus"][:, 7])
 
     # Generators
-    case["genid"] = dropdims(mpc["genid"], dims=2)
-    genfuel = dropdims(mpc["genfuel"], dims=2)
+    case["genid"] = dropdims(mpc["genid"]; dims=2)
+    genfuel = dropdims(mpc["genfuel"]; dims=2)
     case["genfuel"] = convert(Array{String,1}, genfuel)
-    case["gen_bus"] = convert(Array{Int,1}, mpc["gen"][:,1])
-    case["gen_status"] = mpc["gen"][:,8]
-    case["gen_pmax"] = mpc["gen"][:,9]
-    case["gen_pmin"] = mpc["gen"][:,10]
-    case["gen_ramp30"] = mpc["gen"][:,19]
+    case["gen_bus"] = convert(Array{Int,1}, mpc["gen"][:, 1])
+    case["gen_status"] = mpc["gen"][:, 8]
+    case["gen_pmax"] = mpc["gen"][:, 9]
+    case["gen_pmin"] = mpc["gen"][:, 10]
+    case["gen_ramp30"] = mpc["gen"][:, 19]
 
     # Generator costs
     case["gencost"] = mpc["gencost"]
 
     # Load all relevant profile data from CSV files
     println("...loading demand.csv")
-    case["demand"] = CSV.File(joinpath(filepath, "demand.csv")) |> DataFrames.DataFrame
-    
+    case["demand"] = DataFrames.DataFrame(CSV.File(joinpath(filepath, "demand.csv")))
+
     println("...loading hydro.csv")
-    case["hydro"] = CSV.File(joinpath(filepath, "hydro.csv")) |> DataFrames.DataFrame
-    
+    case["hydro"] = DataFrames.DataFrame(CSV.File(joinpath(filepath, "hydro.csv")))
+
     println("...loading wind.csv")
-    case["wind"] = CSV.File(joinpath(filepath, "wind.csv")) |> DataFrames.DataFrame
-    
+    case["wind"] = DataFrames.DataFrame(CSV.File(joinpath(filepath, "wind.csv")))
+
     println("...loading solar.csv")
-    case["solar"] = CSV.File(joinpath(filepath, "solar.csv")) |> DataFrames.DataFrame
+    case["solar"] = DataFrames.DataFrame(CSV.File(joinpath(filepath, "solar.csv")))
 
     return case
 end
-
 
 """Read input matfile (if present), return parsed data in a Storage struct."""
 function read_storage(filepath)::Storage
@@ -87,22 +86,20 @@ function read_storage(filepath)::Storage
         storage = Dict(
             "enabled" => true,
             "gen" => storage_mat_data["gen"],
-            "sd_table" => DataFrames.DataFrame(
-                storage_mat_data["sd_table"]["data"], column_symbols
-                )
-            )
+            "sd_table" =>
+                DataFrames.DataFrame(storage_mat_data["sd_table"]["data"], column_symbols),
+        )
     catch e
         println("File case_storage.mat not found in " * filepath)
     end
 
     # Convert Dict to NamedTuple
-    storage = (; (Symbol(k) => v for (k,v) in storage)...)
+    storage = (; (Symbol(k) => v for (k, v) in storage)...)
     # Convert NamedTuple to Storage
     storage = Storage(; storage...)
 
     return storage
 end
-
 
 """
     read_demand_flexibility(filepath, interval)
@@ -114,8 +111,8 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
     # Initialize demand flexibility
     demand_flexibility = Dict(
         "duration" => interval,
-        "enabled" => "not_specified",  
-        "interval_balance" => true, 
+        "enabled" => "not_specified",
+        "interval_balance" => true,
         "rolling_balance" => true,
         "input_granularity" => "AREA",
     )
@@ -123,34 +120,34 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
     # Try loading the demand flexibility parameters
     demand_flexibility_parameters = DataFrames.DataFrame()
     try
-        demand_flexibility_parameters = CSV.File(
-            joinpath(filepath, "demand_flexibility_parameters.csv")
-        ) |> DataFrames.DataFrame
+        demand_flexibility_parameters = DataFrames.DataFrame(
+            CSV.File(joinpath(filepath, "demand_flexibility_parameters.csv"))
+        )
         println("...loading demand flexibility parameters")
 
         # Create a dictionary to hold the warning messages relevant to loading the 
         # demand flexibility parameters
         demand_flexibility_params_warns = Dict(
             "duration" => (
-                "The demand flexibility duration parameter is not defined. Will "
-                * "default to being the size of the interval."
+                "The demand flexibility duration parameter is not defined. Will " *
+                "default to being the size of the interval."
             ),
             "enabled" => (
-                "The parameter that indicates if demand flexibility is enabled is not "
-                * "defined. Will default to being enabled."
+                "The parameter that indicates if demand flexibility is enabled is not " *
+                "defined. Will default to being enabled."
             ),
             "interval_balance" => (
-                "The parameter that indicates if the interval load balance constraint "
-                * "is enabled is not defined. Will default to being enabled."
+                "The parameter that indicates if the interval load balance constraint " *
+                "is enabled is not defined. Will default to being enabled."
             ),
             "rolling_balance" => (
-                "The parameter that indicates if the rolling load balance constraint "
-                * "is enabled is not defined. Will default to being enabled."
+                "The parameter that indicates if the rolling load balance constraint " *
+                "is enabled is not defined. Will default to being enabled."
             ),
             "input_granularity" => (
-                "The parameter that indicates the way demand flexibility "
-                * "and demand flexibility cost are provided is not defined. "
-                * "Will default to being area-based."
+                "The parameter that indicates the way demand flexibility " *
+                "and demand flexibility cost are provided is not defined. " *
+                "Will default to being area-based."
             ),
         )
 
@@ -166,24 +163,22 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
     catch e
         println("Demand flexibility parameters not found in " * filepath)
         println(
-            "Demand flexibility parameters will default to allowing demand flexibility "
-            * "to occur."
+            "Demand flexibility parameters will default to allowing demand flexibility " *
+            "to occur.",
         )
     end
 
     # Check the feasibility of the duration parameter
     if demand_flexibility["duration"] > interval
         @warn (
-            "Demand flexibility durations greater than the interval length are "
-            * "set equal to the interval length."
+            "Demand flexibility durations greater than the interval length are " *
+            "set equal to the interval length."
         )
         demand_flexibility["duration"] = interval
     end
 
     # Prevent the rolling_balance constraint according to the duration parameter
-    demand_flexibility["rolling_balance"] &= !(
-        demand_flexibility["duration"] == interval
-    )
+    demand_flexibility["rolling_balance"] &= !(demand_flexibility["duration"] == interval)
 
     # Try loading the demand flexibility and demand flexibility cost profiles
     for s in ["up", "dn"]
@@ -192,14 +187,13 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
         demand_flexibility["cost_" * s] = nothing
 
         # Only try loading the profiles if demand flexibility is enabled
-        if demand_flexibility["enabled"] == "not_specified" || (
-            demand_flexibility["enabled"]
-        )
+        if demand_flexibility["enabled"] == "not_specified" ||
+           (demand_flexibility["enabled"])
             # Try loading the demand flexibility profiles
             try
-                demand_flexibility["flex_amt_" * s] = CSV.File(
-                    joinpath(filepath, "demand_flexibility_" * s * ".csv")
-                ) |> DataFrames.DataFrame
+                demand_flexibility["flex_amt_" * s] = DataFrames.DataFrame(
+                    CSV.File(joinpath(filepath, "demand_flexibility_" * s * ".csv"))
+                )
                 println("...loading demand flexibility " * s * " profiles")
             catch e
                 println("Demand flexibility " * s * " profile not found in " * filepath)
@@ -207,19 +201,19 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
 
             # Try loading the demand flexibility cost profiles
             try
-                demand_flexibility["cost_" * s] = CSV.File(
-                    joinpath(filepath, "demand_flexibility_cost_" * s * ".csv")
-                ) |> DataFrames.DataFrame
+                demand_flexibility["cost_" * s] = DataFrames.DataFrame(
+                    CSV.File(joinpath(filepath, "demand_flexibility_cost_" * s * ".csv"))
+                )
                 println("...loading demand flexibility " * s * "-shift cost profiles")
             catch e
                 println(
-                    "Demand flexibility " 
-                    * s 
-                    * "-shift cost profiles not found in " 
-                    * filepath 
-                    * ". Will default to no cost for " 
-                    * s 
-                    * "-shifting demand."
+                    "Demand flexibility " *
+                    s *
+                    "-shift cost profiles not found in " *
+                    filepath *
+                    ". Will default to no cost for " *
+                    s *
+                    "-shifting demand.",
                 )
             end
         end
@@ -227,29 +221,26 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
 
     # If demand flexibility is enabled but at least one demand flexibility profile is nothing
     if demand_flexibility["enabled"] == true && (
-        isnothing(demand_flexibility["flex_amt_up"]) || (
-            isnothing(demand_flexibility["flex_amt_dn"])
-        )
+        isnothing(demand_flexibility["flex_amt_up"]) ||
+        (isnothing(demand_flexibility["flex_amt_dn"]))
     )
         @error(
-            "Demand flexibility was specified to be enabled, however at least one "
-            * "demand flexibility profile is missing. Please make sure both demand "
-            * "flexibility profiles are included in "
-            * filepath
+            "Demand flexibility was specified to be enabled, however at least one " *
+            "demand flexibility profile is missing. Please make sure both demand " *
+            "flexibility profiles are included in " *
+            filepath
         )
         throw(ErrorException("See above."))
     elseif demand_flexibility["enabled"] == "not_specified"
-        if !isnothing(demand_flexibility["flex_amt_up"]) && (
-            !isnothing(demand_flexibility["flex_amt_dn"])
-        )
+        if !isnothing(demand_flexibility["flex_amt_up"]) &&
+           (!isnothing(demand_flexibility["flex_amt_dn"]))
             demand_flexibility["enabled"] = true
         else
-            if !isnothing(demand_flexibility["flex_amt_up"]) || (
-                !isnothing(demand_flexibility["flex_amt_dn"])
-            )
+            if !isnothing(demand_flexibility["flex_amt_up"]) ||
+               (!isnothing(demand_flexibility["flex_amt_dn"]))
                 @warn (
-                    "The exclusion of one of the demand flexibility profiles has resulted "
-                    * "in demand flexibility not being enabled."
+                    "The exclusion of one of the demand flexibility profiles has resulted " *
+                    "in demand flexibility not being enabled."
                 )
             end
             demand_flexibility["enabled"] = false
@@ -263,7 +254,7 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
     end
 
     # Convert Dict to NamedTuple
-    demand_flexibility = (; (Symbol(k) => v for (k,v) in demand_flexibility)...)
+    demand_flexibility = (; (Symbol(k) => v for (k, v) in demand_flexibility)...)
 
     # Convert NamedTuple to DemandFlexibility object
     demand_flexibility = DemandFlexibility(; demand_flexibility...)
