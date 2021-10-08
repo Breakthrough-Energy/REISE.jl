@@ -44,7 +44,7 @@ function interval_loop(
     case = model_kwargs["case"]
     storage = model_kwargs["storage"]
     demand_flexibility = model_kwargs["demand_flexibility"]
-    sets = _make_sets(case, storage, demand_flexibility)
+    sets = _make_sets(case; storage=storage, demand_flexibility=demand_flexibility)
     unused_load_shed_intervals_turnoff = 14
     # Start looping
     for i in 1:n_interval

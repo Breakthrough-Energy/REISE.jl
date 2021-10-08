@@ -643,7 +643,7 @@ function _build_model(
     hour_idx = 1:interval_length
     end_index = start_index + interval_length - 1
     # Sets - static
-    sets = _make_sets(case, storage, demand_flexibility)
+    sets = _make_sets(case; storage=storage, demand_flexibility=demand_flexibility)
     println("parameters: ", Dates.now())
     # Parameters
     bus_demand = _make_bus_demand(case, start_index, end_index) * demand_scaling
