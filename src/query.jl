@@ -5,7 +5,7 @@ Extract the results of a simulation, store in a struct.
 """
 function get_results(f::Float64, case::Case, demand_flexibility::DemandFlexibility)::Results
     status = "OPTIMAL"
-    sets = _make_sets(case, nothing, demand_flexibility)
+    sets = _make_sets(case; storage=nothing, demand_flexibility=demand_flexibility)
     # These variables will always be in the results
     pg = JuMP.value.(m[:pg])
     pf = JuMP.value.(m[:pf])
