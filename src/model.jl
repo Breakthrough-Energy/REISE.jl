@@ -310,7 +310,7 @@ function _add_constraint_load_shed!(
         demand_for_load_shed = JuMP.@expression(
             m,
             demand_for_load_shed + flexible_load_map * m[:load_shift_up] -
-            flexible_load_map * m[:load_shift_dn],
+                flexible_load_map * m[:load_shift_dn],
         )
     end
     JuMP.@constraint(
@@ -712,15 +712,15 @@ function _build_model(
         JuMP.@variable(
             m,
             0 <=
-            load_shift_dn[i in 1:(sets.num_flexible_bus), j in 1:interval_length] <=
-            bus_demand_flex_amt_dn[i, j],
+                load_shift_dn[i in 1:(sets.num_flexible_bus), j in 1:interval_length] <=
+                bus_demand_flex_amt_dn[i, j],
         )
         # The amount of demand that is added from the base load
         JuMP.@variable(
             m,
             0 <=
-            load_shift_up[i in 1:(sets.num_flexible_bus), j in 1:interval_length] <=
-            bus_demand_flex_amt_up[i, j],
+                load_shift_up[i in 1:(sets.num_flexible_bus), j in 1:interval_length] <=
+                bus_demand_flex_amt_up[i, j],
         )
     end
 

@@ -188,7 +188,7 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
 
         # Only try loading the profiles if demand flexibility is enabled
         if demand_flexibility["enabled"] == "not_specified" ||
-           (demand_flexibility["enabled"])
+            (demand_flexibility["enabled"])
             # Try loading the demand flexibility profiles
             try
                 demand_flexibility["flex_amt_" * s] = DataFrames.DataFrame(
@@ -226,18 +226,18 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
     )
         @error(
             "Demand flexibility was specified to be enabled, however at least one " *
-            "demand flexibility profile is missing. Please make sure both demand " *
-            "flexibility profiles are included in " *
-            filepath
+                "demand flexibility profile is missing. Please make sure both demand " *
+                "flexibility profiles are included in " *
+                filepath
         )
         throw(ErrorException("See above."))
     elseif demand_flexibility["enabled"] == "not_specified"
         if !isnothing(demand_flexibility["flex_amt_up"]) &&
-           (!isnothing(demand_flexibility["flex_amt_dn"]))
+            (!isnothing(demand_flexibility["flex_amt_dn"]))
             demand_flexibility["enabled"] = true
         else
             if !isnothing(demand_flexibility["flex_amt_up"]) ||
-               (!isnothing(demand_flexibility["flex_amt_dn"]))
+                (!isnothing(demand_flexibility["flex_amt_dn"]))
                 @warn (
                     "The exclusion of one of the demand flexibility profiles has resulted " *
                     "in demand flexibility not being enabled."
