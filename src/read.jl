@@ -318,6 +318,11 @@ function reformat_demand_flexibility_input(
         # dataframe in the corresponding field
         fh = getfield(demand_flexibility, Symbol(field))
 
+        # skip if no cost
+        if isnothing(fh)
+            continue
+        end
+
         # headers
         flexible_str = names(fh)[2:end]
 
@@ -330,99 +335,110 @@ function reformat_demand_flexibility_input(
         ]
         flexible_zone_num = length(flexible_zone_id)
 
-        # index of columns specifing the flexibility of a bus
-        bus_columns_idx = findall(x -> !occursin(".", x), flexible_str)
+        # do zone-bus conversion only when zone columns are present
+        if flexible_zone_num > 0
 
-        # numeric ID corresponding to bus columns
-        flexible_bus_id = [parse(Int64, flexible_str[i]) for i in bus_columns_idx]
-        flexible_bus_num = length(flexible_bus_id)
+            # index of columns specifing the flexibility of a bus
+            bus_columns_idx = findall(x -> !occursin(".", x), flexible_str)
 
-        # check if zone numbers are correct
-        if !all([issubset(i, zone_list) for i in flexible_zone_id])
-            @error("Invalid load zone numeric ID(s) in demand flexibility input files!")
-        elseif !all([issubset(i, case.busid) for i in flexible_bus_id])
-            @error("Invalid load bus numeric ID(s) in demand flexibility input files!")
-        end
+            # numeric ID corresponding to bus columns
+            flexible_bus_id = [parse(Int64, flexible_str[i]) for i in bus_columns_idx]
+            flexible_bus_num = length(flexible_bus_id)
 
-        # list index of each zone in input file in the sorted list of zones
-        zone_cols_idx = findall(x -> x in flexible_zone_id, zone_list)
+            # check if zone numbers are correct
+            if !all([issubset(i, zone_list) for i in flexible_zone_id])
+                @error("Invalid load zone numeric ID(s) in demand flexibility input files!")
+            elseif !all([issubset(i, case.busid) for i in flexible_bus_id])
+                @error("Invalid load bus numeric ID(s) in demand flexibility input files!")
+            end
 
-        # for flex amt, the zone numbers are the total flexibility in the zone
-        if field == "flex_amt_up" || field == "flex_amt_dn"
-            # find if the flexibility of any bus is also specified in a zone column
-            bus_cols_zone_id = case.bus_zone[findall(x -> x in flexible_bus_id, case.busid)]
-            bus_cols_zone_idx = [
-                findfirst(isequal(i), flexible_zone_id) for i in bus_cols_zone_id
-            ]
+            # list index of each zone in input file in the sorted list of zones
+            zone_cols_idx = findall(x -> x in flexible_zone_id, zone_list)
 
-            # substract individual bus columns from zone total flexibility
-            for i in 1:flexible_bus_num
-                # substract from total if the zone of this bus is specified in a zone column
-                if !isnothing(bus_cols_zone_idx[i])
-                    fh[:, zone_columns_idx[bus_cols_zone_idx[i]] + 1] -= fh[
-                        :, bus_columns_idx[i] + 1
+            # for flex amt, the zone numbers are the total flexibility in the zone
+            if field == "flex_amt_up" || field == "flex_amt_dn"
+                # if input contains bus columns
+                if flexible_bus_num > 0
+                    # find if the flexibility of any bus is also specified in a zone column
+                    bus_cols_zone_id = case.bus_zone[findall(
+                        x -> x in flexible_bus_id, case.busid
+                    )]
+                    bus_cols_zone_idx = [
+                        findfirst(isequal(i), flexible_zone_id) for i in bus_cols_zone_id
                     ]
+
+                    # substract individual bus columns from zone total flexibility
+                    for i in 1:flexible_bus_num
+                        # substract from total if the zone of this bus is specified in a zone column
+                        if !isnothing(bus_cols_zone_idx[i])
+                            fh[:, zone_columns_idx[bus_cols_zone_idx[i]] + 1] -= fh[
+                                :, bus_columns_idx[i] + 1
+                            ]
+                        end
+                    end
+
+                    # check if flexibility in any zone is less than the sum of buses
+                    for i in 1:flexible_zone_num
+                        if any(x -> x < 0, fh[:, zone_columns_idx[flexible_zone_num] + 1])
+                            @error(
+                                "Input ERROR: Total zone flexibility less than sum of bus flexibility for zone " *
+                                    string(flexible_zone_id[i])
+                            )
+                        end
+                    end
+                end
+                # convert zone-level to bus-level
+                converted_zone_flexibility =
+                    Matrix(fh[:, [i + 1 for i in zone_columns_idx]]) * zone_to_bus_shares[zone_cols_idx, :]
+
+                # add bus-level columns on top of converted bus-level flexibility matrix
+                flex_bus_idx = zeros(Int64, 0)
+                for i in sets.bus_idx
+                    bus = case.busid[i]
+                    # add specified flexibility to the corresponding bus
+                    if bus in flexible_bus_id
+                        converted_zone_flexibility[:, i] += fh[string(bus)]
+                    end
+
+                    # identify flexible bus by their total flexibility and append to list
+                    if any(x -> x > 0, converted_zone_flexibility[:, i])
+                        append!(flex_bus_idx, i)
+                    end
+                end
+                # for cost, the zone numbers apply to all buses except those with dedicated columns
+            else
+                # convert zone-level cost using incidence matrix
+                converted_zone_flexibility =
+                    Matrix(fh[:, [i + 1 for i in zone_columns_idx]]) * zone_to_bus_incidence[zone_cols_idx, :]
+
+                # replace bus-level cost for bus columns in converted bus-level cost matrix
+                flex_bus_idx = zeros(Int64, 0)
+                for i in sets.bus_idx
+                    bus = case.busid[i]
+                    # add specified flexibility to the corresponding bus
+                    if bus in flexible_bus_id
+                        converted_zone_flexibility[:, i] = fh[string(bus)]
+                    end
+
+                    # identify flexible bus by their total flexibility and append to list
+                    if any(x -> x > 0, converted_zone_flexibility[:, i])
+                        append!(flex_bus_idx, i)
+                    end
                 end
             end
 
-            # check if flexibility in any zone is less than the sum of buses
-            for i in 1:flexible_zone_num
-                if any(x -> x < 0, fh[:, zone_columns_idx[flexible_zone_num] + 1])
-                    @error(
-                        "Input ERROR: Total zone flexibility less than sum of bus flexibility for zone " *
-                            string(flexible_zone_id[i])
-                    )
-                end
-            end
+            # add header and datetime index column
+            eq_bus_df = DataFrames.DataFrame(converted_zone_flexibility[:, flex_bus_idx])
+            DataFrames.rename!(eq_bus_df, Symbol.(case.busid[flex_bus_idx]))
+            DataFrames.insertcols!(eq_bus_df, 1, :"UTC Time" => fh["UTC Time"])
 
-            # convert zone-level to bus-level
-            converted_zone_flexibility =
-                Matrix(fh[:, [i + 1 for i in zone_columns_idx]]) * zone_to_bus_shares[zone_cols_idx, :]
-
-            # add bus-level columns on top of converted bus-level flexibility matrix
-            flex_bus_idx = zeros(Int64, 0)
-            for i in sets.bus_idx
-                bus = case.busid[i]
-                # add specified flexibility to the corresponding bus
-                if bus in flexible_bus_id
-                    converted_zone_flexibility[:, i] += fh[string(bus)]
-                end
-
-                # identify flexible bus by their total flexibility and append to list
-                if any(x -> x > 0, converted_zone_flexibility[:, i])
-                    append!(flex_bus_idx, i)
-                end
-            end
-            # for cost, the zone numbers apply to all buses except those with dedicated columns
+            # replace the raw input df
+            #setfield!(demand_flexibility_updated, Symbol(field), eq_bus_df)
+            demand_flexibility_updated[field] = eq_bus_df
+            # if all columns are buses, use the original dataframe
         else
-            # convert zone-level cost using incidence matrix
-            converted_zone_flexibility =
-                Matrix(fh[:, [i + 1 for i in zone_columns_idx]]) * zone_to_bus_incidence[zone_cols_idx, :]
-
-            # replace bus-level cost for bus columns in converted bus-level cost matrix
-            flex_bus_idx = zeros(Int64, 0)
-            for i in sets.bus_idx
-                bus = case.busid[i]
-                # add specified flexibility to the corresponding bus
-                if bus in flexible_bus_id
-                    converted_zone_flexibility[:, i] = fh[string(bus)]
-                end
-
-                # identify flexible bus by their total flexibility and append to list
-                if any(x -> x > 0, converted_zone_flexibility[:, i])
-                    append!(flex_bus_idx, i)
-                end
-            end
+            demand_flexibility_updated[field] = fh
         end
-
-        # add header and datetime index column
-        eq_bus_df = DataFrames.DataFrame(converted_zone_flexibility[:, flex_bus_idx])
-        DataFrames.rename!(eq_bus_df, Symbol.(case.busid[flex_bus_idx]))
-        DataFrames.insertcols!(eq_bus_df, 1, :"UTC Time" => fh["UTC Time"])
-
-        # replace the raw input df
-        #setfield!(demand_flexibility_updated, Symbol(field), eq_bus_df)
-        demand_flexibility_updated[field] = eq_bus_df
     end
 
     # Convert Dict to type DemandFlexibility
