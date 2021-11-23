@@ -470,15 +470,11 @@ function _add_constraints_branch_flow_limits!(
     branch_pmin = vcat(-1 * case.branch_rating, case.dcline_pmin)
     branch_pmax = vcat(case.branch_rating, case.dcline_pmax)
     if trans_viol_enabled
-        JuMP.@expression(m, branch_limit_pmin, branch_pmin - m[:trans_viol])
-        JuMP.@expression(m, branch_limit_pmax, branch_pmax + m[:trans_viol])
+        JuMP.@expression(m, branch_limit_pmin, branch_pmin .- m[:trans_viol])
+        JuMP.@expression(m, branch_limit_pmax, branch_pmax .+ m[:trans_viol])
     else
-        JuMP.@expression(
-            m, branch_limit_pmin[br in sets.branch_idx, h in hour_idx], branch_pmin[br],
-        )
-        JuMP.@expression(
-            m, branch_limit_pmax[br in sets.branch_idx, h in hour_idx], branch_pmax[br],
-        )
+        JuMP.@expression(m, branch_limit_pmin, repeat(branch_pmin, 1, length(hour_idx)))
+        JuMP.@expression(m, branch_limit_pmax, repeat(branch_pmax, 1, length(hour_idx)))
     end
     println("branch_min, branch_max: ", Dates.now())
     JuMP.@constraint(
