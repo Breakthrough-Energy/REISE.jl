@@ -51,6 +51,7 @@ function run_scenario(;
     threads::Union{Int,Nothing}=nothing,
     optimizer_factory=nothing,
     solver_kwargs::Union{Dict,Nothing}=nothing,
+    model_kwargs::Union{Dict,Nothing}=nothing,
 )
     isnothing(optimizer_factory) && error("optimizer_factory must be specified")
     # Setup things that build once
@@ -68,12 +69,18 @@ function run_scenario(;
     println("All scenario files loaded!")
     case = reise_data_mods(case; num_segments=num_segments)
     save_input_mat(case, storage, inputfolder, outputfolder)
-    model_kwargs = Dict(
+    # Create final model kwargs by merging defaults with user-specified
+    default_model_kwargs = Dict(
         "case" => case,
         "storage" => storage,
         "demand_flexibility" => demand_flexibility,
         "interval_length" => interval,
     )
+    if isnothing(model_kwargs)
+        model_kwargs = default_model_kwargs
+    else
+        model_kwargs = merge(default_model_kwargs, model_kwargs)
+    end
     # If a number of threads is specified, add to solver settings dict
     isnothing(threads) || (solver_kwargs["Threads"] = threads)
     println("All preparation complete!")
