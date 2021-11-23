@@ -541,6 +541,7 @@ function _add_objective_function!(
     load_shed_enabled::Bool,
     load_shed_penalty::Number,
     trans_viol_enabled::Bool,
+    trans_viol_penalty::Number,
     storage_e0::Array{Float64,1},
     demand_flexibility::DemandFlexibility,
 )
@@ -773,6 +774,7 @@ function _build_model(
         load_shed_enabled,
         load_shed_penalty,
         trans_viol_enabled,
+        trans_viol_penalty,
         storage_e0,
         demand_flexibility,
     )
