@@ -65,7 +65,7 @@ def extract_data(results):
     cost = []
 
     extraction_vars = {"pf", "pg", "lmp", "congu", "congl"}
-    sparse_extraction_vars = {"congu", "congl", "load_shed"}
+    sparse_extraction_vars = {"congu", "congl", "load_shed", "trans_viol"}
     temps = {}
     outputs = {}
 
@@ -117,6 +117,11 @@ def extract_data(results):
             temps["load_shift_up"] = output_mpc["flexible_demand"]["load_shift_up"].T
             temps["load_shift_dn"] = output_mpc["flexible_demand"]["load_shift_dn"].T
             extraction_vars |= {"load_shift_up", "load_shift_dn"}
+        except KeyError:
+            pass
+        try:
+            temps["trans_viol"] = output_mpc["trans_viol"]["trans_viol"].T
+            extraction_vars |= {"trans_viol"}
         except KeyError:
             pass
 
@@ -246,10 +251,11 @@ def _get_outputs_from_converted(matfile):
     }
 
     try:
+        # If DC lines are present in the input file, use their indices
         outputs_id["pf_dcline"] = case.mpc.dclineid
+        outputs_id["trans_viol"] = list(case.mpc.branchid) + list(case.mpc.dclineid)
     except AttributeError:
-        pass
-
+        outputs_id["trans_viol"] = case.mpc.branchid
     try:
         storage_index = case.Storage.UnitIdx
         num_storage = 1 if isinstance(storage_index, float) else len(storage_index)
