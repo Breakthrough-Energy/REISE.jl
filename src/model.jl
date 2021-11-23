@@ -70,10 +70,11 @@ function _make_bus_demand_flexibility_amount(
     simulation_demand_flex_amt_dn = Matrix(
         demand_flexibility.flex_amt_dn[start_index:end_index, 2:end]
     )
-    # input is already per-bus, copy to new container
-    bus_demand_flex_amt_up = permutedims(simulation_demand_flex_amt_up)
-    bus_demand_flex_amt_dn = permutedims(simulation_demand_flex_amt_dn)
-    return (bus_demand_flex_amt_up, bus_demand_flex_amt_dn)
+
+    return (
+        permutedims(simulation_demand_flex_amt_up),
+        permutedims(simulation_demand_flex_amt_dn),
+    )
 end
 
 """
