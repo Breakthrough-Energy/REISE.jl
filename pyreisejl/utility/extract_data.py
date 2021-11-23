@@ -68,6 +68,15 @@ def extract_data(results):
     sparse_extraction_vars = {"congu", "congl", "load_shed", "trans_viol"}
     temps = {}
     outputs = {}
+    optional_variables = [
+        {"name": "pf_dcline", "key1": "dcline", "key2": "PF_dcline"},
+        {"name": "storage_pg", "key1": "storage", "key2": "PG"},
+        {"name": "storage_e", "key1": "storage", "key2": "Energy"},
+        {"name": "load_shed", "key1": "load_shed", "key2": "load_shed"},
+        {"name": "load_shift_up", "key1": "flexible_demand", "key2": "load_shift_up"},
+        {"name": "load_shift_dn", "key1": "flexible_demand", "key2": "load_shift_dn"},
+        {"name": "trans_viol", "key1": "trans_viol", "key2": "trans_viol"},
+    ]
 
     tic = time.process_time()
     for i, filename in tqdm(enumerate(results)):
@@ -96,34 +105,12 @@ def extract_data(results):
         temps["congl"] = output_mpc["branch"]["MU_ST"].T
 
         # Extract optional variables (not present in all scenarios)
-        try:
-            temps["pf_dcline"] = output_mpc["dcline"]["PF_dcline"].T
-            extraction_vars |= {"pf_dcline"}
-        except KeyError:
-            pass
-
-        try:
-            temps["storage_pg"] = output_mpc["storage"]["PG"].T
-            temps["storage_e"] = output_mpc["storage"]["Energy"].T
-            extraction_vars |= {"storage_pg", "storage_e"}
-        except KeyError:
-            pass
-        try:
-            temps["load_shed"] = output_mpc["load_shed"]["load_shed"].T
-            extraction_vars |= {"load_shed"}
-        except KeyError:
-            pass
-        try:
-            temps["load_shift_up"] = output_mpc["flexible_demand"]["load_shift_up"].T
-            temps["load_shift_dn"] = output_mpc["flexible_demand"]["load_shift_dn"].T
-            extraction_vars |= {"load_shift_up", "load_shift_dn"}
-        except KeyError:
-            pass
-        try:
-            temps["trans_viol"] = output_mpc["trans_viol"]["trans_viol"].T
-            extraction_vars |= {"trans_viol"}
-        except KeyError:
-            pass
+        for var in optional_variables:
+            try:
+                temps[var["name"]] = output_mpc[var["key1"]][var["key2"]].T
+                extraction_vars.add(var["name"])
+            except KeyError:
+                pass
 
         # Extract which number result currently being processed
         i = result_num(filename)
