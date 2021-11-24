@@ -293,11 +293,9 @@ function reformat_demand_flexibility_input(
         sort(names(demand_flexibility.flex_amt_up)) .==
         sort(names(demand_flexibility.flex_amt_dn)),
     )
-        @error(
-            "The flexible bus/load zone specified in the up/down input csvs do not 
-            match. Please check the input files to make sure every flexible bus or
-            load zone has corresponding columns in both flexibility csvs."
-        )
+        @error("The flexible bus/load zone specified in the up/down input csvs do not 
+               match. Please check the input files to make sure every flexible bus or
+               load zone has corresponding columns in both flexibility csvs.")
         throw(ErrorException("See above."))
     end
 
@@ -371,18 +369,10 @@ function reformat_demand_flexibility_input(
             # check if zone numbers are correct
             if !all([issubset(i, zone_list) for i in flexible_zone_id])
                 @error("Invalid load zone numeric ID(s) in demand flexibility input files!")
-                throw(
-                    ErrorException(
-                        "See above."
-                    ),
-                )
+                throw(ErrorException("See above."))
             elseif !all([issubset(i, case.busid) for i in flexible_bus_id])
                 @error("Invalid load bus numeric ID(s) in demand flexibility input files!")
-                throw(
-                    ErrorException(
-                        "See above."
-                    ),
-                )
+                throw(ErrorException("See above."))
             end
 
             # list index of each zone in input file in the sorted list of zones
@@ -415,7 +405,7 @@ function reformat_demand_flexibility_input(
                         if any(x -> x < 0, fh[:, zone_columns_idx[flexible_zone_num] + 1])
                             @error(
                                 "Input ERROR: Total zone flexibility less than sum of bus flexibility for zone " *
-                                string(flexible_zone_id[i])
+                                    string(flexible_zone_id[i])
                             )
                             throw(ErrorException("See above."))
                         end
