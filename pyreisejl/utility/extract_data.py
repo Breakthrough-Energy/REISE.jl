@@ -240,7 +240,9 @@ def _get_outputs_from_converted(matfile):
     try:
         # If DC lines are present in the input file, use their indices
         outputs_id["pf_dcline"] = case.mpc.dclineid
-        outputs_id["trans_viol"] = list(case.mpc.branchid) + list(case.mpc.dclineid)
+        outputs_id["trans_viol"] = np.concatenate(
+            [case.mpc.branchid, case.mpc.dclineid]
+        )
     except AttributeError:
         outputs_id["trans_viol"] = case.mpc.branchid
     try:
