@@ -99,6 +99,9 @@ function save_results(results::Results, filename::String; demand_scaling::Number
             "load_shift_dn" => results.load_shift_dn,
         )
     end
+    if size(results.trans_viol) != (0, 0)
+        mdo_save["flow"]["mpc"]["trans_viol"] = Dict("trans_viol" => results.trans_viol)
+    end
     return MAT.matwrite(filename, Dict("mdo_save" => mdo_save); compress=true)
 end
 

@@ -66,6 +66,7 @@ Base.@kwdef struct Results
     load_shed::Array{Float64,2}
     load_shift_up::Array{Float64,2}
     load_shift_dn::Array{Float64,2}
+    trans_viol::Array{Float64,2}
     f::Float64
     status::String
 end

@@ -470,15 +470,11 @@ function _add_constraints_branch_flow_limits!(
     branch_pmin = vcat(-1 * case.branch_rating, case.dcline_pmin)
     branch_pmax = vcat(case.branch_rating, case.dcline_pmax)
     if trans_viol_enabled
-        JuMP.@expression(m, branch_limit_pmin, branch_pmin - m[:trans_viol])
-        JuMP.@expression(m, branch_limit_pmax, branch_pmax + m[:trans_viol])
+        JuMP.@expression(m, branch_limit_pmin, branch_pmin .- m[:trans_viol])
+        JuMP.@expression(m, branch_limit_pmax, branch_pmax .+ m[:trans_viol])
     else
-        JuMP.@expression(
-            m, branch_limit_pmin[br in sets.branch_idx, h in hour_idx], branch_pmin[br],
-        )
-        JuMP.@expression(
-            m, branch_limit_pmax[br in sets.branch_idx, h in hour_idx], branch_pmax[br],
-        )
+        JuMP.@expression(m, branch_limit_pmin, repeat(branch_pmin, 1, length(hour_idx)))
+        JuMP.@expression(m, branch_limit_pmax, repeat(branch_pmax, 1, length(hour_idx)))
     end
     println("branch_min, branch_max: ", Dates.now())
     JuMP.@constraint(
@@ -545,6 +541,7 @@ function _add_objective_function!(
     load_shed_enabled::Bool,
     load_shed_penalty::Number,
     trans_viol_enabled::Bool,
+    trans_viol_penalty::Number,
     storage_e0::Array{Float64,1},
     demand_flexibility::DemandFlexibility,
 )
@@ -777,6 +774,7 @@ function _build_model(
         load_shed_enabled,
         load_shed_penalty,
         trans_viol_enabled,
+        trans_viol_penalty,
         storage_e0,
         demand_flexibility,
     )
