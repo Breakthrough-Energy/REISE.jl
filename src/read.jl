@@ -274,6 +274,7 @@ function _make_bus_demand_weighting(case::Case)::SparseMatrixCSC
     zone_id2idx = Dict(zone_list .=> zone_idx)
     bus_df_with_zone_load = DataFrames.innerjoin(bus_df, zone_demand; on=:zone)
     bus_share = bus_df[:, :load] ./ bus_df_with_zone_load[:, :load_sum]
+    replace!(bus_share, NaN => 0)
     bus_zone_idx = Int64[zone_id2idx[z] for z in case.bus_zone]
     zone_to_bus_shares = sparse(bus_zone_idx, bus_idx, bus_share)::SparseMatrixCSC
     return zone_to_bus_shares
