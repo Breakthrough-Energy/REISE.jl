@@ -6,7 +6,8 @@ using Dates: Dates
 using JuMP: JuMP
 using MAT: MAT
 using Requires: Requires
-import SparseArrays: sparse, SparseMatrixCSC
+
+import SparseArrays: sparse, SparseMatrixCSC, findnz, nnz
 
 include("types.jl")         # Defines Case, Results, Storage, DemandFlexibility,
 #     VariablesOfInterest
@@ -68,6 +69,8 @@ function run_scenario(;
     demand_flexibility = read_demand_flexibility(inputfolder, interval)
     println("All scenario files loaded!")
     case = reise_data_mods(case; num_segments=num_segments)
+    sets = _make_sets(case)
+    demand_flexibility = reformat_demand_flexibility_input(case, demand_flexibility, sets)
     save_input_mat(case, storage, inputfolder, outputfolder)
     # Create final model kwargs by merging defaults with user-specified
     default_model_kwargs = Dict(

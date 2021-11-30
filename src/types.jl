@@ -50,7 +50,6 @@ Base.@kwdef struct DemandFlexibility
     enabled::Bool
     interval_balance::Bool
     rolling_balance::Bool
-    input_granularity::String
 end
 
 Base.@kwdef struct Results
