@@ -218,13 +218,14 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
         isnothing(demand_flexibility["flex_amt_up"]) ||
         (isnothing(demand_flexibility["flex_amt_dn"]))
     )
-        @error(
-            "Demand flexibility was specified to be enabled, however at least one " *
-                "demand flexibility profile is missing. Please make sure both demand " *
-                "flexibility profiles are included in " *
-                filepath
+        throw(
+            ErrorException(
+                "Demand flexibility was specified to be enabled, however at " *
+                "least one demand flexibility profile is missing. Please make sure both " *
+                "demand flexibility profiles are included in " *
+                filepath,
+            ),
         )
-        throw(ErrorException("See above."))
     elseif demand_flexibility["enabled"] == "not_specified"
         if !isnothing(demand_flexibility["flex_amt_up"]) &&
             (!isnothing(demand_flexibility["flex_amt_dn"]))
@@ -293,10 +294,14 @@ function reformat_demand_flexibility_input(
         sort(names(demand_flexibility.flex_amt_up)) .==
         sort(names(demand_flexibility.flex_amt_dn)),
     )
-        @error("The flexible bus/load zone specified in the up/down input csvs do not 
-               match. Please check the input files to make sure every flexible bus or
-               load zone has corresponding columns in both flexibility csvs.")
-        throw(ErrorException("See above."))
+        throw(
+            ErrorException(
+                "The flexible bus/load zone specified in the up/down " *
+                "input csvs do not match. Please check the input files to make sure " *
+                "every flexible bus orload zone has corresponding columns in both " *
+                "flexibility csvs.",
+            ),
+        )
     end
 
     # list of zones in the network
@@ -368,11 +373,17 @@ function reformat_demand_flexibility_input(
 
             # check if zone numbers are correct
             if !all([issubset(i, zone_list) for i in flexible_zone_id])
-                @error("Invalid load zone numeric ID(s) in demand flexibility input files!")
-                throw(ErrorException("See above."))
+                throw(
+                    ErrorException(
+                        "Invalid load zone numeric ID(s) in demand flexibility input files!"
+                    ),
+                )
             elseif !all([issubset(i, case.busid) for i in flexible_bus_id])
-                @error("Invalid load bus numeric ID(s) in demand flexibility input files!")
-                throw(ErrorException("See above."))
+                throw(
+                    ErrorException(
+                        "Invalid load bus numeric ID(s) in demand flexibility input files!"
+                    ),
+                )
             end
 
             # list index of each zone in input file in the sorted list of zones
@@ -403,11 +414,12 @@ function reformat_demand_flexibility_input(
                     # check if flexibility in any zone is less than the sum of buses
                     for i in 1:flexible_zone_num
                         if any(x -> x < 0, fh[:, zone_columns_idx[flexible_zone_num] + 1])
-                            @error(
-                                "Input ERROR: Total zone flexibility less than sum of bus flexibility for zone " *
-                                    string(flexible_zone_id[i])
+                            throw(
+                                ErrorException(
+                                    "Input ERROR: Total zone flexibility less than sum of bus
+                       flexibility for zone " * string(flexible_zone_id[i]),
+                                ),
                             )
-                            throw(ErrorException("See above."))
                         end
                     end
                 end
