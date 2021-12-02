@@ -298,7 +298,7 @@ function reformat_demand_flexibility_input(
             ErrorException(
                 "The flexible bus/load zone specified in the up/down " *
                 "input csvs do not match. Please check the input files to make sure " *
-                "every flexible bus orload zone has corresponding columns in both " *
+                "every flexible bus or load zone has corresponding columns in both " *
                 "flexibility csvs.",
             ),
         )
