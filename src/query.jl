@@ -86,6 +86,8 @@ function get_results(f::Float64, case::Case, demand_flexibility::DemandFlexibili
     catch e
         if isa(e, MethodError)
             # Thrown when trans_viol is `nothing`
+        elseif isa(e, KeyError)
+            # Thrown when trans_viol is not defined in the model
         else
             # Unknown error, rethrow it
             rethrow(e)
