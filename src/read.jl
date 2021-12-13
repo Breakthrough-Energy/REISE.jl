@@ -114,7 +114,6 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
         "enabled" => "not_specified",
         "interval_balance" => true,
         "rolling_balance" => true,
-        "input_granularity" => "AREA",
     )
 
     # Try loading the demand flexibility parameters
@@ -143,11 +142,6 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
             "rolling_balance" => (
                 "The parameter that indicates if the rolling load balance constraint " *
                 "is enabled is not defined. Will default to being enabled."
-            ),
-            "input_granularity" => (
-                "The parameter that indicates the way demand flexibility " *
-                "and demand flexibility cost are provided is not defined. " *
-                "Will default to being area-based."
             ),
         )
 
@@ -224,13 +218,14 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
         isnothing(demand_flexibility["flex_amt_up"]) ||
         (isnothing(demand_flexibility["flex_amt_dn"]))
     )
-        @error(
-            "Demand flexibility was specified to be enabled, however at least one " *
-                "demand flexibility profile is missing. Please make sure both demand " *
-                "flexibility profiles are included in " *
-                filepath
+        throw(
+            ErrorException(
+                "Demand flexibility was specified to be enabled, however at " *
+                "least one demand flexibility profile is missing. Please make sure both " *
+                "demand flexibility profiles are included in " *
+                filepath,
+            ),
         )
-        throw(ErrorException("See above."))
     elseif demand_flexibility["enabled"] == "not_specified"
         if !isnothing(demand_flexibility["flex_amt_up"]) &&
             (!isnothing(demand_flexibility["flex_amt_dn"]))
@@ -260,4 +255,237 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
     demand_flexibility = DemandFlexibility(; demand_flexibility...)
 
     return demand_flexibility
+end
+
+"""
+    _make_bus_demand_weighting(case)
+
+Given a Case object, build a sparse matrix that indicates the weighting of each bus in 
+    each zone.
+"""
+function _make_bus_demand_weighting(case::Case)::SparseMatrixCSC
+    bus_idx = 1:length(case.busid)
+    bus_df = DataFrames.DataFrame(;
+        name=case.busid, load=case.bus_demand, zone=case.bus_zone
+    )
+    zone_demand = DataFrames.combine(DataFrames.groupby(bus_df, :zone), :load => sum)
+    zone_list = sort(collect(Set(case.bus_zone)))
+    zone_idx = 1:length(zone_list)
+    zone_id2idx = Dict(zone_list .=> zone_idx)
+    bus_df_with_zone_load = DataFrames.innerjoin(bus_df, zone_demand; on=:zone)
+    bus_share = bus_df[:, :load] ./ bus_df_with_zone_load[:, :load_sum]
+    bus_zone_idx = Int64[zone_id2idx[z] for z in case.bus_zone]
+    zone_to_bus_shares = sparse(bus_zone_idx, bus_idx, bus_share)::SparseMatrixCSC
+    return zone_to_bus_shares
+end
+
+"""
+    reformat_demand_flexibility_input(case, demand_flexibility, sets)
+
+Inspect the raw input files of flexiblility amount and cost, convert the zone/bus mixed 
+    data to bus data
+"""
+function reformat_demand_flexibility_input(
+    case::Case, demand_flexibility::DemandFlexibility, sets::Sets
+)
+
+    # check consistency of flexibility input headers
+    if !all(
+        sort(names(demand_flexibility.flex_amt_up)) .==
+        sort(names(demand_flexibility.flex_amt_dn)),
+    )
+        throw(
+            ErrorException(
+                "The flexible bus/load zone specified in the up/down " *
+                "input csvs do not match. Please check the input files to make sure " *
+                "every flexible bus or load zone has corresponding columns in both " *
+                "flexibility csvs.",
+            ),
+        )
+    end
+
+    # list of zones in the network
+    zone_list = sort(collect(Set(case.bus_zone)))
+    # distribute zone-level aggregated number to buses
+    zone_to_bus_shares = _make_bus_demand_weighting(case)
+    # incidence matrix of mapping between zone and bus
+    zone_to_bus_incidence = deepcopy(zone_to_bus_shares)
+    (x, y, v) = findnz(zone_to_bus_incidence)
+    for i in 1:nnz(zone_to_bus_incidence)
+        # buses with no load still show up as nonzero entries
+        if v[i] > 0
+            zone_to_bus_incidence[x[i], y[i]] = 1
+        end
+    end
+
+    # create an empty demand flexibility object and copy unchanged fields
+    demand_flexibility_updated = Dict(
+        "duration" => demand_flexibility.duration,
+        "enabled" => demand_flexibility.enabled,
+        "interval_balance" => demand_flexibility.interval_balance,
+        "rolling_balance" => demand_flexibility.rolling_balance,
+        "flex_amt_up" => nothing,
+        "flex_amt_dn" => nothing,
+        "cost_up" => nothing,
+        "cost_dn" => nothing,
+    )
+
+    # iterate through fields
+    for field in ["flex_amt_up", "flex_amt_dn", "cost_up", "cost_dn"]
+        # dataframe in the corresponding field
+        fh = getfield(demand_flexibility, Symbol(field))
+
+        # skip if no cost
+        if isnothing(fh)
+            continue
+        end
+
+        # headers
+        flexible_str = names(fh)[2:end]
+
+        # index of columns specifing the flexibility of a zone
+        zone_columns_idx = findall(x -> occursin("zone.", x), flexible_str)
+
+        # numeric ID corresponding to zone columns
+        flexible_zone_id = [
+            parse(Int64, replace(flexible_str[i], "zone." => "")) for i in zone_columns_idx
+        ]
+        flexible_zone_num = length(flexible_zone_id)
+
+        # do zone-bus conversion only when zone columns are present
+        if flexible_zone_num > 0
+
+            # index of columns specifing the flexibility of a bus
+            bus_columns_idx = findall(x -> !occursin(".", x), flexible_str)
+
+            # numeric ID corresponding to bus columns
+            flexible_bus_id = [parse(Int64, flexible_str[i]) for i in bus_columns_idx]
+            flexible_bus_idx = [sets.bus_id2idx[x] for x in flexible_bus_id]
+            flexible_bus_num = length(flexible_bus_id)
+
+            # remove bus columns from zone to bus mapping
+            zone_to_bus_shares[:, flexible_bus_idx] .= 0
+
+            # re-normalize the rows to distribute flexiblity among un-specified buses
+            for i in 1:length(zone_list)
+                zone_to_bus_shares[i, :] ./= sum(zone_to_bus_shares[i, :])
+            end
+
+            # check if zone numbers are correct
+            if !all([issubset(i, zone_list) for i in flexible_zone_id])
+                throw(
+                    ErrorException(
+                        "Invalid load zone numeric ID(s) in demand flexibility input files!"
+                    ),
+                )
+            elseif !all([issubset(i, case.busid) for i in flexible_bus_id])
+                throw(
+                    ErrorException(
+                        "Invalid load bus numeric ID(s) in demand flexibility input files!"
+                    ),
+                )
+            end
+
+            # list index of each zone in input file in the sorted list of zones
+            zone_cols_idx = [findfirst(y -> y == x, zone_list) for x in flexible_zone_id]
+
+            # for flex amt, the zone numbers are the total flexibility in the zone
+            if field == "flex_amt_up" || field == "flex_amt_dn"
+                # if input contains bus columns
+                if flexible_bus_num > 0
+                    # find if the flexibility of any bus is also specified in a zone column
+                    bus_cols_zone_id = case.bus_zone[findall(
+                        x -> x in flexible_bus_id, case.busid
+                    )]
+                    bus_cols_zone_idx = [
+                        findfirst(isequal(i), flexible_zone_id) for i in bus_cols_zone_id
+                    ]
+
+                    # substract individual bus columns from zone total flexibility
+                    for i in 1:flexible_bus_num
+                        # substract from total if the zone of this bus is specified in a zone column
+                        if !isnothing(bus_cols_zone_idx[i])
+                            fh[:, zone_columns_idx[bus_cols_zone_idx[i]] + 1] -= fh[
+                                :, bus_columns_idx[i] + 1
+                            ]
+                        end
+                    end
+
+                    # check if flexibility in any zone is less than the sum of buses
+                    for i in 1:flexible_zone_num
+                        if any(x -> x < 0, fh[:, zone_columns_idx[flexible_zone_num] + 1])
+                            throw(
+                                ErrorException(
+                                    "Input ERROR: Total zone flexibility less than sum of bus
+                       flexibility for zone " * string(flexible_zone_id[i]),
+                                ),
+                            )
+                        end
+                    end
+                end
+
+                # convert zone-level to bus-level
+                converted_zone_flexibility =
+                    Matrix(fh[:, [i + 1 for i in zone_columns_idx]]) * zone_to_bus_shares[zone_cols_idx, :]
+
+                # add bus-level columns on top of converted bus-level flexibility matrix
+                flex_bus_idx = zeros(Int64, 0)
+                for i in sets.bus_idx
+                    bus = case.busid[i]
+                    # add specified flexibility to the corresponding bus
+                    if bus in flexible_bus_id
+                        converted_zone_flexibility[:, i] += fh[string(bus)]
+                    end
+
+                    # identify flexible bus by their total flexibility and append to list
+                    if any(x -> x > 0, converted_zone_flexibility[:, i])
+                        append!(flex_bus_idx, i)
+                    end
+                end
+                eq_bus_df = DataFrames.DataFrame(
+                    converted_zone_flexibility[:, flex_bus_idx]
+                )
+                # for cost, the zone numbers apply to all buses except those with dedicated columns
+            else
+                # convert zone-level cost using incidence matrix
+                converted_zone_cost =
+                    Matrix(fh[:, [i + 1 for i in zone_columns_idx]]) * zone_to_bus_incidence[zone_cols_idx, :]
+
+                # replace bus-level cost for bus columns in converted bus-level cost matrix
+                flex_bus_idx = zeros(Int64, 0)
+                for i in sets.bus_idx
+                    bus = case.busid[i]
+                    # add specified cost to the corresponding bus
+                    if bus in flexible_bus_id
+                        converted_zone_cost[:, i] = fh[string(bus)]
+                    end
+
+                    # identify flexible bus by their total cost and append to list
+                    if any(x -> x > 0, converted_zone_cost[:, i])
+                        append!(flex_bus_idx, i)
+                    end
+                end
+                eq_bus_df = DataFrames.DataFrame(converted_zone_cost[:, flex_bus_idx])
+            end
+
+            # add header and datetime index column
+            DataFrames.rename!(eq_bus_df, Symbol.(case.busid[flex_bus_idx]))
+            DataFrames.insertcols!(eq_bus_df, 1, :"UTC Time" => fh["UTC Time"])
+
+            # store to new df object
+            demand_flexibility_updated[field] = eq_bus_df
+
+            # if all columns are buses, use the original dataframe
+        else
+            demand_flexibility_updated[field] = fh
+        end
+    end
+
+    # Convert Dict to type DemandFlexibility
+    demand_flexibility_updated = (;
+        (Symbol(k) => v for (k, v) in demand_flexibility_updated)...
+    )
+    demand_flexibility_updated = DemandFlexibility(; demand_flexibility_updated...)
+
+    return demand_flexibility_updated
 end

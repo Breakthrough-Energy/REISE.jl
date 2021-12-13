@@ -37,28 +37,6 @@ function _make_branch_map(case::Case)::SparseMatrixCSC
 end
 
 """
-    _make_bus_demand_weighting(case)
-
-Given a Case object, build a sparse matrix that indicates the weighting of each bus in 
-    each zone.
-"""
-function _make_bus_demand_weighting(case::Case)::SparseMatrixCSC
-    bus_idx = 1:length(case.busid)
-    bus_df = DataFrames.DataFrame(;
-        name=case.busid, load=case.bus_demand, zone=case.bus_zone
-    )
-    zone_demand = DataFrames.combine(DataFrames.groupby(bus_df, :zone), :load => sum)
-    zone_list = sort(collect(Set(case.bus_zone)))
-    zone_idx = 1:length(zone_list)
-    zone_id2idx = Dict(zone_list .=> zone_idx)
-    bus_df_with_zone_load = DataFrames.innerjoin(bus_df, zone_demand; on=:zone)
-    bus_share = bus_df[:, :load] ./ bus_df_with_zone_load[:, :load_sum]
-    bus_zone_idx = Int64[zone_id2idx[z] for z in case.bus_zone]
-    zone_to_bus_shares = sparse(bus_zone_idx, bus_idx, bus_share)::SparseMatrixCSC
-    return zone_to_bus_shares
-end
-
-"""
     _make_bus_demand(case)
 
 Given a Case object, build a matrix of demand by (bus, hour) for this interval.
@@ -92,22 +70,11 @@ function _make_bus_demand_flexibility_amount(
     simulation_demand_flex_amt_dn = Matrix(
         demand_flexibility.flex_amt_dn[start_index:end_index, 2:end]
     )
-    # convert per-area input to per-bus values
-    if demand_flexibility.input_granularity == "AREA"
-        bus_demand_flex_amt_up = permutedims(
-            simulation_demand_flex_amt_up * zone_to_bus_shares
-        )
-        bus_demand_flex_amt_dn = permutedims(
-            simulation_demand_flex_amt_dn * zone_to_bus_shares
-        )
-        # input is already per-bus, copy to new container
-    elseif demand_flexibility.input_granularity == "BUS"
-        bus_demand_flex_amt_up = permutedims(simulation_demand_flex_amt_up)
-        bus_demand_flex_amt_dn = permutedims(simulation_demand_flex_amt_dn)
-    else
-        println("Warning! Invalid demand flexibility parameter input_granularity!")
-    end
-    return (bus_demand_flex_amt_up, bus_demand_flex_amt_dn)
+
+    return (
+        permutedims(simulation_demand_flex_amt_up),
+        permutedims(simulation_demand_flex_amt_dn),
+    )
 end
 
 """
@@ -179,22 +146,18 @@ function _make_sets(
     )
     num_segments = convert(Int, maximum(case.gencost[:, NCOST])) - 1
     segment_idx = 1:num_segments
-    # Demand flexibility, additional info for input->bus conversion
-    if demand_flexibility.enabled
-        if demand_flexibility.input_granularity == "BUS"
-            # assume each flexible bus can go up/dn, so only use the Dataframe for up
-            flexible_bus_str = names(demand_flexibility.flex_amt_up)[2:end]
-            flexible_bus_id = [parse(Int64, bus) for bus in flexible_bus_str]
-            flexible_bus_idx = [bus_id2idx[bus] for bus in flexible_bus_id]
-            num_flexible_bus = length(flexible_bus_idx)
-            flexible_load_bus_map = sparse(
-                flexible_bus_idx, 1:num_flexible_bus, 1, num_bus, num_flexible_bus
-            )::SparseMatrixCSC
-        elseif demand_flexibility.input_granularity == "AREA"
-            flexible_bus_idx = load_bus_idx
-            num_flexible_bus = num_load_bus
-            flexible_load_bus_map = load_bus_map
-        end
+    # Demand flexibility, additional info for bus <--> load <--> flexible load conversion
+    demand_flexibility_enabled =
+        isa(demand_flexibility, DemandFlexibility) && demand_flexibility.enabled
+    if demand_flexibility_enabled
+        # assume each flexible bus can go up/dn, so only use the Dataframe for up
+        flexible_bus_str = names(demand_flexibility.flex_amt_up)[2:end]
+        flexible_bus_id = [parse(Int64, bus) for bus in flexible_bus_str]
+        flexible_bus_idx = [bus_id2idx[bus] for bus in flexible_bus_id]
+        num_flexible_bus = length(flexible_bus_idx)
+        flexible_load_bus_map = sparse(
+            flexible_bus_idx, 1:num_flexible_bus, 1, num_bus, num_flexible_bus
+        )::SparseMatrixCSC
     else
         flexible_bus_idx = nothing
         num_flexible_bus = 0
@@ -379,7 +342,7 @@ function _add_constraints_demand_flexibility!(
         println("rolling load balance, first window: ", Dates.now())
         JuMP.@constraint(
             m,
-            rolling_load_balance_first[i in 1:(sets.num_load_bus)],
+            rolling_load_balance_first[i in 1:(sets.num_flexible_bus)],
             sum(
                 m[:load_shift_up][i, j] - m[:load_shift_dn][i, j] for
                 j in 1:(demand_flexibility.duration - 1)

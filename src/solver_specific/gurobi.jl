@@ -13,8 +13,8 @@ function run_scenario_gurobi(; solver_kwargs::Union{Dict,Nothing}=nothing, kwarg
         global m = run_scenario(;
             optimizer_factory=env, solver_kwargs=solver_kwargs, kwargs...
         )
-    finally
         Gurobi.finalize(JuMP.backend(m))
+    finally
         Gurobi.finalize(env)
         println("Connection to Gurobi closed successfully!")
     end
