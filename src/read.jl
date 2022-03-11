@@ -290,8 +290,7 @@ function reformat_demand_flexibility_input(
 )
 
     # check consistency of flexibility input headers
-    if demand_flexibility.enabled &&
-        !all(
+    if !all(
         sort(names(demand_flexibility.flex_amt_up)) .==
         sort(names(demand_flexibility.flex_amt_dn)),
     )
