@@ -58,18 +58,54 @@ Given a Case object and a DemandFlexibility object, build a matrix of demand fle
     by (bus, hour) for this interval.
 """
 function _make_bus_demand_flexibility_amount(
-    case::Case, demand_flexibility::DemandFlexibility, start_index::Int, end_index::Int
+    case::Case,
+    demand_flexibility::DemandFlexibility,
+    start_index::Int,
+    end_index::Int,
+    bus_demand::Matrix,
+    sets::Sets,
 )::Tuple{Matrix,Matrix}
-    # Bus weighting
-    zone_to_bus_shares = _make_bus_demand_weighting(case)
-    # Demand flexibility up profile
-    simulation_demand_flex_amt_up = Matrix(
-        demand_flexibility.flex_amt_up[start_index:end_index, 2:end]
-    )
-    # Demand flexibility down profile
-    simulation_demand_flex_amt_dn = Matrix(
-        demand_flexibility.flex_amt_dn[start_index:end_index, 2:end]
-    )
+
+    # combine two profiles with user input overriding DOE flexibility
+    simulation_demand_flex_amt_up = zeros(end_index - start_index + 1, sets.num_bus)
+    simulation_demand_flex_amt_dn = zeros(end_index - start_index + 1, sets.num_bus)
+
+    # DOE flexibility, convert to MW, DOE timestamps already aligned
+    if demand_flexibility.enable_doe_flexibility
+        doe_flex_pct = Matrix(demand_flexibility.doe_flex_amt[start_index:end_index, 2:end])
+        doe_flex_mw = doe_flex_pct .* permutedims(bus_demand[sets.doe_flexible_bus_idx, :])
+        for i in 1:length(sets.doe_flexible_bus_idx)
+            simulation_demand_flex_amt_up[:, sets.doe_flexible_bus_idx[i]] = doe_flex_mw[
+                :, i
+            ]
+            simulation_demand_flex_amt_dn[:, sets.doe_flexible_bus_idx[i]] = doe_flex_mw[
+                :, i
+            ]
+        end
+    end
+
+    # replace columns with user input numbers if applicable
+    if !isnothing(demand_flexibility.flex_amt_up)
+        csv_flex_amt_up = Matrix(
+            demand_flexibility.flex_amt_up[start_index:end_index, 2:end]
+        )
+        csv_flex_amt_dn = Matrix(
+            demand_flexibility.flex_amt_dn[start_index:end_index, 2:end]
+        )
+
+        for i in 1:length(sets.csv_flexible_bus_idx)
+            simulation_demand_flex_amt_up[:, sets.csv_flexible_bus_idx[i]] = csv_flex_amt_up[
+                :, i
+            ]
+            simulation_demand_flex_amt_dn[:, sets.csv_flexible_bus_idx[i]] = csv_flex_amt_dn[
+                :, i
+            ]
+        end
+    end
+
+    # remove non-flexible columns
+    simulation_demand_flex_amt_up = simulation_demand_flex_amt_up[:, sets.flexible_bus_idx]
+    simulation_demand_flex_amt_dn = simulation_demand_flex_amt_dn[:, sets.flexible_bus_idx]
 
     return (
         permutedims(simulation_demand_flex_amt_up),
@@ -146,15 +182,32 @@ function _make_sets(
     demand_flexibility_enabled =
         isa(demand_flexibility, DemandFlexibility) && demand_flexibility.enabled
     if demand_flexibility_enabled
+        # if DOE profile is used, all buses with valid EIA ID are flexible
+        if demand_flexibility.enable_doe_flexibility
+            doe_flexible_bus_idx = sort(
+                intersect(load_bus_idx, findall(case.bus_eiaid .> 0))
+            )
+        else
+            doe_flexible_bus_idx = nothing
+        end
+
+        # flexible buses from input files    
         # assume each flexible bus can go up/dn, so only use the Dataframe for up
-        flexible_bus_str = names(demand_flexibility.flex_amt_up)[2:end]
-        flexible_bus_id = [parse(Int64, bus) for bus in flexible_bus_str]
-        flexible_bus_idx = [bus_id2idx[bus] for bus in flexible_bus_id]
+        csv_flexible_bus_str = names(demand_flexibility.flex_amt_up)[2:end]
+        csv_flexible_bus_id = [parse(Int64, bus) for bus in csv_flexible_bus_str]
+        csv_flexible_bus_idx = [bus_id2idx[bus] for bus in csv_flexible_bus_id]
+
+        # all flexible buses
+        flexible_bus_idx = sort([
+            i for i in union(doe_flexible_bus_idx, csv_flexible_bus_idx)
+        ])
         num_flexible_bus = length(flexible_bus_idx)
         flexible_load_bus_map = sparse(
             flexible_bus_idx, 1:num_flexible_bus, 1, num_bus, num_flexible_bus
         )::SparseMatrixCSC
     else
+        csv_flexible_bus_idx = nothing
+        doe_flexible_bus_idx = nothing
         flexible_bus_idx = nothing
         num_flexible_bus = 0
         flexible_load_bus_map = nothing
@@ -190,6 +243,8 @@ function _make_sets(
         segment_idx=segment_idx,
         num_storage=num_storage,
         storage_idx=storage_idx,
+        csv_flexible_bus_idx=csv_flexible_bus_idx,
+        doe_flexible_bus_idx=doe_flexible_bus_idx,
         flexible_bus_idx=flexible_bus_idx,
         num_flexible_bus=num_flexible_bus,
         flexible_load_bus_map=flexible_load_bus_map,
@@ -604,7 +659,7 @@ function _build_model(
     # Demand flexibility parameters (if present)
     if demand_flexibility.enabled
         (bus_demand_flex_amt_up, bus_demand_flex_amt_dn) = _make_bus_demand_flexibility_amount(
-            case, demand_flexibility, start_index, end_index
+            case, demand_flexibility, start_index, end_index, bus_demand, sets
         )
     end
 

@@ -55,9 +55,10 @@ function interval_loop(
         interval_start = start_index + (i - 1) * interval
         interval_end = interval_start + interval - 1
         model_kwargs["start_index"] = interval_start
+        bus_demand = _make_bus_demand(case, interval_start, interval_end)
         if demand_flexibility.enabled
             (bus_demand_flex_amt_up, bus_demand_flex_amt_dn) = _make_bus_demand_flexibility_amount(
-                case, demand_flexibility, interval_start, interval_end
+                case, demand_flexibility, interval_start, interval_end, bus_demand, sets
             )
         end
         if i == 1
@@ -86,7 +87,6 @@ function interval_loop(
             m = _build_model(m; symbolize(model_kwargs)...)
         else
             # Reassign right-hand-side of constraints to match profiles
-            bus_demand = _make_bus_demand(case, interval_start, interval_end)
             simulation_hydro = permutedims(
                 Matrix(case.hydro[interval_start:interval_end, 2:end])
             )

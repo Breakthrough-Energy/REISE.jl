@@ -17,6 +17,7 @@ Base.@kwdef struct Case
     busid::Array{Int64,1}
     bus_demand::Array{Float64,1}
     bus_zone::Array{Int64,1}
+    bus_eiaid::Array{Int64,1}
 
     genid::Array{Int64,1}
     genfuel::Array{String,1}
@@ -42,6 +43,7 @@ Base.@kwdef struct Storage
 end
 
 Base.@kwdef struct DemandFlexibility
+    doe_flex_amt::Union{DataFrames.DataFrame,Nothing}
     flex_amt_up::Union{DataFrames.DataFrame,Nothing}
     flex_amt_dn::Union{DataFrames.DataFrame,Nothing}
     cost_dn::Union{DataFrames.DataFrame,Nothing}
@@ -50,6 +52,7 @@ Base.@kwdef struct DemandFlexibility
     enabled::Bool
     interval_balance::Bool
     rolling_balance::Bool
+    enable_doe_flexibility::Bool
 end
 
 Base.@kwdef struct Results
@@ -100,6 +103,8 @@ Base.@kwdef struct Sets
     num_segments::Int64
     segment_idx::UnitRange{Int64}
     ## Demand Flexibility
+    csv_flexible_bus_idx::Union{Array{Int64,1},Nothing}
+    doe_flexible_bus_idx::Union{Array{Int64,1},Nothing}
     flexible_bus_idx::Union{Array{Int64,1},Nothing}
     num_flexible_bus::Int64
     flexible_load_bus_map::Union{SparseMatrixCSC,Nothing}

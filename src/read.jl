@@ -26,6 +26,11 @@ function read_case(filepath)
     case["busid"] = convert(Array{Int,1}, bus.bus_id)
     case["bus_demand"] = convert(Array{Float64,1}, bus.Pd)
     case["bus_zone"] = convert(Array{Int,1}, bus.zone_id)
+    try
+        case["bus_eiaid"] = convert(Array{Int,1}, bus.eia_id)
+    catch e
+        case["bus_eiaid"] = zeros(size(case["busid"], 1), 1)
+    end
 
     # Generators
     plant = CSV.File(joinpath(filepath, "plant.csv"))
@@ -105,6 +110,7 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
         "enabled" => "not_specified",
         "interval_balance" => true,
         "rolling_balance" => true,
+        "enable_doe_flexibility" => false,
     )
 
     # Try loading the demand flexibility parameters
@@ -133,6 +139,10 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
             "rolling_balance" => (
                 "The parameter that indicates if the rolling load balance constraint " *
                 "is enabled is not defined. Will default to being enabled."
+            ),
+            "enable_doe_flexibility" => (
+                "The parameter that indicates if the DOE flexibility data will be used" *
+                " to parameterize demand flexibility profiles. Will default to disabled."
             ),
         )
 
@@ -165,6 +175,33 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
     # Prevent the rolling_balance constraint according to the duration parameter
     demand_flexibility["rolling_balance"] &= !(demand_flexibility["duration"] == interval)
 
+    # Try loading DOE flexibility profile if enabled
+    demand_flexibility["doe_flex_amt"] = nothing
+    if demand_flexibility["enable_doe_flexibility"] == true && demand_flexibility["enabled"]
+        try
+            # check if DOE data is present, if not, download from BLOB server
+            if !isfile(joinpath(filepath, "doe_flexibility_2016.csv"))
+                println(
+                    "DOE flexibility data is enabled, but a local copy " *
+                    "is not present. Downloading data from BLOB storage..",
+                )
+                @sync download(
+                    "https://besciences.blob.core.windows.net/datasets/" *
+                    "demand_flexibility_doe/doe_flexibility_2016.csv",
+                    joinpath(filepath, "doe_flexibility_2016.csv"),
+                )
+                println("Successfully downloaded DOE flexibility file.")
+            end
+            # read local file
+            demand_flexibility["doe_flex_amt"] = DataFrames.DataFrame(
+                CSV.File(joinpath(filepath, "doe_flexibility_2016.csv"))
+            )
+            println("...loading DOE demand flexibility profiles")
+        catch e
+            println("DOE demand flexibility profile not found on BLOB storage")
+        end
+    end
+
     # Try loading the demand flexibility and demand flexibility cost profiles
     for s in ["up", "dn"]
         # Pre-specify the demand flexibility and demand flexibility cost profiles
@@ -174,13 +211,12 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
         # Only try loading the profiles if demand flexibility is enabled
         if demand_flexibility["enabled"] == "not_specified" ||
             (demand_flexibility["enabled"])
-            # Try loading the demand flexibility profiles
             try
                 demand_flexibility["flex_amt_" * s] = DataFrames.DataFrame(
                     CSV.File(joinpath(filepath, "demand_flexibility_" * s * ".csv"))
                 )
                 println("...loading demand flexibility " * s * " profiles")
-            catch
+            catch e
                 println("Demand flexibility " * s * " profile not found in " * filepath)
             end
 
@@ -190,7 +226,7 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
                     CSV.File(joinpath(filepath, "demand_flexibility_cost_" * s * ".csv"))
                 )
                 println("...loading demand flexibility " * s * "-shift cost profiles")
-            catch
+            catch e
                 println(
                     "Demand flexibility " *
                     s *
@@ -205,10 +241,12 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
     end
 
     # If demand flexibility is enabled but at least one demand flexibility profile is nothing
-    if demand_flexibility["enabled"] == true && (
-        isnothing(demand_flexibility["flex_amt_up"]) ||
-        (isnothing(demand_flexibility["flex_amt_dn"]))
-    )
+    if demand_flexibility["enabled"] == true &&
+        (
+            isnothing(demand_flexibility["flex_amt_up"]) ||
+            (isnothing(demand_flexibility["flex_amt_dn"]))
+        ) &&
+        isnothing(demand_flexibility["doe_flex_amt"])
         throw(
             ErrorException(
                 "Demand flexibility was specified to be enabled, however at " *
@@ -219,7 +257,8 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
         )
     elseif demand_flexibility["enabled"] == "not_specified"
         if !isnothing(demand_flexibility["flex_amt_up"]) &&
-            (!isnothing(demand_flexibility["flex_amt_dn"]))
+           (!isnothing(demand_flexibility["flex_amt_dn"])) ||
+            !isnothing(demand_flexibility["doe_flex_amt"])
             demand_flexibility["enabled"] = true
         else
             if !isnothing(demand_flexibility["flex_amt_up"]) ||
@@ -319,20 +358,22 @@ function reformat_demand_flexibility_input(
         "flex_amt_dn" => nothing,
         "cost_up" => nothing,
         "cost_dn" => nothing,
+        "doe_flex_amt" => nothing,
+        "enable_doe_flexibility" => demand_flexibility.enable_doe_flexibility,
     )
 
     # iterate through fields
     for field in ["flex_amt_up", "flex_amt_dn", "cost_up", "cost_dn"]
         # dataframe in the corresponding field
-        fh = getfield(demand_flexibility, Symbol(field))
+        demand_flex_field = getfield(demand_flexibility, Symbol(field))
 
         # skip if no cost
-        if isnothing(fh)
+        if isnothing(demand_flex_field)
             continue
         end
 
         # headers
-        flexible_str = names(fh)[2:end]
+        flexible_str = names(demand_flex_field)[2:end]
 
         # index of columns specifing the flexibility of a zone
         zone_columns_idx = findall(x -> occursin("zone.", x), flexible_str)
@@ -396,7 +437,7 @@ function reformat_demand_flexibility_input(
                     for i in 1:flexible_bus_num
                         # substract from total if the zone of this bus is specified in a zone column
                         if !isnothing(bus_cols_zone_idx[i])
-                            fh[:, zone_columns_idx[bus_cols_zone_idx[i]] + 1] -= fh[
+                            demand_flex_field[:, zone_columns_idx[bus_cols_zone_idx[i]] + 1] -= demand_flex_field[
                                 :, bus_columns_idx[i] + 1
                             ]
                         end
@@ -404,7 +445,10 @@ function reformat_demand_flexibility_input(
 
                     # check if flexibility in any zone is less than the sum of buses
                     for i in 1:flexible_zone_num
-                        if any(x -> x < 0, fh[:, zone_columns_idx[flexible_zone_num] + 1])
+                        if any(
+                            x -> x < 0,
+                            demand_flex_field[:, zone_columns_idx[flexible_zone_num] + 1],
+                        )
                             throw(
                                 ErrorException(
                                     "Input ERROR: Total zone flexibility less than sum of bus
@@ -417,7 +461,7 @@ function reformat_demand_flexibility_input(
 
                 # convert zone-level to bus-level
                 converted_zone_flexibility =
-                    Matrix(fh[:, [i + 1 for i in zone_columns_idx]]) * zone_to_bus_shares[zone_cols_idx, :]
+                    Matrix(demand_flex_field[:, [i + 1 for i in zone_columns_idx]]) * zone_to_bus_shares[zone_cols_idx, :]
 
                 # add bus-level columns on top of converted bus-level flexibility matrix
                 flex_bus_idx = zeros(Int64, 0)
@@ -425,7 +469,9 @@ function reformat_demand_flexibility_input(
                     bus = case.busid[i]
                     # add specified flexibility to the corresponding bus
                     if bus in flexible_bus_id
-                        converted_zone_flexibility[:, i] += fh[string(bus)]
+                        converted_zone_flexibility[:, i] += demand_flex_field[
+                            !, string(bus)
+                        ]
                     end
 
                     # identify flexible bus by their total flexibility and append to list
@@ -434,13 +480,13 @@ function reformat_demand_flexibility_input(
                     end
                 end
                 eq_bus_df = DataFrames.DataFrame(
-                    converted_zone_flexibility[:, flex_bus_idx]
+                    converted_zone_flexibility[:, flex_bus_idx], :auto
                 )
                 # for cost, the zone numbers apply to all buses except those with dedicated columns
             else
                 # convert zone-level cost using incidence matrix
                 converted_zone_cost =
-                    Matrix(fh[:, [i + 1 for i in zone_columns_idx]]) * zone_to_bus_incidence[zone_cols_idx, :]
+                    Matrix(demand_flex_field[:, [i + 1 for i in zone_columns_idx]]) * zone_to_bus_incidence[zone_cols_idx, :]
 
                 # replace bus-level cost for bus columns in converted bus-level cost matrix
                 flex_bus_idx = zeros(Int64, 0)
@@ -448,7 +494,7 @@ function reformat_demand_flexibility_input(
                     bus = case.busid[i]
                     # add specified cost to the corresponding bus
                     if bus in flexible_bus_id
-                        converted_zone_cost[:, i] = fh[string(bus)]
+                        converted_zone_cost[:, i] = demand_flex_field[!, string(bus)]
                     end
 
                     # identify flexible bus by their total cost and append to list
@@ -456,20 +502,79 @@ function reformat_demand_flexibility_input(
                         append!(flex_bus_idx, i)
                     end
                 end
-                eq_bus_df = DataFrames.DataFrame(converted_zone_cost[:, flex_bus_idx])
+
+                # if DOE flexibility is used, add columns for flexible buses there
+
+                # find all flexible buses
+                if demand_flexibility.enable_doe_flexibility
+                    doe_flexible_bus_idx = sort(
+                        intersect(sets.load_bus_idx, findall(case.bus_eiaid .> 0))
+                    )
+                else
+                    doe_flexible_bus_idx = nothing
+                end
+
+                # assume each flexible bus can go up/dn, so only use the Dataframe for up
+                csv_flexible_bus_str = names(demand_flexibility_updated["flex_amt_up"])[2:end]
+                csv_flexible_bus_id = [parse(Int64, bus) for bus in csv_flexible_bus_str]
+                csv_flexible_bus_idx = [sets.bus_id2idx[bus] for bus in csv_flexible_bus_id]
+
+                # all flexible buses
+                flex_bus_idx = sort([
+                    i for i in union(doe_flexible_bus_idx, csv_flexible_bus_idx)
+                ])
+
+                new_demand_flex_cost = zeros(size(converted_zone_cost, 1), sets.num_bus)
+                for i in 1:length(flex_bus_idx)
+                    new_demand_flex_cost[:, flex_bus_idx[i]] = converted_zone_cost[:, i]
+                end
+
+                eq_bus_df = DataFrames.DataFrame(
+                    new_demand_flex_cost[:, flex_bus_idx], :auto
+                )
             end
 
             # add header and datetime index column
             DataFrames.rename!(eq_bus_df, Symbol.(case.busid[flex_bus_idx]))
-            DataFrames.insertcols!(eq_bus_df, 1, :"UTC Time" => fh["UTC Time"])
+            DataFrames.insertcols!(
+                eq_bus_df, 1, :"UTC Time" => demand_flex_field[!, "UTC Time"]
+            )
 
             # store to new df object
             demand_flexibility_updated[field] = eq_bus_df
 
             # if all columns are buses, use the original dataframe
         else
-            demand_flexibility_updated[field] = fh
+            demand_flexibility_updated[field] = demand_flex_field
         end
+    end
+
+    # re-format DOE flexibility using bus EIA ID
+    if demand_flexibility.enable_doe_flexibility == true
+        demand_flex_field = getfield(demand_flexibility, Symbol("doe_flex_amt"))
+
+        # all load buses with valid EIA ID 
+        flexible_bus_idx = intersect(sets.load_bus_idx, findall(case.bus_eiaid .> 0))
+        flexible_bus_num = length(flexible_bus_idx)
+
+        # bus flexibility Percentage matrix
+        doe_bus_flexibility = zeros(size(case.demand, 1), flexible_bus_num)
+        doe_eiaid = [parse(Int, x) for x in names(demand_flex_field)[2:end]]
+        for i in 1:flexible_bus_num
+            doe_bus_flexibility[:, i] = demand_flex_field[
+                !, Symbol(case.bus_eiaid[flexible_bus_idx[i]])
+            ]
+        end
+
+        eq_bus_df = DataFrames.DataFrame(doe_bus_flexibility, :auto)
+        # add header and datetime index column
+        DataFrames.rename!(eq_bus_df, Symbol.(case.busid[flexible_bus_idx]))
+        DataFrames.insertcols!(
+            eq_bus_df, 1, :"UTC Time" => demand_flex_field[!, "UTC Time"]
+        )
+
+        # store to new df object
+        demand_flexibility_updated["doe_flex_amt"] = eq_bus_df
     end
 
     # Convert Dict to type DemandFlexibility
