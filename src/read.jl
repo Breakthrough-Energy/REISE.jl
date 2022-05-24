@@ -83,11 +83,11 @@ function read_storage(filepath)::Storage
         println("...loading case_storage.mat")
         # Convert N x 1 array of strings into 1D array of Symbols (length N)
         column_symbols = Symbol.(vec(storage_mat_data["sd_table"]["colnames"]))
+        data = convert(Array{Float64,2}, storage_mat_data["sd_table"]["data"])
         storage = Dict(
             "enabled" => true,
             "gen" => storage_mat_data["gen"],
-            "sd_table" =>
-                DataFrames.DataFrame(storage_mat_data["sd_table"]["data"], column_symbols),
+            "sd_table" => DataFrames.DataFrame(data, column_symbols),
         )
     catch e
         println("File case_storage.mat not found in " * filepath)
