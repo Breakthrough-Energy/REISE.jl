@@ -129,6 +129,34 @@ class Launcher:
         raise NotImplementedError
 
 
+class HiGHSLauncher(Launcher):
+    def launch_scenario(self):
+        """Launches the scenario.
+
+        :return: (*int*) runtime of scenario in seconds
+        """
+        self._print_settings()
+        print("INFO: HiGHS functionality is still in the testing stage, no guarantees")
+        print("INFO: threads not supported by HiGHS, ignoring")
+
+        HiGHS, REISE = self.init_julia(imports=["HiGHS", "REISE"])
+
+        start = time()
+        REISE.run_scenario(
+            interval=self.interval,
+            n_interval=self.n_interval,
+            start_index=self.start_index,
+            inputfolder=self.input_dir,
+            outputfolder=self.execute_dir,
+            optimizer_factory=HiGHS.Optimizer,
+            solver_kwargs=self.solver_kwargs,
+            num_segments=self.num_segments,
+        )
+        end = time()
+
+        return self.parse_runtime(start, end)
+
+
 class ClpLauncher(Launcher):
     def launch_scenario(self):
         """Launches the scenario.
@@ -211,7 +239,12 @@ class GurobiLauncher(Launcher):
         return self.parse_runtime(start, end)
 
 
-_launch_map = {"clp": ClpLauncher, "glpk": GLPKLauncher, "gurobi": GurobiLauncher}
+_launch_map = {
+    "clp": ClpLauncher,
+    "glpk": GLPKLauncher,
+    "gurobi": GurobiLauncher,
+    "highs": HiGHSLauncher,
+}
 
 
 def get_available_solvers():

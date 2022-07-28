@@ -30,6 +30,7 @@ RUN julia -e 'using Pkg; \
 	Pkg.activate("."); \
 	Pkg.instantiate(); \
 	Pkg.add("GLPK"); \
+	Pkg.add("HiGHS"); \
 	Pkg.add("Gurobi"); \
 	Pkg.add("Clp")'
 
@@ -38,6 +39,7 @@ COPY src src
 RUN julia -e 'import Gurobi; \
 	import Clp; \
 	import GLPK; \
+    import HiGHS; \
 	using REISE'
 
 COPY pyreisejl pyreisejl
