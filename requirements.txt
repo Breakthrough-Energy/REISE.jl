@@ -7,3 +7,4 @@ scipy~=1.6
 tqdm~=4.29.1
 pytest
 Flask~=2.0
+powersimdata~=0.5.4
