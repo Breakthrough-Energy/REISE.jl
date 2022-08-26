@@ -1,6 +1,8 @@
 import os
+import pickle
 
 from pyreisejl.utility import const, parser
+from pyreisejl.utility.converters import create_case_mat
 from pyreisejl.utility.extract_data import extract_scenario
 from pyreisejl.utility.helpers import (
     WrongNumberOfArguments,
@@ -28,8 +30,9 @@ def _record_scenario(scenario_id, runtime):
 
 
 def main(args):
-    # Get scenario info if using PowerSimData
+    # If using PowerSimData, get scenario info, prepare grid data and update status
     if args.scenario_id:
+        # Get scenario info
         scenario_args = get_scenario(args.scenario_id)
 
         args.start_date = scenario_args[0]
@@ -37,6 +40,16 @@ def main(args):
         args.interval = scenario_args[2]
         args.input_dir = scenario_args[3]
         args.execute_dir = scenario_args[4]
+
+        # Create grid data for simulatio
+        with open(os.path.join(args.input_dir, "grid.pkl"), "rb") as f:
+            grid = pickle.load(f)
+
+        _, _ = create_case_mat(
+            grid,
+            filepath=os.path.join(args.input_dir, "case.mat"),
+            storage_filepath=os.path.join(args.input_dir, "case_storage.mat"),
+        )
 
         # Update status in ExecuteList.csv on server
         insert_in_file(const.EXECUTE_LIST, args.scenario_id, "status", "running")
@@ -50,6 +63,7 @@ def main(args):
         )
         raise WrongNumberOfArguments(err_str)
 
+    # launch simulation
     launcher = get_launcher(args.solver)(
         args.start_date,
         args.end_date,
