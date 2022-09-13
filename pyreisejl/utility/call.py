@@ -23,9 +23,56 @@ def _record_scenario(scenario_id, runtime):
     # Update status in ExecuteList.csv on server
     insert_in_file(const.EXECUTE_LIST, scenario_id, "status", "finished")
 
-    hours, minutes, seconds = sec2hms(runtime)
+    hours, minutes, _ = sec2hms(runtime)
     insert_in_file(
         const.SCENARIO_LIST, scenario_id, "runtime", "%d:%02d" % (hours, minutes)
+    )
+
+
+cols = {
+    "branch": ["branch_id", "from_bus_id", "to_bus_id", "x", "rateA"],
+    "dcline": ["dcline_id", "from_bus_id", "to_bus_id", "Pmin", "Pmax"],
+    "bus": ["bus_id", "Pd", "zone_id"],
+    "plant": [
+        "plant_id",
+        "bus_id",
+        "status",
+        "Pmin",
+        "Pmax",
+        "type",
+        "ramp_30",
+        "GenFuelCost",
+        "GenIOB",
+        "GenIOC",
+        "GenIOD",
+    ],
+}
+
+
+def _save(path, name, df):
+    df = df.reset_index()
+    df = df.loc[:, cols.get(name, df.columns)]
+    df.to_csv(os.path.join(path, f"{name}.csv"), index=False)
+
+
+def pkl_to_csv(path):
+    with open(os.path.join(path, "grid.pkl"), "rb") as f:
+        grid = pickle.load(f)
+    _save(path, "branch", grid.branch)
+    _save(path, "dcline", grid.dcline)
+    _save(path, "bus", grid.bus)
+    _save(path, "plant", grid.plant)
+    _save(path, "gencost", grid.gencost["before"])
+
+
+def pkl_to_case_mat(path):
+    with open(os.path.join(path, "grid.pkl"), "rb") as f:
+        grid = pickle.load(f)
+
+    _, _ = create_case_mat(
+        grid,
+        filepath=os.path.join(path, "case.mat"),
+        storage_filepath=os.path.join(path, "case_storage.mat"),
     )
 
 
@@ -41,15 +88,8 @@ def main(args):
         args.input_dir = scenario_args[3]
         args.execute_dir = scenario_args[4]
 
-        # Create grid data for simulatio
-        with open(os.path.join(args.input_dir, "grid.pkl"), "rb") as f:
-            grid = pickle.load(f)
-
-        _, _ = create_case_mat(
-            grid,
-            filepath=os.path.join(args.input_dir, "case.mat"),
-            storage_filepath=os.path.join(args.input_dir, "case_storage.mat"),
-        )
+        pkl_to_csv(args.input_dir)
+        pkl_to_case_mat(args.input_dir)
 
         # Update status in ExecuteList.csv on server
         insert_in_file(const.EXECUTE_LIST, args.scenario_id, "status", "running")
