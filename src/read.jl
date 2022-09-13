@@ -71,6 +71,66 @@ function read_case(filepath)
     return case
 end
 
+function read_case_v2(filepath)
+    println("Reading from folder: " * filepath)
+
+    # New case.mat analog
+    case = Dict()
+
+    # AC branches
+    branch = CSV.File(joinpath(filepath, "branch.csv"))
+    case["branchid"] = convert(Array{Int,1}, branch.branch_id)
+    case["branch_from"] = convert(Array{Int,1}, branch.from_bus_id)
+    case["branch_to"] = convert(Array{Int,1}, branch.to_bus_id)
+    case["branch_reactance"] = convert(Array{Float64,1}, branch.x)
+    case["branch_rating"] = convert(Array{Float64,1}, branch.rateA)
+
+    # DC branches
+    dcline = CSV.File(joinpath(filepath, "dcline.csv"))
+    case["dcline_id"] = convert(Array{Int,1}, dcline.dcline_id)
+    case["dcline_from"] = convert(Array{Int,1}, dcline.from_bus_id)
+    case["dcline_to"] = convert(Array{Int,1}, dcline.to_bus_id)
+    case["dcline_pmin"] = convert(Array{Float64,1}, dcline.Pmin)
+    case["dcline_pmax"] = convert(Array{Float64,1}, branch.Pmax)
+
+    # Buses
+    bus = CSV.File(joinpath(filepath, "bus.csv"))
+    case["busid"] = convert(Array{Int,1}, bus.bus_id)
+    case["bus_demand"] = convert(Array{Float64,1}, bus.Pd)
+    case["bus_zone"] = convert(Array{Int,1}, bus.zone_id)
+
+    # Generators
+    plant = CSV.File(joinpath(filepath, "plant.csv"))
+    case["genid"] = convert(Array{Int,1}, plant.plant_id)
+    case["genfuel"] = convert(Array{String,1}, plant.type)
+    case["gen_bus"] = convert(Array{Int,1}, plant.bus_id)
+
+    # gen_status::BitArray{1}
+    case["gen_status"] = convert(Array{Int,1}, plant.status)
+
+    case["gen_pmax"] = convert(Array{Float64,1}, plant.Pmax)
+    case["gen_pmin"] = convert(Array{Float64,1}, plant.Pmin)
+    case["gen_ramp30"] = convert(Array{Float64,1}, plant.ramp_30)
+
+    # TODO Generator costs
+    # case["gencost"] = mpc["gencost"]
+
+    # Load all relevant profile data from CSV files
+    println("...loading demand.csv")
+    case["demand"] = DataFrames.DataFrame(CSV.File(joinpath(filepath, "demand.csv")))
+
+    println("...loading hydro.csv")
+    case["hydro"] = DataFrames.DataFrame(CSV.File(joinpath(filepath, "hydro.csv")))
+
+    println("...loading wind.csv")
+    case["wind"] = DataFrames.DataFrame(CSV.File(joinpath(filepath, "wind.csv")))
+
+    println("...loading solar.csv")
+    case["solar"] = DataFrames.DataFrame(CSV.File(joinpath(filepath, "solar.csv")))
+
+    return case
+end
+
 """Read input matfile (if present), return parsed data in a Storage struct."""
 function read_storage(filepath)::Storage
     # Fallback dataframe, in case there's no case_storage.mat file
