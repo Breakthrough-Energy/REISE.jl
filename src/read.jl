@@ -104,16 +104,15 @@ function read_case_v2(filepath)
     case["genid"] = convert(Array{Int,1}, plant.plant_id)
     case["genfuel"] = convert(Array{String,1}, plant.type)
     case["gen_bus"] = convert(Array{Int,1}, plant.bus_id)
-
-    # gen_status::BitArray{1}
-    case["gen_status"] = convert(Array{Int,1}, plant.status)
-
+    case["gen_status"] = convert(BitArray{1}, plant.status)
     case["gen_pmax"] = convert(Array{Float64,1}, plant.Pmax)
     case["gen_pmin"] = convert(Array{Float64,1}, plant.Pmin)
     case["gen_ramp30"] = convert(Array{Float64,1}, plant.ramp_30)
 
-    # TODO Generator costs
-    # case["gencost"] = mpc["gencost"]
+    # Generator costs
+    gencost = CSV.File(joinpath(filepath, "gencost.csv"))
+    df = DataFrames.DataFrame(gencost)
+    case["gencost"] = convert(Matrix{Float64}, df)
 
     # Load all relevant profile data from CSV files
     println("...loading demand.csv")

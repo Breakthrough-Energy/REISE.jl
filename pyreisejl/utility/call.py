@@ -48,10 +48,13 @@ cols = {
     ],
 }
 
+drop_cols = {"gencost": ["interconnect"]}
+
 
 def _save(path, name, df):
     df = df.reset_index()
     df = df.loc[:, cols.get(name, df.columns)]
+    df = df.drop(drop_cols.get(name, []), axis=1)
     df.to_csv(os.path.join(path, f"{name}.csv"), index=False)
 
 
