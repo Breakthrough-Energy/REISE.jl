@@ -1,77 +1,7 @@
 """Read REISE input matfiles, return parsed relevant data in a Dict."""
+
+
 function read_case(filepath)
-    println("Reading from folder: " * filepath)
-
-    println("...loading case.mat")
-    case_mat_file = MAT.matopen(joinpath(filepath, "case.mat"))
-    mpc = read(case_mat_file, "mpc")
-
-    # New case.mat analog
-    case = Dict()
-
-    # AC branches
-    # dropdims() will remove extraneous dimension
-    case["branchid"] = dropdims(mpc["branchid"]; dims=2)
-    # convert() will convert float array to int array
-    case["branch_from"] = convert(Array{Int,1}, mpc["branch"][:, 1])
-    case["branch_to"] = convert(Array{Int,1}, mpc["branch"][:, 2])
-    case["branch_reactance"] = mpc["branch"][:, 4]
-    case["branch_rating"] = mpc["branch"][:, 6]
-
-    # DC branches
-    if "dcline" in keys(mpc)
-        if isa(mpc["dclineid"], Int)
-            case["dclineid"] = Int64[mpc["dclineid"]]
-        else
-            case["dclineid"] = dropdims(mpc["dclineid"]; dims=2)
-        end
-        case["dcline_from"] = convert(Array{Int,1}, mpc["dcline"][:, 1])
-        case["dcline_to"] = convert(Array{Int,1}, mpc["dcline"][:, 2])
-        case["dcline_pmin"] = mpc["dcline"][:, 10]
-        case["dcline_pmax"] = mpc["dcline"][:, 11]
-    else
-        case["dclineid"] = Int64[]
-        case["dcline_from"] = Int64[]
-        case["dcline_to"] = Int64[]
-        case["dcline_pmin"] = Float64[]
-        case["dcline_pmax"] = Float64[]
-    end
-
-    # Buses
-    case["busid"] = convert(Array{Int,1}, mpc["bus"][:, 1])
-    case["bus_demand"] = mpc["bus"][:, 3]
-    case["bus_zone"] = convert(Array{Int,1}, mpc["bus"][:, 7])
-
-    # Generators
-    case["genid"] = dropdims(mpc["genid"]; dims=2)
-    genfuel = dropdims(mpc["genfuel"]; dims=2)
-    case["genfuel"] = convert(Array{String,1}, genfuel)
-    case["gen_bus"] = convert(Array{Int,1}, mpc["gen"][:, 1])
-    case["gen_status"] = mpc["gen"][:, 8]
-    case["gen_pmax"] = mpc["gen"][:, 9]
-    case["gen_pmin"] = mpc["gen"][:, 10]
-    case["gen_ramp30"] = mpc["gen"][:, 19]
-
-    # Generator costs
-    case["gencost"] = mpc["gencost"]
-
-    # Load all relevant profile data from CSV files
-    println("...loading demand.csv")
-    case["demand"] = DataFrames.DataFrame(CSV.File(joinpath(filepath, "demand.csv")))
-
-    println("...loading hydro.csv")
-    case["hydro"] = DataFrames.DataFrame(CSV.File(joinpath(filepath, "hydro.csv")))
-
-    println("...loading wind.csv")
-    case["wind"] = DataFrames.DataFrame(CSV.File(joinpath(filepath, "wind.csv")))
-
-    println("...loading solar.csv")
-    case["solar"] = DataFrames.DataFrame(CSV.File(joinpath(filepath, "solar.csv")))
-
-    return case
-end
-
-function read_case_v2(filepath)
     println("Reading from folder: " * filepath)
 
     # New case.mat analog
@@ -91,7 +21,7 @@ function read_case_v2(filepath)
     case["dcline_from"] = convert(Array{Int,1}, dcline.from_bus_id)
     case["dcline_to"] = convert(Array{Int,1}, dcline.to_bus_id)
     case["dcline_pmin"] = convert(Array{Float64,1}, dcline.Pmin)
-    case["dcline_pmax"] = convert(Array{Float64,1}, branch.Pmax)
+    case["dcline_pmax"] = convert(Array{Float64,1}, dcline.Pmax)
 
     # Buses
     bus = CSV.File(joinpath(filepath, "bus.csv"))
