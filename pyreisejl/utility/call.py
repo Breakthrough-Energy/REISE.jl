@@ -48,7 +48,7 @@ cols = {
     ],
 }
 
-drop_cols = {"gencost": ["interconnect"]}
+drop_cols = {"gencost": ["plant_id", "interconnect"]}
 
 
 def _save(path, name, df):

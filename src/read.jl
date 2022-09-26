@@ -1,6 +1,4 @@
 """Read REISE input matfiles, return parsed relevant data in a Dict."""
-
-
 function read_case(filepath)
     println("Reading from folder: " * filepath)
 
@@ -17,7 +15,7 @@ function read_case(filepath)
 
     # DC branches
     dcline = CSV.File(joinpath(filepath, "dcline.csv"))
-    case["dcline_id"] = convert(Array{Int,1}, dcline.dcline_id)
+    case["dclineid"] = convert(Array{Int,1}, dcline.dcline_id)
     case["dcline_from"] = convert(Array{Int,1}, dcline.from_bus_id)
     case["dcline_to"] = convert(Array{Int,1}, dcline.to_bus_id)
     case["dcline_pmin"] = convert(Array{Float64,1}, dcline.Pmin)
