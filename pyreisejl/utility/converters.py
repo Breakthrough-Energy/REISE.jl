@@ -1,3 +1,4 @@
+import json
 import os
 import pickle
 
@@ -49,3 +50,26 @@ def pkl_to_csv(path):
     if not storage["gen"].empty:
         _save_storage(path, "StorageData", storage["StorageData"])
         _save_storage(path, "storage_gen", storage["gen"])
+
+
+def pkl_to_json(path):
+    # Convert sets to lists so a .json file can be created
+    class SetEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, set):
+                return list(obj)
+            return json.JSONEncoder.default(self, obj)
+
+    # Access the grid object from the .pkl file
+    with open(os.path.join(path, "grid.pkl"), "rb") as f:
+        grid = pickle.load(f)
+
+    # Save grid.model_immutables.plants as a .json file
+    with open(os.path.join(path, "plant_immutables.json"), "w", encoding="utf-8") as f:
+        json.dump(
+            grid.model_immutables.plants,
+            f,
+            ensure_ascii=False,
+            indent=4,
+            cls=SetEncoder,
+        )

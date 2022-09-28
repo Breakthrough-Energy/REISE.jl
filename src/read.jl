@@ -42,6 +42,12 @@ function read_case(filepath)
     case["gen_pmin"] = convert(Array{Float64,1}, plant.Pmin)
     case["gen_ramp30"] = convert(Array{Float64,1}, plant.ramp_30)
 
+    # Generator immutables
+    plant_immutables = JSON.parsefile(joinpath(filepath, "plant_immutables.json"))
+    case["pmin_as_share_of_pmax"] = plant_immutables["pmin_as_share_of_pmax"]
+    case["group_profile_resources"] = plant_immutables["group_profile_resources"]
+    case["profile_resources"] = plant_immutables["profile_resources"]
+
     # Generator costs
     case["gencost_before"] = DataFrames.DataFrame(
         CSV.File(joinpath(filepath, "gencost_before.csv"))

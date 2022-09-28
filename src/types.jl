@@ -27,8 +27,9 @@ Base.@kwdef struct Case
     gen_pmin::Array{Float64,1}
     gen_ramp30::Array{Float64,1}
 
-    gencost_before::DataFrames.DataFrame
-    gencost_after::DataFrames.DataFrame
+    pmin_as_share_of_pmax::Dict{String,Union{Float64,Nothing}}
+    group_profile_resources::Dict{String,Vector{String}}
+    profile_resources::Vector{String}
 
     demand::DataFrames.DataFrame
     hydro::DataFrames.DataFrame
