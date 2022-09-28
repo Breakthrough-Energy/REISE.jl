@@ -524,27 +524,61 @@ function _add_profile_generator_limits!(
     m::JuMP.Model, case::Case, sets::Sets, hour_idx, start_index, interval_length
 )
     end_index = start_index + interval_length - 1
+
     # Generation segments
-    simulation_hydro = Matrix(case.hydro[start_index:end_index, 2:end])
-    simulation_solar = Matrix(case.solar[start_index:end_index, 2:end])
-    simulation_wind = Matrix(case.wind[start_index:end_index, 2:end])
-    println("hydro_fixed: ", Dates.now())
-    JuMP.@constraint(
-        m,
-        hydro_fixed[i in 1:(sets.num_hydro), h in hour_idx],
-        m[:pg][sets.gen_hydro_idx[i], h] == simulation_hydro[h, i],
+    simulation_profile = Dict()
+    for p in keys(case.group_profile_resources)
+        simulation_profile[p] = getfield(case, Symbol(p))[start_index:end_index, 2:end]
+    end
+
+    # Create index for different profile-based generators
+    profile_resources_idx = Dict()
+    for g in case.profile_resources
+        profile_resources_idx[g] = gen_idx[findall(genfuel .== g)]
+    end
+
+    # Create numerical representation of the different profile-based generators
+    profile_resources_num_rep = Dict()
+    for i in 1:length(case.profile_resources)
+        profile_resources_num_rep[i] = case.profile_resources[i]
+    end
+
+    # Create mapping between individual profile-based resources and their resource group
+    profile_to_group = Dict(
+        v => k for k in keys(case.group_profile_resources) for
+        v in case.group_profile_resources[k]
     )
-    println("solar_max: ", Dates.now())
+
+    # Set the upper bounds
+    println("profile_upper_bound: ", Dates.now())
     JuMP.@constraint(
         m,
-        solar_max[i in 1:(sets.num_solar), h in hour_idx],
-        m[:pg][sets.gen_solar_idx[i], h] <= simulation_solar[h, i],
+        profile_upper_bound[
+            g in keys(profile_resources_num_rep),
+            i in 1:length(profile_resources_idx[profile_resources_num_rep[g]]),
+            h in hour_idx,
+        ],
+        m[:pg][profile_resources_idx[profile_resources_num_rep[g]][i], h] <=
+            (simulation_profile[profile_to_group[profile_resources_num_rep[g]]][
+            h, str(profile_resources_idx[profile_resources_num_rep[g]][i])
+        ]),
     )
-    println("wind_max: ", Dates.now())
+
+    # Set the lower bounds, establishing PMIN as a share of PMAX
+    println("profile_lower_bound: ", Dates.now())
     JuMP.@constraint(
         m,
-        wind_max[i in 1:(sets.num_wind), h in hour_idx],
-        m[:pg][sets.gen_wind_idx[i], h] <= simulation_wind[h, i],
+        profile_lower_bound[
+            g in keys(profile_resources_num_rep),
+            i in 1:length(profile_resources_idx[profile_resources_num_rep[g]]),
+            h in hour_idx,
+        ],
+        m[:pg][profile_resources_idx[profile_resources_num_rep[g]][i], h] >= (
+            case.pmin_as_share_of_pmax[profile_resources_num_rep[g]] *
+            simulation_profile[profile_to_group[profile_resources_num_rep[g]]][
+                h, str(profile_resources_idx[profile_resources_num_rep[g]][i])
+            ]
+        ),
     )
 end
 
