@@ -58,6 +58,10 @@ def _save(path, name, df):
     df.to_csv(os.path.join(path, f"{name}.csv"), index=False)
 
 
+def _save_storage(path, name, df):
+    df.to_csv(os.path.join(path, f"{name}.csv"), index=False)
+
+
 def pkl_to_csv(path):
     with open(os.path.join(path, "grid.pkl"), "rb") as f:
         grid = pickle.load(f)
@@ -66,6 +70,11 @@ def pkl_to_csv(path):
     _save(path, "bus", grid.bus)
     _save(path, "plant", grid.plant)
     _save(path, "gencost", grid.gencost["before"])
+
+    storage = grid.storage
+    if not storage["gen"].empty:
+        _save_storage(path, "StorageData", storage["StorageData"])
+        _save_storage(path, "storage_gen", storage["gen"])
 
 
 def pkl_to_case_mat(path):
