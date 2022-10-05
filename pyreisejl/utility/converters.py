@@ -46,6 +46,21 @@ def create_case_mat(grid, filepath=None, storage_filepath=None):
     genfuelcost = gen.GenFuelCost.values[np.newaxis].T
     heatratecurve = gen[["GenIOB", "GenIOC", "GenIOD"]].values
     gen.reset_index(inplace=True, drop=True)
+    gen.drop(
+        columns=[
+            "type",
+            "interconnect",
+            "lat",
+            "lon",
+            "zone_id",
+            "zone_name",
+            "GenFuelCost",
+            "GenIOB",
+            "GenIOC",
+            "GenIOD",
+        ],
+        inplace=True,
+    )
     mpc["mpc"]["gen"] = gen.values
     mpc["mpc"]["genid"] = genid
     mpc["mpc"]["genfuel"] = genfuel
@@ -64,6 +79,7 @@ def create_case_mat(grid, filepath=None, storage_filepath=None):
     # generation cost
     gencost = grid.gencost.copy()
     gencost["before"].reset_index(inplace=True, drop=True)
+    gencost["before"].drop(columns=["interconnect"], inplace=True)
     mpc["mpc"]["gencost"] = gencost["before"].values
 
     # DC line
