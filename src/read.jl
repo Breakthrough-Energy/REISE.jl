@@ -1,59 +1,45 @@
-"""Read REISE input matfiles, return parsed relevant data in a Dict."""
+"""Read REISE input files, return parsed relevant data in a Dict."""
 function read_case(filepath)
     println("Reading from folder: " * filepath)
-
-    println("...loading case.mat")
-    case_mat_file = MAT.matopen(joinpath(filepath, "case.mat"))
-    mpc = read(case_mat_file, "mpc")
 
     # New case.mat analog
     case = Dict()
 
     # AC branches
-    # dropdims() will remove extraneous dimension
-    case["branchid"] = dropdims(mpc["branchid"]; dims=2)
-    # convert() will convert float array to int array
-    case["branch_from"] = convert(Array{Int,1}, mpc["branch"][:, 1])
-    case["branch_to"] = convert(Array{Int,1}, mpc["branch"][:, 2])
-    case["branch_reactance"] = mpc["branch"][:, 4]
-    case["branch_rating"] = mpc["branch"][:, 6]
+    branch = CSV.File(joinpath(filepath, "branch.csv"))
+    case["branchid"] = convert(Array{Int,1}, branch.branch_id)
+    case["branch_from"] = convert(Array{Int,1}, branch.from_bus_id)
+    case["branch_to"] = convert(Array{Int,1}, branch.to_bus_id)
+    case["branch_reactance"] = convert(Array{Float64,1}, branch.x)
+    case["branch_rating"] = convert(Array{Float64,1}, branch.rateA)
 
     # DC branches
-    if "dcline" in keys(mpc)
-        if isa(mpc["dclineid"], Int)
-            case["dclineid"] = Int64[mpc["dclineid"]]
-        else
-            case["dclineid"] = dropdims(mpc["dclineid"]; dims=2)
-        end
-        case["dcline_from"] = convert(Array{Int,1}, mpc["dcline"][:, 1])
-        case["dcline_to"] = convert(Array{Int,1}, mpc["dcline"][:, 2])
-        case["dcline_pmin"] = mpc["dcline"][:, 10]
-        case["dcline_pmax"] = mpc["dcline"][:, 11]
-    else
-        case["dclineid"] = Int64[]
-        case["dcline_from"] = Int64[]
-        case["dcline_to"] = Int64[]
-        case["dcline_pmin"] = Float64[]
-        case["dcline_pmax"] = Float64[]
-    end
+    dcline = CSV.File(joinpath(filepath, "dcline.csv"))
+    case["dclineid"] = convert(Array{Int,1}, dcline.dcline_id)
+    case["dcline_from"] = convert(Array{Int,1}, dcline.from_bus_id)
+    case["dcline_to"] = convert(Array{Int,1}, dcline.to_bus_id)
+    case["dcline_pmin"] = convert(Array{Float64,1}, dcline.Pmin)
+    case["dcline_pmax"] = convert(Array{Float64,1}, dcline.Pmax)
 
     # Buses
-    case["busid"] = convert(Array{Int,1}, mpc["bus"][:, 1])
-    case["bus_demand"] = mpc["bus"][:, 3]
-    case["bus_zone"] = convert(Array{Int,1}, mpc["bus"][:, 7])
+    bus = CSV.File(joinpath(filepath, "bus.csv"))
+    case["busid"] = convert(Array{Int,1}, bus.bus_id)
+    case["bus_demand"] = convert(Array{Float64,1}, bus.Pd)
+    case["bus_zone"] = convert(Array{Int,1}, bus.zone_id)
 
     # Generators
-    case["genid"] = dropdims(mpc["genid"]; dims=2)
-    genfuel = dropdims(mpc["genfuel"]; dims=2)
-    case["genfuel"] = convert(Array{String,1}, genfuel)
-    case["gen_bus"] = convert(Array{Int,1}, mpc["gen"][:, 1])
-    case["gen_status"] = mpc["gen"][:, 8]
-    case["gen_pmax"] = mpc["gen"][:, 9]
-    case["gen_pmin"] = mpc["gen"][:, 10]
-    case["gen_ramp30"] = mpc["gen"][:, 19]
+    plant = CSV.File(joinpath(filepath, "plant.csv"))
+    case["genid"] = convert(Array{Int,1}, plant.plant_id)
+    case["genfuel"] = convert(Array{String,1}, plant.type)
+    case["gen_bus"] = convert(Array{Int,1}, plant.bus_id)
+    case["gen_status"] = convert(BitArray{1}, plant.status)
+    case["gen_pmax"] = convert(Array{Float64,1}, plant.Pmax)
+    case["gen_pmin"] = convert(Array{Float64,1}, plant.Pmin)
+    case["gen_ramp30"] = convert(Array{Float64,1}, plant.ramp_30)
 
     # Generator costs
-    case["gencost"] = mpc["gencost"]
+    gencost = DataFrames.DataFrame(CSV.File(joinpath(filepath, "gencost.csv")))
+    case["gencost"] = convert(Matrix{Float64}, gencost)
 
     # Load all relevant profile data from CSV files
     println("...loading demand.csv")
@@ -71,26 +57,23 @@ function read_case(filepath)
     return case
 end
 
-"""Read input matfile (if present), return parsed data in a Storage struct."""
+"""Read input file (if present), return parsed data in a Storage struct."""
 function read_storage(filepath)::Storage
-    # Fallback dataframe, in case there's no case_storage.mat file
+    # Fallback dataframe, in case there's no input files
     storage = Dict(
         "enabled" => false, "gen" => zeros(0, 21), "sd_table" => DataFrames.DataFrame()
     )
     try
-        case_storage_file = MAT.matopen(joinpath(filepath, "case_storage.mat"))
-        storage_mat_data = read(case_storage_file, "storage")
-        println("...loading case_storage.mat")
+        println("...loading storage")
+        gen = DataFrames.DataFrame(CSV.File(joinpath(filepath, "storage_gen.csv")))
+
         # Convert N x 1 array of strings into 1D array of Symbols (length N)
-        column_symbols = Symbol.(vec(storage_mat_data["sd_table"]["colnames"]))
-        data = convert(Array{Float64,2}, storage_mat_data["sd_table"]["data"])
+        data = DataFrames.DataFrame(CSV.File(joinpath(filepath, "StorageData.csv")))
         storage = Dict(
-            "enabled" => true,
-            "gen" => storage_mat_data["gen"],
-            "sd_table" => DataFrames.DataFrame(data, column_symbols),
+            "enabled" => true, "gen" => convert(Array{Float64,2}, gen), "sd_table" => data
         )
-    catch e
-        println("File case_storage.mat not found in " * filepath)
+    catch
+        println("Storage information not found in " * filepath)
     end
 
     # Convert Dict to NamedTuple
@@ -149,12 +132,12 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
         for k in keys(demand_flexibility_params_warns)
             try
                 demand_flexibility[k] = demand_flexibility_parameters[1, k]
-            catch e
+            catch
                 println(demand_flexibility_params_warns[k])
             end
         end
 
-    catch e
+    catch
         println("Demand flexibility parameters not found in " * filepath)
         println(
             "Demand flexibility parameters will default to allowing demand flexibility " *
@@ -189,7 +172,7 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
                     CSV.File(joinpath(filepath, "demand_flexibility_" * s * ".csv"))
                 )
                 println("...loading demand flexibility " * s * " profiles")
-            catch e
+            catch
                 println("Demand flexibility " * s * " profile not found in " * filepath)
             end
 
@@ -199,7 +182,7 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
                     CSV.File(joinpath(filepath, "demand_flexibility_cost_" * s * ".csv"))
                 )
                 println("...loading demand flexibility " * s * "-shift cost profiles")
-            catch e
+            catch
                 println(
                     "Demand flexibility " *
                     s *
