@@ -43,7 +43,6 @@ Run a scenario consisting of several intervals.
     used by default.
 """
 function run_scenario(;
-    num_segments::Int=1,
     interval::Int,
     n_interval::Int,
     start_index::Int,
@@ -68,7 +67,7 @@ function run_scenario(;
     storage = read_storage(inputfolder)
     demand_flexibility = read_demand_flexibility(inputfolder, interval)
     println("All scenario files loaded!")
-    case = reise_data_mods(case; num_segments=num_segments)
+    case = reise_data_mods(case)
     sets = _make_sets(case)
     if demand_flexibility.enabled
         demand_flexibility = reformat_demand_flexibility_input(

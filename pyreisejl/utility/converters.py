@@ -96,7 +96,11 @@ def create_case_mat(grid, filepath=None, storage_filepath=None):
     gencost = grid.gencost.copy()
     gencost["before"].reset_index(inplace=True, drop=True)
     gencost["before"].drop(columns=["interconnect"], inplace=True)
-    mpc["mpc"]["gencost"] = gencost["before"].values
+    mpc["mpc"]["gencost_orig"] = gencost["before"].values
+
+    gencost["after"].reset_index(inplace=True, drop=True)
+    gencost["after"].drop(columns=["interconnect"], inplace=True)
+    mpc["mpc"]["gencost"] = gencost["after"].values
 
     # DC line
     if len(grid.dcline) > 0:

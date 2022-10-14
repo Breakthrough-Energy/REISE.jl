@@ -38,8 +38,6 @@ and using the GLPK solver, call:
 
 Optional arguments include:
 
-- ``num_segments``: the number of piecewise linear segments to use when linearizing
-  polynomial cost curves (default is 1).
 - ``outputfolder``: a directory in which to store results files. The default is a
   subdirectory "output" within the input directory (created if it does not already
   exist).
@@ -153,9 +151,6 @@ The full list of arguments can be accessed via :bash:`pyreisejl/utility/call.py 
                             The path to the julia environment within which to run
                             REISE.jl. This is optional and defaults to the default
                             julia environment.
-      -l LINEARIZATION_SEGMENTS, --linearization-segments LINEARIZATION_SEGMENTS
-                            The number of piecewise linear segments used to linearize
-                            cost curves. This is optional and defaults to one.
 
 As you can see, it is possible to save the output **.mat** files to a different
 directory through ``--execute-dir``. Also, different solvers can be used (``--solver``).

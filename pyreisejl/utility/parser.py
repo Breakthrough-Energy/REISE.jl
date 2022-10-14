@@ -88,14 +88,6 @@ def parse_call_args():
         help="The path to the julia environment within which to run REISE.jl. "
         "This is optional and defaults to the default julia environment.",
     )
-    parser.add_argument(
-        "-l",
-        "--linearization-segments",
-        type=int,
-        default=1,
-        help="The number of piecewise linear segments used to linearize cost curves. "
-        "This is optional and defaults to one.",
-    )
 
     # For backwards compatability with PowerSimData
     parser.add_argument(

@@ -21,11 +21,7 @@ function save_input_mat(
     mdi = Dict("mpc" => mpc)
 
     # Save modifications to gen
-    mpc["gen"][:, gen_PMIN] = case.gen_pmin
     mpc["gen"][:, gen_RAMP_30] = case.gen_ramp30
-    # Save modifications to gencost table
-    mpc["gencost"] = case.gencost
-    mpc["gencost_orig"] = case.gencost_orig
 
     # Save storage details in mpc.[gencost, genfuel, gencost] and in 'Storage'
     if size(storage.gen, 1) > 0
