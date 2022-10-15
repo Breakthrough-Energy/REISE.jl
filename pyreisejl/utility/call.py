@@ -1,8 +1,7 @@
 import os
-import pickle
 
 from pyreisejl.utility import const, parser
-from pyreisejl.utility.converters import create_case_mat
+from pyreisejl.utility.converters import pkl_to_case_mat, pkl_to_csv
 from pyreisejl.utility.extract_data import extract_scenario
 from pyreisejl.utility.helpers import (
     WrongNumberOfArguments,
@@ -26,65 +25,6 @@ def _record_scenario(scenario_id, runtime):
     hours, minutes, _ = sec2hms(runtime)
     insert_in_file(
         const.SCENARIO_LIST, scenario_id, "runtime", "%d:%02d" % (hours, minutes)
-    )
-
-
-cols = {
-    "branch": ["branch_id", "from_bus_id", "to_bus_id", "x", "rateA"],
-    "dcline": ["dcline_id", "from_bus_id", "to_bus_id", "Pmin", "Pmax"],
-    "bus": ["bus_id", "Pd", "zone_id"],
-    "plant": [
-        "plant_id",
-        "bus_id",
-        "status",
-        "Pmin",
-        "Pmax",
-        "type",
-        "ramp_30",
-        "GenFuelCost",
-        "GenIOB",
-        "GenIOC",
-        "GenIOD",
-    ],
-}
-
-drop_cols = {"gencost": ["plant_id", "interconnect"]}
-
-
-def _save(path, name, df):
-    df = df.reset_index()
-    df = df.loc[:, cols.get(name, df.columns)]
-    df = df.drop(drop_cols.get(name, []), axis=1)
-    df.to_csv(os.path.join(path, f"{name}.csv"), index=False)
-
-
-def _save_storage(path, name, df):
-    df.to_csv(os.path.join(path, f"{name}.csv"), index=False)
-
-
-def pkl_to_csv(path):
-    with open(os.path.join(path, "grid.pkl"), "rb") as f:
-        grid = pickle.load(f)
-    _save(path, "branch", grid.branch)
-    _save(path, "dcline", grid.dcline)
-    _save(path, "bus", grid.bus)
-    _save(path, "plant", grid.plant)
-    _save(path, "gencost", grid.gencost["before"])
-
-    storage = grid.storage
-    if not storage["gen"].empty:
-        _save_storage(path, "StorageData", storage["StorageData"])
-        _save_storage(path, "storage_gen", storage["gen"])
-
-
-def pkl_to_case_mat(path):
-    with open(os.path.join(path, "grid.pkl"), "rb") as f:
-        grid = pickle.load(f)
-
-    _, _ = create_case_mat(
-        grid,
-        filepath=os.path.join(path, "case.mat"),
-        storage_filepath=os.path.join(path, "case_storage.mat"),
     )
 
 
