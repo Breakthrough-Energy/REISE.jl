@@ -198,9 +198,13 @@ function _make_sets(
         csv_flexible_bus_idx = [bus_id2idx[bus] for bus in csv_flexible_bus_id]
 
         # all flexible buses
-        flexible_bus_idx = sort([
-            i for i in union(doe_flexible_bus_idx, csv_flexible_bus_idx)
-        ])
+        if !isnothing(doe_flexible_bus_idx)
+            flexible_bus_idx = sort([
+                i for i in union(doe_flexible_bus_idx, csv_flexible_bus_idx)
+            ])
+        else
+            flexible_bus_idx = sort(csv_flexible_bus_idx)
+        end
         num_flexible_bus = length(flexible_bus_idx)
         flexible_load_bus_map = sparse(
             flexible_bus_idx, 1:num_flexible_bus, 1, num_bus, num_flexible_bus

@@ -175,33 +175,6 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
     # Prevent the rolling_balance constraint according to the duration parameter
     demand_flexibility["rolling_balance"] &= !(demand_flexibility["duration"] == interval)
 
-    # Try loading DOE flexibility profile if enabled
-    demand_flexibility["doe_flex_amt"] = nothing
-    if demand_flexibility["enable_doe_flexibility"] == true && demand_flexibility["enabled"]
-        try
-            # check if DOE data is present, if not, download from BLOB server
-            if !isfile(joinpath(filepath, "doe_flexibility_2016.csv"))
-                println(
-                    "DOE flexibility data is enabled, but a local copy " *
-                    "is not present. Downloading data from BLOB storage..",
-                )
-                @sync download(
-                    "https://besciences.blob.core.windows.net/datasets/" *
-                    "demand_flexibility_doe/doe_flexibility_2016.csv",
-                    joinpath(filepath, "doe_flexibility_2016.csv"),
-                )
-                println("Successfully downloaded DOE flexibility file.")
-            end
-            # read local file
-            demand_flexibility["doe_flex_amt"] = DataFrames.DataFrame(
-                CSV.File(joinpath(filepath, "doe_flexibility_2016.csv"))
-            )
-            println("...loading DOE demand flexibility profiles")
-        catch e
-            println("DOE demand flexibility profile not found on BLOB storage")
-        end
-    end
-
     # Try loading the demand flexibility and demand flexibility cost profiles
     for s in ["up", "dn"]
         # Pre-specify the demand flexibility and demand flexibility cost profiles
@@ -216,6 +189,10 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
                     CSV.File(joinpath(filepath, "demand_flexibility_" * s * ".csv"))
                 )
                 println("...loading demand flexibility " * s * " profiles")
+                println(
+                    "Flexibility profiles in user-provided csvs will overide " *
+                    "DOE profiles for affected buses or load zones!",
+                )
             catch e
                 println("Demand flexibility " * s * " profile not found in " * filepath)
             end
@@ -269,6 +246,33 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
                 )
             end
             demand_flexibility["enabled"] = false
+        end
+    end
+
+    # Try loading DOE flexibility profile if enabled
+    demand_flexibility["doe_flex_amt"] = nothing
+    if demand_flexibility["enable_doe_flexibility"] == true && demand_flexibility["enabled"]
+        try
+            # check if DOE data is present, if not, download from BLOB server
+            if !isfile(joinpath(filepath, "doe_flexibility_2016.csv"))
+                println(
+                    "DOE flexibility data is enabled, but a local copy " *
+                    "is not present. Downloading data from BLOB storage..",
+                )
+                @sync download(
+                    "https://besciences.blob.core.windows.net/datasets/" *
+                    "demand_flexibility_doe/doe_flexibility_2016.csv",
+                    joinpath(filepath, "doe_flexibility_2016.csv"),
+                )
+                println("Successfully downloaded DOE flexibility file.")
+            end
+            # read local file
+            demand_flexibility["doe_flex_amt"] = DataFrames.DataFrame(
+                CSV.File(joinpath(filepath, "doe_flexibility_2016.csv"))
+            )
+            println("...loading DOE demand flexibility profiles")
+        catch e
+            println("DOE demand flexibility profile not found on BLOB storage")
         end
     end
 
@@ -519,10 +523,14 @@ function reformat_demand_flexibility_input(
                 csv_flexible_bus_id = [parse(Int64, bus) for bus in csv_flexible_bus_str]
                 csv_flexible_bus_idx = [sets.bus_id2idx[bus] for bus in csv_flexible_bus_id]
 
-                # all flexible buses
-                flex_bus_idx = sort([
-                    i for i in union(doe_flexible_bus_idx, csv_flexible_bus_idx)
-                ])
+                # all flexible buse
+                if !isnothing(doe_flexible_bus_idx)
+                    flex_bus_idx = sort([
+                        i for i in union(doe_flexible_bus_idx, csv_flexible_bus_idx)
+                    ])
+                else
+                    flex_bus_idx = sort(csv_flexible_bus_idx)
+                end
 
                 new_demand_flex_cost = zeros(size(converted_zone_cost, 1), sets.num_bus)
                 for i in 1:length(flex_bus_idx)
@@ -559,7 +567,6 @@ function reformat_demand_flexibility_input(
 
         # bus flexibility Percentage matrix
         doe_bus_flexibility = zeros(size(case.demand, 1), flexible_bus_num)
-        doe_eiaid = [parse(Int, x) for x in names(demand_flex_field)[2:end]]
         for i in 1:flexible_bus_num
             doe_bus_flexibility[:, i] = demand_flex_field[
                 !, Symbol(case.bus_eiaid[flexible_bus_idx[i]])
