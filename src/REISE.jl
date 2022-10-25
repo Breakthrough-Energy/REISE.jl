@@ -74,7 +74,6 @@ function run_scenario(;
             case, demand_flexibility, sets
         )
     end
-    save_input_mat(case, storage, inputfolder, outputfolder)
     # Create final model kwargs by merging defaults with user-specified
     default_model_kwargs = Dict(
         "case" => case,

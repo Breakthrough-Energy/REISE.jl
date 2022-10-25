@@ -38,10 +38,10 @@ function read_case(filepath)
     case["gen_ramp30"] = convert(Array{Float64,1}, plant.ramp_30)
 
     # Generator costs
-    gencost = DataFrames.DataFrame(CSV.File(joinpath(filepath, "gencost.csv")))
-    case["gencost"] = convert(Matrix{Float64}, gencost)
-    gencost_orig = DataFrames.DataFrame(CSV.File(joinpath(filepath, "gencost_orig.csv")))
-    case["gencost_orig"] = convert(Matrix{Float64}, gencost_orig)
+    case["gencost"] = DataFrames.DataFrame(CSV.File(joinpath(filepath, "gencost.csv")))
+    case["gencost_orig"] = DataFrames.DataFrame(
+        CSV.File(joinpath(filepath, "gencost_orig.csv"))
+    )
 
     # Load all relevant profile data from CSV files
     println("...loading demand.csv")

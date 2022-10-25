@@ -26,8 +26,8 @@ Base.@kwdef struct Case
     gen_pmin::Array{Float64,1}
     gen_ramp30::Array{Float64,1}
 
-    gencost::Array{Float64,2}
-    gencost_orig::Array{Float64,2}
+    gencost::DataFrames.DataFrame
+    gencost_orig::DataFrames.DataFrame
 
     demand::DataFrames.DataFrame
     hydro::DataFrames.DataFrame

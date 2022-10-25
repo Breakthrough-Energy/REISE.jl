@@ -1,11 +1,12 @@
 import glob
 import os
+import pickle
 import re
+import shutil
 import time
 
 import numpy as np
 import pandas as pd
-from scipy.io import loadmat, savemat
 from tqdm import tqdm
 
 from pyreisejl.utility import const, parser
@@ -18,25 +19,16 @@ from pyreisejl.utility.helpers import (
 )
 
 
-def copy_input(execute_dir, mat_dir=None, scenario_id=None):
-    """Copies Julia-saved input matfile (input.mat), converting matfile from v7.3 to v7 on the way.
+def copy_input(execute_dir, scenario_id):
+    """Copies grid.pkl to the input folder
 
     :param str execute_dir: the directory containing the original input file
-    :param str mat_dir: the optional directory to which to save the converted input file, Defaults to execute_dir
     :param str filename: optional name for the copied input.mat file. Defaults to "grid.mat"
     """
-    if not mat_dir:
-        mat_dir = execute_dir
-
-    src = os.path.join(execute_dir, "input.mat")
-
-    filename = scenario_id + "_grid.mat" if scenario_id else "grid.mat"
-    dst = os.path.join(mat_dir, filename)
-    print("loading and parsing input.mat")
-    input_mpc = load_mat73(src)
-    print(f"saving converted input.mat as {filename}")
-    savemat(dst, input_mpc, do_compression=True)
-
+    src = os.path.join(execute_dir, "grid.pkl")
+    filename = scenario_id + "_grid.pkl"
+    dst = os.path.join(const.INPUT_DIR, filename)
+    shutil.copy(src, dst)
     return dst
 
 
@@ -217,36 +209,37 @@ def build_log(mat_results, costs, output_dir, scenario_id=None):
             log.write(",".join([str(val) for val in log_vals]) + "\n")
 
 
-def _get_outputs_from_converted(matfile):
+def _get_outputs_from_converted(grid_path):
     """Get output id for each applicate output.
 
-    :param dict matfile: dictionary representing the converted input.mat file outputted by REISE.jl
+    :param dict grid_path: path to the grid.pkl
     :return: (*dict*) -- dictionary of {output_name: column_indices}
     """
 
-    case = matfile["mdi"]
+    with open(grid_path, "rb") as f:
+        grid = pickle.load(f)
 
     outputs_id = {
-        "pg": case.mpc.genid,
-        "pf": case.mpc.branchid,
-        "lmp": case.mpc.bus[:, 0].astype(np.int64),
-        "load_shed": case.mpc.bus[:, 0].astype(np.int64),
-        "load_shift_up": case.mpc.bus[:, 0].astype(np.int64),
-        "load_shift_dn": case.mpc.bus[:, 0].astype(np.int64),
-        "congu": case.mpc.branchid,
-        "congl": case.mpc.branchid,
+        "pg": grid.plant.plant_id,
+        "pf": grid.branch.branch_id,
+        "lmp": grid.bus.bus_id,
+        "load_shed": grid.bus.bus_id,
+        "load_shift_up": grid.bus.bus_id,
+        "load_shift_dn": grid.bus.bus_id,
+        "congu": grid.branch.branch_id,
+        "congl": grid.branch.branch_id,
     }
 
     try:
         # If DC lines are present in the input file, use their indices
-        outputs_id["pf_dcline"] = case.mpc.dclineid
+        outputs_id["pf_dcline"] = grid.dcline.dclineid
         outputs_id["trans_viol"] = np.concatenate(
-            [case.mpc.branchid, case.mpc.dclineid]
+            [grid.branch.branch_id, grid.dcline.dclineid]
         )
     except AttributeError:
-        outputs_id["trans_viol"] = case.mpc.branchid
+        outputs_id["trans_viol"] = grid.branch.branch_id
     try:
-        storage_index = case.Storage.UnitIdx
+        storage_index = grid.storage["StorageData"].UnitIdx
         num_storage = 1 if isinstance(storage_index, float) else len(storage_index)
         outputs_id["storage_pg"] = np.arange(num_storage)
         outputs_id["storage_e"] = np.arange(num_storage)
@@ -271,14 +264,14 @@ def _cast_keys_as_lists(dictionary):
             dictionary[key] = value.tolist()
 
 
-def _update_outputs_labels(outputs, start_date, end_date, freq, matfile):
+def _update_outputs_labels(outputs, start_date, end_date, freq, grid_path):
     """Updates outputs with the correct date index and column names
 
     :param dict outputs: dictionary of pandas.DataFrames outputted by extract_data
     :param str start_date: start date used for the simulation
     :param str end_date: end date used for the simulation
     :param str freq: the frequency of timestamps in the input profiles as a pandas frequency alias
-    :param dict matfile: dictionary representing the converted input.mat file outputted by REISE.jl
+    :param str grid_path: path to grid.pkl
     """
     # Set index of data frame
     start_ts = validate_time_format(start_date)
@@ -286,7 +279,7 @@ def _update_outputs_labels(outputs, start_date, end_date, freq, matfile):
 
     date_range = pd.date_range(start_ts, end_ts, freq=freq)
 
-    outputs_id = _get_outputs_from_converted(matfile)
+    outputs_id = _get_outputs_from_converted(grid_path)
 
     for k in outputs:
         outputs[k].index = date_range
@@ -301,7 +294,6 @@ def extract_scenario(
     end_date,
     scenario_id=None,
     output_dir=None,
-    mat_dir=None,
     freq="H",
     keep_mat=True,
 ):
@@ -312,16 +304,13 @@ def extract_scenario(
     :param str end_date: the end date of the simulation run
     :param str scenario_id: optional identifier for the scenario, used to label output files
     :param str output_dir: optional directory in which to store the outputs. defaults to the execute_dir
-    :param str mat_dir: optional directory in which to store the converted grid.mat file. defaults to the execute_dir
     :param bool keep_mat: optional parameter to keep the large result*.mat files after the data has been extracted. Defaults to True.
     """
 
     # If output or input dir were not specified, default to the execute_dir
     output_dir = output_dir or execute_dir
-    mat_dir = mat_dir or execute_dir
 
-    # Copy input.mat from REISE.jl and convert to .mat v7 for scipy compatibility
-    converted_mat_path = copy_input(execute_dir, mat_dir, scenario_id)
+    grid_path = copy_input(execute_dir, scenario_id)
 
     # Extract outputs, infeasibilities, cost
     mat_results = glob.glob(os.path.join(execute_dir, "result_*.mat"))
@@ -333,8 +322,7 @@ def extract_scenario(
     build_log(mat_results, cost, output_dir, scenario_id)
 
     # Update outputs with date indices from the copied input.mat file
-    matfile = loadmat(converted_mat_path, squeeze_me=True, struct_as_record=False)
-    _update_outputs_labels(outputs, start_date, end_date, freq, matfile)
+    _update_outputs_labels(outputs, start_date, end_date, freq, grid_path)
 
     # Save pickles
     pkl_path = _get_pkl_path(output_dir, scenario_id)
@@ -375,7 +363,6 @@ if __name__ == "__main__":
             args.scenario_id
         )
 
-        args.matlab_dir = const.INPUT_DIR
         args.output_dir = const.OUTPUT_DIR
 
     # Check to make sure all necessary arguments are there
@@ -392,7 +379,6 @@ if __name__ == "__main__":
         args.end_date,
         args.scenario_id,
         args.output_dir,
-        args.matlab_dir,
         args.frequency,
         args.keep_matlab,
     )

@@ -1,7 +1,7 @@
 import os
 
 from pyreisejl.utility import const, parser
-from pyreisejl.utility.converters import pkl_to_case_mat, pkl_to_csv
+from pyreisejl.utility.converters import pkl_to_csv
 from pyreisejl.utility.extract_data import extract_scenario
 from pyreisejl.utility.helpers import (
     WrongNumberOfArguments,
@@ -41,7 +41,6 @@ def main(args):
         args.execute_dir = scenario_args[4]
 
         pkl_to_csv(args.input_dir)
-        pkl_to_case_mat(args.input_dir)
 
         # Update status in ExecuteList.csv on server
         insert_in_file(const.EXECUTE_LIST, args.scenario_id, "status", "running")
@@ -70,7 +69,6 @@ def main(args):
     # If using PowerSimData, record the runtime
     if args.scenario_id:
         _record_scenario(args.scenario_id, runtime)
-        args.matlab_dir = const.INPUT_DIR
         args.output_dir = const.OUTPUT_DIR
 
     if args.extract_data:
@@ -83,7 +81,6 @@ def main(args):
             args.end_date,
             scenario_id=args.scenario_id,
             output_dir=args.output_dir,
-            mat_dir=args.matlab_dir,
             keep_mat=args.keep_matlab,
         )
 

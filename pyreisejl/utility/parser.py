@@ -61,13 +61,6 @@ def parse_call_args():
         "to the execute directory. This flag is only used if the extract-data flag is set.",
     )
     parser.add_argument(
-        "-m",
-        "--matlab-dir",
-        help="The directory to store the modified case.mat used by the engine. "
-        "This is optional and defaults to the execute directory. "
-        "This flag is only used if the extract-data flag is set.",
-    )
-    parser.add_argument(
         "-k",
         "--keep-matlab",
         action="store_true",
@@ -129,14 +122,6 @@ def parse_extract_args():
         default=None,
         help="The directory to store the results. This is optional and defaults "
         "to the execute directory.",
-    )
-    parser.add_argument(
-        "-m",
-        "--matlab-dir",
-        nargs="?",
-        default=None,
-        help="The directory to store the modified case.mat used by the engine. "
-        "This is optional and defaults to the execute directory.",
     )
     parser.add_argument(
         "-f",

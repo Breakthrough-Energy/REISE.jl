@@ -137,11 +137,6 @@ The full list of arguments can be accessed via :bash:`pyreisejl/utility/call.py 
                             The directory to store the extracted data. This is optional
                             and defaults to the execute directory. This flag is only
                             used if the extract-data flag is set.
-      -m MATLAB_DIR, --matlab-dir MATLAB_DIR
-                            The directory to store the modified case.mat used by the
-                            engine. This is optional and defaults to the execute
-                            directory. This flag is only used if the extract-data flag
-                            is set.
       -k, --keep-matlab     The result.mat files found in the execute directory will be
                             kept instead of deleted after extraction. This flag is only
                             used if the extract-data flag is set.
@@ -202,10 +197,6 @@ The full list of arguments can be accessed via
       -o [OUTPUT_DIR], --output-dir [OUTPUT_DIR]
                             The directory to store the results. This is optional and
                             defaults to the execute directory.
-      -m [MATLAB_DIR], --matlab-dir [MATLAB_DIR]
-                            The directory to store the modified case.mat used by the
-                            engine. This is optional and defaults to the execute
-                            directory.
       -f [FREQUENCY], --frequency [FREQUENCY]
                             The frequency of data points in the original profile csvs
                             as a Pandas frequency string. This is optional and defaults
