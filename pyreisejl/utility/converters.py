@@ -32,6 +32,7 @@ def create_case_mat(grid, filepath=None, storage_filepath=None):
     bus = grid.bus.copy()
     busid = bus.index.values[np.newaxis].T
     bus.reset_index(level=0, inplace=True)
+    bus.drop(columns=["interconnect", "lat", "lon"], inplace=True)
     mpc["mpc"]["bus"] = bus.values
     mpc["mpc"]["busid"] = busid
 
@@ -72,6 +73,21 @@ def create_case_mat(grid, filepath=None, storage_filepath=None):
     branchid = branch.index.values[np.newaxis].T
     branchdevicetype = branch.branch_device_type.values[np.newaxis].T
     branch.reset_index(inplace=True, drop=True)
+    branch.drop(
+        columns=[
+            "interconnect",
+            "from_lat",
+            "from_lon",
+            "to_lat",
+            "to_lon",
+            "from_zone_id",
+            "to_zone_id",
+            "from_zone_name",
+            "to_zone_name",
+            "branch_device_type",
+        ],
+        inplace=True,
+    )
     mpc["mpc"]["branch"] = branch.values
     mpc["mpc"]["branchid"] = branchid
     mpc["mpc"]["branchdevicetype"] = branchdevicetype
@@ -87,6 +103,7 @@ def create_case_mat(grid, filepath=None, storage_filepath=None):
         dcline = grid.dcline.copy()
         dclineid = dcline.index.values[np.newaxis].T
         dcline.reset_index(inplace=True, drop=True)
+        dcline.drop(columns=["from_interconnect", "to_interconnect"], inplace=True)
         mpc["mpc"]["dcline"] = dcline.values
         mpc["mpc"]["dclineid"] = dclineid
 
