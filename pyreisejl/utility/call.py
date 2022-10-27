@@ -1,5 +1,3 @@
-import os
-
 from pyreisejl.utility import const, parser
 from pyreisejl.utility.converters import pkl_to_csv
 from pyreisejl.utility.extract_data import extract_scenario
@@ -69,18 +67,13 @@ def main(args):
     # If using PowerSimData, record the runtime
     if args.scenario_id:
         _record_scenario(args.scenario_id, runtime)
-        args.output_dir = const.OUTPUT_DIR
 
     if args.extract_data:
-        if not args.execute_dir:
-            args.execute_dir = os.path.join(args.input_dir, "output")
-
         extract_scenario(
-            args.execute_dir,
+            args.input_dir,
             args.start_date,
             args.end_date,
             scenario_id=args.scenario_id,
-            output_dir=args.output_dir,
             keep_mat=args.keep_matlab,
         )
 

@@ -220,24 +220,24 @@ def _get_outputs_from_converted(grid_path):
         grid = pickle.load(f)
 
     outputs_id = {
-        "pg": grid.plant.plant_id,
-        "pf": grid.branch.branch_id,
-        "lmp": grid.bus.bus_id,
-        "load_shed": grid.bus.bus_id,
-        "load_shift_up": grid.bus.bus_id,
-        "load_shift_dn": grid.bus.bus_id,
-        "congu": grid.branch.branch_id,
-        "congl": grid.branch.branch_id,
+        "pg": grid.plant.index,
+        "pf": grid.branch.index,
+        "lmp": grid.bus.index,
+        "load_shed": grid.bus.index,
+        "load_shift_up": grid.bus.index,
+        "load_shift_dn": grid.bus.index,
+        "congu": grid.branch.index,
+        "congl": grid.branch.index,
     }
 
     try:
         # If DC lines are present in the input file, use their indices
-        outputs_id["pf_dcline"] = grid.dcline.dclineid
+        outputs_id["pf_dcline"] = grid.dcline.index
         outputs_id["trans_viol"] = np.concatenate(
-            [grid.branch.branch_id, grid.dcline.dclineid]
+            [grid.branch.index, grid.dcline.index]
         )
     except AttributeError:
-        outputs_id["trans_viol"] = grid.branch.branch_id
+        outputs_id["trans_viol"] = grid.branch.index
     try:
         storage_index = grid.storage["StorageData"].UnitIdx
         num_storage = 1 if isinstance(storage_index, float) else len(storage_index)
@@ -289,31 +289,28 @@ def _update_outputs_labels(outputs, start_date, end_date, freq, grid_path):
 
 
 def extract_scenario(
-    execute_dir,
+    input_dir,
     start_date,
     end_date,
     scenario_id=None,
-    output_dir=None,
     freq="H",
     keep_mat=True,
 ):
     """Extracts data and save data as pickle files to the output directory
 
-    :param str execute_dir: directory containing all of the result.mat files from REISE.jl
+    :param str input_dir: tmp/scenario_*
     :param str start_date: the start date of the simulation run
     :param str end_date: the end date of the simulation run
     :param str scenario_id: optional identifier for the scenario, used to label output files
-    :param str output_dir: optional directory in which to store the outputs. defaults to the execute_dir
     :param bool keep_mat: optional parameter to keep the large result*.mat files after the data has been extracted. Defaults to True.
     """
 
-    # If output or input dir were not specified, default to the execute_dir
-    output_dir = output_dir or execute_dir
+    output_dir = const.OUTPUT_DIR
 
-    grid_path = copy_input(execute_dir, scenario_id)
+    grid_path = copy_input(input_dir, scenario_id)
 
     # Extract outputs, infeasibilities, cost
-    mat_results = glob.glob(os.path.join(execute_dir, "result_*.mat"))
+    mat_results = glob.glob(os.path.join(input_dir, "output", "result_*.mat"))
     mat_results = sorted(mat_results, key=result_num)
 
     outputs, infeasibilities, cost = extract_data(mat_results)
@@ -359,26 +356,21 @@ if __name__ == "__main__":
 
     # Get scenario info if using PowerSimData
     if args.scenario_id:
-        args.start_date, args.end_date, _, _, args.execute_dir = get_scenario(
+        args.start_date, args.end_date, _, args.input_dir, _ = get_scenario(
             args.scenario_id
         )
 
-        args.output_dir = const.OUTPUT_DIR
-
     # Check to make sure all necessary arguments are there
-    # (start_date, end_date, execute_dir)
-    if not (args.start_date and args.end_date and args.execute_dir):
-        err_str = (
-            "The following arguments are required: start-date, end-date, execute-dir"
-        )
+    # (start_date, end_date)
+    if not (args.start_date and args.end_date):
+        err_str = "The following arguments are required: start-date, end-date"
         raise WrongNumberOfArguments(err_str)
 
     extract_scenario(
-        args.execute_dir,
+        args.input_dir,
         args.start_date,
         args.end_date,
         args.scenario_id,
-        args.output_dir,
         args.frequency,
         args.keep_matlab,
     )
