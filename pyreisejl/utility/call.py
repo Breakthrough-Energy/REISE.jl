@@ -36,7 +36,6 @@ def main(args):
         args.end_date = scenario_args[1]
         args.interval = scenario_args[2]
         args.input_dir = scenario_args[3]
-        args.execute_dir = scenario_args[4]
 
         pkl_to_csv(args.input_dir)
 
@@ -58,7 +57,6 @@ def main(args):
         args.end_date,
         args.interval,
         args.input_dir,
-        execute_dir=args.execute_dir,
         threads=args.threads,
         julia_env=args.julia_env,
     )

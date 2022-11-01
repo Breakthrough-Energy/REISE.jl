@@ -27,15 +27,8 @@ def parse_call_args():
         "-i",
         "--input-dir",
         help="The directory containing the input data files. "
-        "Required files are 'case.mat', 'demand.csv', "
+        "Required files are 'grid.pkl', 'demand.csv', "
         "'hydro.csv', 'solar.csv', and 'wind.csv'.",
-    )
-    parser.add_argument(
-        "-x",
-        "--execute-dir",
-        help="The directory to store the results. This is optional and defaults "
-        "to an execute folder that will be created in the input directory "
-        "if it does not exist.",
     )
     parser.add_argument(
         "-t",
@@ -58,7 +51,7 @@ def parse_call_args():
         "-o",
         "--output-dir",
         help="The directory to store the extracted data. This is optional and defaults "
-        "to the execute directory. This flag is only used if the extract-data flag is set.",
+        "to a folder in the input directory. This flag is only used if the extract-data flag is set.",
     )
     parser.add_argument(
         "-k",
@@ -111,17 +104,12 @@ def parse_extract_args():
         " 'YYYY-MM-DD', 'YYYY-MM-DD HH', 'YYYY-MM-DD HH:MM', or 'YYYY-MM-DD HH:MM:SS'.",
     )
     parser.add_argument(
-        "-x",
-        "--execute-dir",
-        help="The directory where the REISE.jl results are stored.",
-    )
-    parser.add_argument(
         "-o",
         "--output-dir",
         nargs="?",
         default=None,
         help="The directory to store the results. This is optional and defaults "
-        "to the execute directory.",
+        "to a folder in the input directory.",
     )
     parser.add_argument(
         "-f",

@@ -93,7 +93,7 @@ The full list of arguments can be accessed via :bash:`pyreisejl/utility/call.py 
 .. code-block:: text
 
    usage: call.py [-h] [-s START_DATE] [-e END_DATE] [-int INTERVAL] [-i INPUT_DIR]
-   [-x EXECUTE_DIR] [-t THREADS] [-d] [-o OUTPUT_DIR] [-m MATLAB_DIR] [-k]
+   [-t THREADS] [-d] [-o OUTPUT_DIR] [-k]
    [--solver SOLVER] [-j JULIA_ENV] [-l LINEARIZATION_SEGMENTS]
    [scenario_id]
 
@@ -120,10 +120,6 @@ The full list of arguments can be accessed via :bash:`pyreisejl/utility/call.py 
                             The directory containing the input data files. Required
                             files are 'case.mat', 'demand.csv', 'hydro.csv',
                             'solar.csv', and 'wind.csv'.
-      -x EXECUTE_DIR, --execute-dir EXECUTE_DIR
-                            The directory to store the results. This is optional and
-                            defaults to an execute folder that will be created in the
-                            input directory if it does not exist.
       -t THREADS, --threads THREADS
                             The number of threads to run the simulation with. This is
                             optional and defaults to Auto.
@@ -147,8 +143,7 @@ The full list of arguments can be accessed via :bash:`pyreisejl/utility/call.py 
                             REISE.jl. This is optional and defaults to the default
                             julia environment.
 
-As you can see, it is possible to save the output **.mat** files to a different
-directory through ``--execute-dir``. Also, different solvers can be used (``--solver``).
+Different solvers can be used (``--solver``).
 
 There is another optional flag that specifies the number of threads to use for the
 simulation run in Gurobi (``--threads``). If the number of threads specified is higher
@@ -175,7 +170,7 @@ The full list of arguments can be accessed via
 
 .. code-block:: text
 
-   usage: extract_data.py [-h] [-s START_DATE] [-e END_DATE] [-x EXECUTE_DIR] [-o [OUTPUT_DIR]] [-m [MATLAB_DIR]] [-f [FREQUENCY]] [-k] [scenario_id]
+   usage: extract_data.py [-h] [-s START_DATE] [-e END_DATE] [-o [OUTPUT_DIR]] [-f [FREQUENCY]] [-k] [scenario_id]
 
    Extract data from the results of the REISE.jl simulation.
 
@@ -192,8 +187,6 @@ The full list of arguments can be accessed via
                             The end date as provided to run the simulation. Supported
                             formats are 'YYYY-MM-DD', 'YYYY-MM-DD HH', 'YYYY-MM-DD
                             HH:MM', or 'YYYY-MM-DD HH:MM:SS'.
-      -x EXECUTE_DIR, --execute-dir EXECUTE_DIR
-                            The directory where the REISE.jl results are stored.
       -o [OUTPUT_DIR], --output-dir [OUTPUT_DIR]
                             The directory to store the results. This is optional and
                             defaults to the execute directory.

@@ -19,14 +19,16 @@ from pyreisejl.utility.helpers import (
 )
 
 
-def copy_input(execute_dir, scenario_id):
+def copy_input(execute_dir, scenario_id=None):
     """Copies grid.pkl to the input folder
 
     :param str execute_dir: the directory containing the original input file
-    :param str filename: optional name for the copied input.mat file. Defaults to "grid.mat"
+    :param str scenario_id: the scenario id, if applicable
+    :return: (*str*) -- the destination path of grid.pkl
     """
     src = os.path.join(execute_dir, "grid.pkl")
-    filename = scenario_id + "_grid.pkl"
+    prepend = f"{scenario_id}_" if scenario_id else ""
+    filename = prepend + "grid.pkl"
     dst = os.path.join(const.INPUT_DIR, filename)
     shutil.copy(src, dst)
     return dst
@@ -36,7 +38,7 @@ def result_num(filename):
     """Parses the number out of a filename in the format *result_{number}.mat
 
     :param str filename: the filename from which to extract the result number
-    :return: (*int*) the result number
+    :return: (*int*) -- the result number
     """
     match = re.match(r".*?result_(?P<num>\d+)\.mat$", filename)
 
@@ -171,11 +173,10 @@ def _get_pkl_path(output_dir, scenario_id=None):
 
     :param str output_dir: the directory to save all the .pkl files
     :param str scenario_id: optional scenario ID number to prepend to each pickle file. Defaults to None.
-    :return: (*func*) a function that take a (*str*) attribute name
-    and returns a (*str*) path to the .pkl where it should be saved
+    :return: (*func*) -- a function that take a (*str*) attribute name
+        and returns a (*str*) path to the .pkl where it should be saved
     """
-    prepend = scenario_id + "_" if scenario_id else ""
-
+    prepend = f"{scenario_id}_" if scenario_id else ""
     return lambda x: os.path.join(output_dir, prepend + x.upper() + ".pkl")
 
 
@@ -212,10 +213,9 @@ def build_log(mat_results, costs, output_dir, scenario_id=None):
 def _get_outputs_from_converted(grid_path):
     """Get output id for each applicate output.
 
-    :param dict grid_path: path to the grid.pkl
+    :param str grid_path: path to the grid.pkl
     :return: (*dict*) -- dictionary of {output_name: column_indices}
     """
-
     with open(grid_path, "rb") as f:
         grid = pickle.load(f)
 
@@ -278,13 +278,11 @@ def _update_outputs_labels(outputs, start_date, end_date, freq, grid_path):
     end_ts = validate_time_format(end_date, end_date=True)
 
     date_range = pd.date_range(start_ts, end_ts, freq=freq)
-
     outputs_id = _get_outputs_from_converted(grid_path)
 
     for k in outputs:
         outputs[k].index = date_range
         outputs[k].index.name = "UTC"
-
         outputs[k].columns = outputs_id[k]
 
 
@@ -356,7 +354,7 @@ if __name__ == "__main__":
 
     # Get scenario info if using PowerSimData
     if args.scenario_id:
-        args.start_date, args.end_date, _, args.input_dir, _ = get_scenario(
+        args.start_date, args.end_date, _, args.input_dir = get_scenario(
             args.scenario_id
         )
 

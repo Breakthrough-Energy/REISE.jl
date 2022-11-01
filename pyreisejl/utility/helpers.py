@@ -167,7 +167,7 @@ def get_scenario(scenario_id):
     """Returns scenario information.
 
     :param int/str scenario_id: scenario index.
-    :return: (*tuple*) -- scenario start_date, end date, interval, input_dir, execute_dir
+    :return: (*tuple*) -- scenario start_date, end date, interval, input_dir
     """
     # Parses scenario info out of scenario list
     scenario_list = pd.read_csv(const.SCENARIO_LIST, dtype=str)
@@ -175,9 +175,8 @@ def get_scenario(scenario_id):
     scenario = scenario_list[scenario_list.id == str(scenario_id)]
     scenario_info = scenario.to_dict("records", into=OrderedDict)[0]
 
-    # Determine input and execute directory for data
+    # Determine input directory for data
     input_dir = os.path.join(const.EXECUTE_DIR, f"scenario_{scenario_id}")
-    execute_dir = os.path.join(input_dir, "output")
 
     # Grab start and end date for scenario
     start_date = scenario_info["start_date"]
@@ -186,7 +185,7 @@ def get_scenario(scenario_id):
     # Grab interval for scenario
     interval = int(scenario_info["interval"].split("H", 1)[0])
 
-    return start_date, end_date, interval, input_dir, execute_dir
+    return start_date, end_date, interval, input_dir
 
 
 def insert_in_file(filename, scenario_id, column_name, column_value):

@@ -24,8 +24,6 @@ class Launcher:
         where HH, MM, and SS are optional.
     :param int interval: length of each interval in hours
     :param str input_dir: directory with input data
-    :param str execute_dir: directory for execute data. None defaults to an execute
-        folder that will be created in the input directory
     :param int threads: number of threads to use. None defaults to letting the solver
         decide.
     :param dict solver_kwargs: keyword arguments to pass to solver (if any).
@@ -40,7 +38,6 @@ class Launcher:
         end_date,
         interval,
         input_dir,
-        execute_dir=None,
         threads=None,
         solver_kwargs=None,
         julia_env=None,
@@ -80,10 +77,10 @@ class Launcher:
         self.input_dir = input_dir
         print("Validation complete!")
         # These parameters are not validated
-        self.execute_dir = execute_dir
         self.threads = threads
         self.solver_kwargs = solver_kwargs
         self.julia_env = julia_env
+        self.execute_dir = os.path.join(self.input_dir, "output")
 
     def _print_settings(self):
         print("Launching scenario with parameters:")
@@ -93,7 +90,6 @@ class Launcher:
                 "n_interval": self.n_interval,
                 "start_index": self.start_index,
                 "input_dir": self.input_dir,
-                "execute_dir": self.execute_dir,
                 "threads": self.threads,
                 "julia_env": self.julia_env,
                 "solver_kwargs": self.solver_kwargs,
