@@ -50,6 +50,8 @@ def parse_call_args():
     parser.add_argument(
         "-o",
         "--output-dir",
+        nargs="?",
+        default=None,
         help="The directory to store the extracted data. This is optional and defaults "
         "to a folder in the input directory. This flag is only used if the extract-data flag is set.",
     )
@@ -102,6 +104,13 @@ def parse_extract_args():
         "--end-date",
         help="The end date as provided to run the simulation. Supported formats are"
         " 'YYYY-MM-DD', 'YYYY-MM-DD HH', 'YYYY-MM-DD HH:MM', or 'YYYY-MM-DD HH:MM:SS'.",
+    )
+    parser.add_argument(
+        "-i",
+        "--input-dir",
+        help="The directory containing the input data files. "
+        "Required files are 'grid.pkl', 'demand.csv', "
+        "'hydro.csv', 'solar.csv', and 'wind.csv'.",
     )
     parser.add_argument(
         "-o",

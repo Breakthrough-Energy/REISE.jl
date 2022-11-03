@@ -93,7 +93,7 @@ The full list of arguments can be accessed via :bash:`pyreisejl/utility/call.py 
 .. code-block:: text
 
    usage: call.py [-h] [-s START_DATE] [-e END_DATE] [-int INTERVAL] [-i INPUT_DIR]
-   [-t THREADS] [-d] [-o OUTPUT_DIR] [-k]
+   [-t THREADS] [-d] [-o [OUTPUT_DIR]] [-k]
    [--solver SOLVER] [-j JULIA_ENV]
    [scenario_id]
 
@@ -129,7 +129,7 @@ The full list of arguments can be accessed via :bash:`pyreisejl/utility/call.py 
                             will be deleted. The extraction process can be memory
                             intensive. This is optional and defaults to False if the
                             flag is omitted.
-      -o OUTPUT_DIR, --output-dir OUTPUT_DIR
+      -o [OUTPUT_DIR], --output-dir [OUTPUT_DIR]
                             The directory to store the extracted data. This is optional
                             and defaults to the execute directory. This flag is only
                             used if the extract-data flag is set.
@@ -163,14 +163,15 @@ were used to run the simulation:
 
 .. code-block:: bash
 
-   pyreisejl/utility/extract_data.py -s '2016-01-01' -e '2016-01-07' -o '/PATH/TO/OUTPUT/DATA'
+   pyreisejl/utility/extract_data.py -s '2016-01-01' -e '2016-01-07' -i '/PATH/TO/INPUT/DATA'
 
 The full list of arguments can be accessed via
 :bash:`pyreisejl/utility/extract-data.py --help`:
 
 .. code-block:: text
 
-   usage: extract_data.py [-h] [-s START_DATE] [-e END_DATE] [-o [OUTPUT_DIR]] [-f [FREQUENCY]] [-k] [scenario_id]
+   usage: extract_data.py [-h] [-s START_DATE] [-e END_DATE] [-i INPUT_DIR] [-o [OUTPUT_DIR]]
+   [-f [FREQUENCY]] [-k] [scenario_id]
 
    Extract data from the results of the REISE.jl simulation.
 
@@ -187,6 +188,10 @@ The full list of arguments can be accessed via
                             The end date as provided to run the simulation. Supported
                             formats are 'YYYY-MM-DD', 'YYYY-MM-DD HH', 'YYYY-MM-DD
                             HH:MM', or 'YYYY-MM-DD HH:MM:SS'.
+      -i INPUT_DIR, --input-dir INPUT_DIR
+                            The directory containing the input data files. Required
+                            files are 'case.mat', 'demand.csv', 'hydro.csv',
+                            'solar.csv', and 'wind.csv'.
       -o [OUTPUT_DIR], --output-dir [OUTPUT_DIR]
                             The directory to store the results. This is optional and
                             defaults to the execute directory.

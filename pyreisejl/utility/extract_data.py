@@ -26,9 +26,9 @@ def copy_input(input_dir, scenario_id=None):
     :param str scenario_id: the scenario id, if applicable
     :return: (*str*) -- the destination path of grid.pkl
     """
-    if scenario_id is None:
-        return
     src = os.path.join(input_dir, "grid.pkl")
+    if scenario_id is None:
+        return src
     dst = os.path.join(const.INPUT_DIR, f"{scenario_id}_grid.pkl")
     shutil.move(src, dst)
     return dst

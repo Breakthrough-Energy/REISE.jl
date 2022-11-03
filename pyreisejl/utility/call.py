@@ -42,20 +42,19 @@ def _ensure_required_args(args):
 def main(args):
     # If using PowerSimData, get scenario info, prepare grid data and update status
     if args.scenario_id:
-        # Get scenario info
         scenario_args = get_scenario(args.scenario_id)
-
         args.start_date = scenario_args[0]
         args.end_date = scenario_args[1]
         args.interval = scenario_args[2]
         args.input_dir = scenario_args[3]
-
-        pkl_to_csv(args.input_dir)
-
-        # Update status in ExecuteList.csv on server
-        insert_in_file(const.EXECUTE_LIST, args.scenario_id, "status", "running")
+        args.output_dir = const.OUTPUT_DIR
 
     _ensure_required_args(args)
+    pkl_to_csv(args.input_dir)
+
+    if args.scenario_id:
+        # Update status in ExecuteList.csv on server
+        insert_in_file(const.EXECUTE_LIST, args.scenario_id, "status", "running")
 
     # launch simulation
     launcher = get_launcher(args.solver)(
