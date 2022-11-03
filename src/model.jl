@@ -88,9 +88,9 @@ function _build_segment_slope(case::Case, segment_idx, segment_width)::Matrix
     segment_slope = zeros(length(case.genid), length(segment_idx))
     for i in segment_idx
         segment_slope[:, i] = (
-            (2 * case.gencost_orig.c2 .* case.gen_pmin) +
-            case.gencost_orig.c1 +
-            (2 * i - 1) * case.gencost_orig.c2 .* segment_width
+            (2 * case.gencost_before.c2 .* case.gen_pmin) +
+            case.gencost_before.c1 +
+            (2 * i - 1) * case.gencost_before.c2 .* segment_width
         )
     end
     return segment_slope
@@ -135,12 +135,12 @@ function _make_sets(
     num_solar = length(gen_solar_idx)
     num_hydro = length(gen_hydro_idx)
     # Generator cost curve segments
-    piecewise_enabled = (sum(case.gencost.type .== 1) > 0)
+    piecewise_enabled = (sum(case.gencost_after.type .== 1) > 0)
     @assert(
         piecewise_enabled,
         "No piecewise segments detected. " * "Did you forget to linearize_gencost?"
     )
-    num_segments = convert(Int, maximum(case.gencost.n)) - 1
+    num_segments = convert(Int, maximum(case.gencost_after.n)) - 1
     segment_idx = 1:num_segments
     # Demand flexibility, additional info for bus <--> load <--> flexible load conversion
     demand_flexibility_enabled =
@@ -504,7 +504,7 @@ function _add_objective_function!(
     storage_e0::Array{Float64,1},
     demand_flexibility::DemandFlexibility,
 )
-    fixed_cost = case.gencost.p1
+    fixed_cost = case.gencost_after.p1
     segment_width = (case.gen_pmax - case.gen_pmin) ./ sets.num_segments
     segment_slope = _build_segment_slope(case, sets.segment_idx, segment_width)
 

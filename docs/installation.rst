@@ -194,7 +194,7 @@ license file and another containing the necessary input files for the engine.
 
    docker run -it `
    -v /path/to/gurobi.lic:/usr/share/gurobi_license `
-   -v /path/to/input/data:/mnt/bes/pcm `
+   -v /path/to/input/data:/path/to/input/data `
    reisejl bash
 
 You are ready to run simulation as demonstrated in the :doc:`usage` section.

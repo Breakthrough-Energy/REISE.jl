@@ -26,7 +26,7 @@ def _record_scenario(scenario_id, runtime):
 
 def _ensure_required_args(args):
     """Check to make sure all necessary arguments are there:
-        (start_date, end_date, interval, input_dir)
+    (start_date, end_date, interval, input_dir)
 
     :param argparse.Namespace args: command line args
     :raises WrongNumberOfArguments: if not all required args present

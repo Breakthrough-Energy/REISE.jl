@@ -167,7 +167,7 @@ def get_scenario(scenario_id):
     """Returns scenario information.
 
     :param int/str scenario_id: scenario index.
-    :return: (*tuple*) -- scenario start_date, end date, interval, input_dir
+    :return: (*tuple*) -- scenario start_date, end_date, interval, input_dir
     """
     # Parses scenario info out of scenario list
     scenario_list = pd.read_csv(const.SCENARIO_LIST, dtype=str)

@@ -320,7 +320,7 @@ def extract_scenario(
     # Write log file with costs for each result*.mat file
     build_log(mat_results, cost, output_dir, scenario_id)
 
-    # Update outputs with date indices from the copied input.mat file
+    # Update outputs with date indices from the original grid.pkl
     _update_outputs_labels(outputs, start_date, end_date, freq, grid_path)
 
     pkl_path = _get_pkl_path(output_dir, scenario_id)

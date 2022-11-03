@@ -20,8 +20,8 @@ cols = {
     ],
 }
 
-drop_cols = {"gencost": ["plant_id", "interconnect"]}
-drop_cols["gencost_orig"] = drop_cols["gencost"]
+drop_cols = {"gencost_before": ["plant_id", "interconnect"]}
+drop_cols["gencost_after"] = drop_cols["gencost_before"]
 
 
 def _save(path, name, df):
@@ -42,8 +42,8 @@ def pkl_to_csv(path):
     _save(path, "dcline", grid.dcline)
     _save(path, "bus", grid.bus)
     _save(path, "plant", grid.plant)
-    _save(path, "gencost_orig", grid.gencost["before"])
-    _save(path, "gencost", grid.gencost["after"])
+    _save(path, "gencost_before", grid.gencost["before"])
+    _save(path, "gencost_after", grid.gencost["after"])
 
     storage = grid.storage
     if not storage["gen"].empty:

@@ -50,8 +50,6 @@ def parse_call_args():
     parser.add_argument(
         "-o",
         "--output-dir",
-        nargs="?",
-        default=None,
         help="The directory to store the extracted data. This is optional and defaults "
         "to a folder in the input directory. This flag is only used if the extract-data flag is set.",
     )
@@ -80,8 +78,6 @@ def parse_call_args():
     # For backwards compatability with PowerSimData
     parser.add_argument(
         "scenario_id",
-        nargs="?",
-        default=None,
         help="Scenario ID only if using PowerSimData. ",
     )
     return parser.parse_args()
@@ -115,15 +111,12 @@ def parse_extract_args():
     parser.add_argument(
         "-o",
         "--output-dir",
-        nargs="?",
-        default=None,
         help="The directory to store the results. This is optional and defaults "
         "to a folder in the input directory.",
     )
     parser.add_argument(
         "-f",
         "--frequency",
-        nargs="?",
         default="H",
         help="The frequency of data points in the original profile csvs as a "
         "Pandas frequency string. "
@@ -140,8 +133,6 @@ def parse_extract_args():
     # For backwards compatability with PowerSimData
     parser.add_argument(
         "scenario_id",
-        nargs="?",
-        default=None,
         help="Scenario ID only if using PowerSimData.",
     )
     return parser.parse_args()
