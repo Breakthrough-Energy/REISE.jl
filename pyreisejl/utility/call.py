@@ -16,14 +16,27 @@ def _record_scenario(scenario_id, runtime):
     :param str scenario_id: scenario index.
     :param int runtime: runtime of simulation in seconds.
     """
-
-    # Update status in ExecuteList.csv on server
     insert_in_file(const.EXECUTE_LIST, scenario_id, "status", "finished")
 
     hours, minutes, _ = sec2hms(runtime)
     insert_in_file(
         const.SCENARIO_LIST, scenario_id, "runtime", "%d:%02d" % (hours, minutes)
     )
+
+
+def _ensure_required_args(args):
+    """Check to make sure all necessary arguments are there:
+        (start_date, end_date, interval, input_dir)
+
+    :param argparse.Namespace args: command line args
+    :raises WrongNumberOfArguments: if not all required args present
+    """
+    if not (args.start_date and args.end_date and args.interval and args.input_dir):
+        err_str = (
+            "The following arguments are required: "
+            "start-date, end-date, interval, input-dir"
+        )
+        raise WrongNumberOfArguments(err_str)
 
 
 def main(args):
@@ -42,14 +55,7 @@ def main(args):
         # Update status in ExecuteList.csv on server
         insert_in_file(const.EXECUTE_LIST, args.scenario_id, "status", "running")
 
-    # Check to make sure all necessary arguments are there
-    # (start_date, end_date, interval, input_dir)
-    if not (args.start_date and args.end_date and args.interval and args.input_dir):
-        err_str = (
-            "The following arguments are required: "
-            "start-date, end-date, interval, input-dir"
-        )
-        raise WrongNumberOfArguments(err_str)
+    _ensure_required_args(args)
 
     # launch simulation
     launcher = get_launcher(args.solver)(
@@ -72,6 +78,7 @@ def main(args):
             args.start_date,
             args.end_date,
             scenario_id=args.scenario_id,
+            output_dir=args.output_dir,
             keep_mat=args.keep_matlab,
         )
 

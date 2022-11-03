@@ -94,7 +94,7 @@ The full list of arguments can be accessed via :bash:`pyreisejl/utility/call.py 
 
    usage: call.py [-h] [-s START_DATE] [-e END_DATE] [-int INTERVAL] [-i INPUT_DIR]
    [-t THREADS] [-d] [-o OUTPUT_DIR] [-k]
-   [--solver SOLVER] [-j JULIA_ENV] [-l LINEARIZATION_SEGMENTS]
+   [--solver SOLVER] [-j JULIA_ENV]
    [scenario_id]
 
    Run REISE.jl simulation.
@@ -163,7 +163,7 @@ were used to run the simulation:
 
 .. code-block:: bash
 
-   pyreisejl/utility/extract_data.py -s '2016-01-01' -e '2016-01-07' -x '/PATH/TO/OUTPUT/DATA'
+   pyreisejl/utility/extract_data.py -s '2016-01-01' -e '2016-01-07' -o '/PATH/TO/OUTPUT/DATA'
 
 The full list of arguments can be accessed via
 :bash:`pyreisejl/utility/extract-data.py --help`:

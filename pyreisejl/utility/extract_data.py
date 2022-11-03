@@ -19,18 +19,18 @@ from pyreisejl.utility.helpers import (
 )
 
 
-def copy_input(execute_dir, scenario_id=None):
+def copy_input(input_dir, scenario_id=None):
     """Copies grid.pkl to the input folder
 
-    :param str execute_dir: the directory containing the original input file
+    :param str input_dir: the directory containing the original input file
     :param str scenario_id: the scenario id, if applicable
     :return: (*str*) -- the destination path of grid.pkl
     """
-    src = os.path.join(execute_dir, "grid.pkl")
-    prepend = f"{scenario_id}_" if scenario_id else ""
-    filename = prepend + "grid.pkl"
-    dst = os.path.join(const.INPUT_DIR, filename)
-    shutil.copy(src, dst)
+    if scenario_id is None:
+        return
+    src = os.path.join(input_dir, "grid.pkl")
+    dst = os.path.join(const.INPUT_DIR, f"{scenario_id}_grid.pkl")
+    shutil.move(src, dst)
     return dst
 
 
@@ -291,6 +291,7 @@ def extract_scenario(
     start_date,
     end_date,
     scenario_id=None,
+    output_dir=None,
     freq="H",
     keep_mat=True,
 ):
@@ -300,10 +301,13 @@ def extract_scenario(
     :param str start_date: the start date of the simulation run
     :param str end_date: the end date of the simulation run
     :param str scenario_id: optional identifier for the scenario, used to label output files
+    :param str output_dir: optional directory in which to store the outputs
+    :param str freq: the frequency of timestamps in the input profiles as a pandas frequency alias
     :param bool keep_mat: optional parameter to keep the large result*.mat files after the data has been extracted. Defaults to True.
     """
 
-    output_dir = const.OUTPUT_DIR
+    if output_dir is None:
+        output_dir = os.path.join(input_dir, "output")
 
     grid_path = copy_input(input_dir, scenario_id)
 
@@ -319,11 +323,10 @@ def extract_scenario(
     # Update outputs with date indices from the copied input.mat file
     _update_outputs_labels(outputs, start_date, end_date, freq, grid_path)
 
-    # Save pickles
     pkl_path = _get_pkl_path(output_dir, scenario_id)
 
-    for k, v in outputs.items():
-        v.to_pickle(pkl_path(k.upper()))
+    for name, df in outputs.items():
+        df.to_pickle(pkl_path(name))
 
     # Calculate and save averaged congestion
     calculate_averaged_congestion(outputs["congl"], outputs["congu"]).to_pickle(
@@ -357,11 +360,12 @@ if __name__ == "__main__":
         args.start_date, args.end_date, _, args.input_dir = get_scenario(
             args.scenario_id
         )
+        args.output_dir = const.OUTPUT_DIR
 
-    # Check to make sure all necessary arguments are there
-    # (start_date, end_date)
-    if not (args.start_date and args.end_date):
-        err_str = "The following arguments are required: start-date, end-date"
+    if not (args.start_date and args.end_date and args.input_dir):
+        err_str = (
+            "The following arguments are required: start-date, end-date, input-dir"
+        )
         raise WrongNumberOfArguments(err_str)
 
     extract_scenario(
@@ -369,6 +373,7 @@ if __name__ == "__main__":
         args.start_date,
         args.end_date,
         args.scenario_id,
+        args.output_dir,
         args.frequency,
         args.keep_matlab,
     )
