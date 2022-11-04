@@ -1,4 +1,4 @@
-"""Read REISE input files, return parsed relevant data in a Dict."""
+"""Read REISE input files, return parsed relevant data in a Case object."""
 function read_case(filepath)
     println("Reading from folder: " * filepath)
 
@@ -58,6 +58,10 @@ function read_case(filepath)
     println("...loading solar.csv")
     case["solar"] = DataFrames.DataFrame(CSV.File(joinpath(filepath, "solar.csv")))
 
+    # Convert Dict to NamedTuple
+    case = (; (Symbol(k) => v for (k, v) in case)...)
+    # Convert NamedTuple to Case
+    case = Case(; case...)
     return case
 end
 

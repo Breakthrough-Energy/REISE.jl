@@ -12,7 +12,6 @@ import SparseArrays: sparse, SparseMatrixCSC, findnz, nnz
 include("types.jl")         # Defines Case, Results, Storage, DemandFlexibility,
 #     VariablesOfInterest
 include("read.jl")          # Defines read_case, read_storage, read_demand_flexibility
-include("prepare.jl")       # Defines reise_data_mods
 include("model.jl")         # Defines _build_model (used in interval_loop)
 include("loop.jl")          # Defines interval_loop
 include("query.jl")         # Defines get_results (used in interval_loop)
@@ -67,7 +66,6 @@ function run_scenario(;
     storage = read_storage(inputfolder)
     demand_flexibility = read_demand_flexibility(inputfolder, interval)
     println("All scenario files loaded!")
-    case = reise_data_mods(case)
     sets = _make_sets(case)
     if demand_flexibility.enabled
         demand_flexibility = reformat_demand_flexibility_input(
