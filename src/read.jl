@@ -1,4 +1,4 @@
-"""Read REISE input files, return parsed relevant data in a Dict."""
+"""Read REISE input files, return parsed relevant data in a Case object."""
 function read_case(filepath)
     println("Reading from folder: " * filepath)
 
@@ -38,8 +38,12 @@ function read_case(filepath)
     case["gen_ramp30"] = convert(Array{Float64,1}, plant.ramp_30)
 
     # Generator costs
-    gencost = DataFrames.DataFrame(CSV.File(joinpath(filepath, "gencost.csv")))
-    case["gencost"] = convert(Matrix{Float64}, gencost)
+    case["gencost_before"] = DataFrames.DataFrame(
+        CSV.File(joinpath(filepath, "gencost_before.csv"))
+    )
+    case["gencost_after"] = DataFrames.DataFrame(
+        CSV.File(joinpath(filepath, "gencost_after.csv"))
+    )
 
     # Load all relevant profile data from CSV files
     println("...loading demand.csv")
@@ -54,6 +58,10 @@ function read_case(filepath)
     println("...loading solar.csv")
     case["solar"] = DataFrames.DataFrame(CSV.File(joinpath(filepath, "solar.csv")))
 
+    # Convert Dict to NamedTuple
+    case = (; (Symbol(k) => v for (k, v) in case)...)
+    # Convert NamedTuple to Case
+    case = Case(; case...)
     return case
 end
 

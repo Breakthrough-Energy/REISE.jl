@@ -1,132 +1,51 @@
-import copy
+import os
+import pickle
 
-import numpy as np
-from scipy.io import savemat
+cols = {
+    "branch": ["branch_id", "from_bus_id", "to_bus_id", "x", "rateA"],
+    "dcline": ["dcline_id", "from_bus_id", "to_bus_id", "Pmin", "Pmax"],
+    "bus": ["bus_id", "Pd", "zone_id"],
+    "plant": [
+        "plant_id",
+        "bus_id",
+        "status",
+        "Pmin",
+        "Pmax",
+        "type",
+        "ramp_30",
+        "GenFuelCost",
+        "GenIOB",
+        "GenIOC",
+        "GenIOD",
+    ],
+}
+
+drop_cols = {"gencost_before": ["plant_id", "interconnect"]}
+drop_cols["gencost_after"] = drop_cols["gencost_before"]
 
 
-def create_case_mat(grid, filepath=None, storage_filepath=None):
-    """Export a grid to a format suitable for loading into simulation engine.
-    If optional filepath arguments are used, the results will also be saved to
-    the filepaths provided
+def _save(path, name, df):
+    df = df.reset_index()
+    df = df.loc[:, cols.get(name, df.columns)]
+    df = df.drop(drop_cols.get(name, []), axis=1)
+    df.to_csv(os.path.join(path, f"{name}.csv"), index=False)
 
-    :param powersimdata.input.grid.Grid grid: Grid instance.
-    :param str filepath: path where main grid file will be saved, if present
-    :param str storage_filepath: path where storage data file will be saved, if present.
-    :return: (*tuple*) -- the mpc data as a dictionary and the mpc storage data
-        as a dictionary, if present. The storage data will be None if not present.
-    """
-    grid = copy.deepcopy(grid)
 
-    mpc = {"mpc": {"version": "2", "baseMVA": 100.0}}
+def _save_storage(path, name, df):
+    df.to_csv(os.path.join(path, f"{name}.csv"), index=False)
 
-    # zone
-    mpc["mpc"]["zone"] = np.array(list(grid.id2zone.items()), dtype=object)
 
-    # sub
-    sub = grid.sub.copy()
-    subid = sub.index.values[np.newaxis].T
-    mpc["mpc"]["sub"] = sub.values
-    mpc["mpc"]["subid"] = subid
+def pkl_to_csv(path):
+    with open(os.path.join(path, "grid.pkl"), "rb") as f:
+        grid = pickle.load(f)
+    _save(path, "branch", grid.branch)
+    _save(path, "dcline", grid.dcline)
+    _save(path, "bus", grid.bus)
+    _save(path, "plant", grid.plant)
+    _save(path, "gencost_before", grid.gencost["before"])
+    _save(path, "gencost_after", grid.gencost["after"])
 
-    # bus
-    bus = grid.bus.copy()
-    busid = bus.index.values[np.newaxis].T
-    bus.reset_index(level=0, inplace=True)
-    bus.drop(columns=["interconnect", "lat", "lon"], inplace=True)
-    mpc["mpc"]["bus"] = bus.values
-    mpc["mpc"]["busid"] = busid
-
-    # bus2sub
-    bus2sub = grid.bus2sub.copy()
-    mpc["mpc"]["bus2sub"] = bus2sub.values
-
-    # plant
-    gen = grid.plant.copy()
-    genid = gen.index.values[np.newaxis].T
-    genfuel = gen.type.values[np.newaxis].T
-    genfuelcost = gen.GenFuelCost.values[np.newaxis].T
-    heatratecurve = gen[["GenIOB", "GenIOC", "GenIOD"]].values
-    gen.reset_index(inplace=True, drop=True)
-    gen.drop(
-        columns=[
-            "type",
-            "interconnect",
-            "lat",
-            "lon",
-            "zone_id",
-            "zone_name",
-            "GenFuelCost",
-            "GenIOB",
-            "GenIOC",
-            "GenIOD",
-        ],
-        inplace=True,
-    )
-    mpc["mpc"]["gen"] = gen.values
-    mpc["mpc"]["genid"] = genid
-    mpc["mpc"]["genfuel"] = genfuel
-    mpc["mpc"]["genfuelcost"] = genfuelcost
-    mpc["mpc"]["heatratecurve"] = heatratecurve
-
-    # branch
-    branch = grid.branch.copy()
-    branchid = branch.index.values[np.newaxis].T
-    branchdevicetype = branch.branch_device_type.values[np.newaxis].T
-    branch.reset_index(inplace=True, drop=True)
-    branch.drop(
-        columns=[
-            "interconnect",
-            "from_lat",
-            "from_lon",
-            "to_lat",
-            "to_lon",
-            "from_zone_id",
-            "to_zone_id",
-            "from_zone_name",
-            "to_zone_name",
-            "branch_device_type",
-        ],
-        inplace=True,
-    )
-    mpc["mpc"]["branch"] = branch.values
-    mpc["mpc"]["branchid"] = branchid
-    mpc["mpc"]["branchdevicetype"] = branchdevicetype
-
-    # generation cost
-    gencost = grid.gencost.copy()
-    gencost["before"].reset_index(inplace=True, drop=True)
-    gencost["before"].drop(columns=["interconnect"], inplace=True)
-    mpc["mpc"]["gencost"] = gencost["before"].values
-
-    # DC line
-    if len(grid.dcline) > 0:
-        dcline = grid.dcline.copy()
-        dclineid = dcline.index.values[np.newaxis].T
-        dcline.reset_index(inplace=True, drop=True)
-        dcline.drop(columns=["from_interconnect", "to_interconnect"], inplace=True)
-        mpc["mpc"]["dcline"] = dcline.values
-        mpc["mpc"]["dclineid"] = dclineid
-
-    # energy storage
-    mpc_storage = None
-
-    if len(grid.storage["gen"]) > 0:
-        storage = grid.storage.copy()
-
-        mpc_storage = {
-            "storage": {
-                "xgd_table": np.array([]),
-                "gen": np.array(storage["gen"].values, dtype=np.float64),
-                "sd_table": {
-                    "colnames": storage["StorageData"].columns.values[np.newaxis],
-                    "data": storage["StorageData"].values,
-                },
-            }
-        }
-
-    if filepath is not None:
-        savemat(filepath, mpc, appendmat=False)
-        if mpc_storage is not None:
-            savemat(storage_filepath, mpc_storage, appendmat=False)
-
-    return mpc, mpc_storage
+    storage = grid.storage
+    if not storage["gen"].empty:
+        _save_storage(path, "StorageData", storage["StorageData"])
+        _save_storage(path, "storage_gen", storage["gen"])

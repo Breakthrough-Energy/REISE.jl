@@ -27,15 +27,8 @@ def parse_call_args():
         "-i",
         "--input-dir",
         help="The directory containing the input data files. "
-        "Required files are 'case.mat', 'demand.csv', "
+        "Required files are 'grid.pkl', 'demand.csv', "
         "'hydro.csv', 'solar.csv', and 'wind.csv'.",
-    )
-    parser.add_argument(
-        "-x",
-        "--execute-dir",
-        help="The directory to store the results. This is optional and defaults "
-        "to an execute folder that will be created in the input directory "
-        "if it does not exist.",
     )
     parser.add_argument(
         "-t",
@@ -58,14 +51,7 @@ def parse_call_args():
         "-o",
         "--output-dir",
         help="The directory to store the extracted data. This is optional and defaults "
-        "to the execute directory. This flag is only used if the extract-data flag is set.",
-    )
-    parser.add_argument(
-        "-m",
-        "--matlab-dir",
-        help="The directory to store the modified case.mat used by the engine. "
-        "This is optional and defaults to the execute directory. "
-        "This flag is only used if the extract-data flag is set.",
+        "to a folder in the input directory. This flag is only used if the extract-data flag is set.",
     )
     parser.add_argument(
         "-k",
@@ -88,20 +74,10 @@ def parse_call_args():
         help="The path to the julia environment within which to run REISE.jl. "
         "This is optional and defaults to the default julia environment.",
     )
-    parser.add_argument(
-        "-l",
-        "--linearization-segments",
-        type=int,
-        default=1,
-        help="The number of piecewise linear segments used to linearize cost curves. "
-        "This is optional and defaults to one.",
-    )
 
     # For backwards compatability with PowerSimData
     parser.add_argument(
         "scenario_id",
-        nargs="?",
-        default=None,
         help="Scenario ID only if using PowerSimData. ",
     )
     return parser.parse_args()
@@ -126,30 +102,21 @@ def parse_extract_args():
         " 'YYYY-MM-DD', 'YYYY-MM-DD HH', 'YYYY-MM-DD HH:MM', or 'YYYY-MM-DD HH:MM:SS'.",
     )
     parser.add_argument(
-        "-x",
-        "--execute-dir",
-        help="The directory where the REISE.jl results are stored.",
+        "-i",
+        "--input-dir",
+        help="The directory containing the input data files. "
+        "Required files are 'grid.pkl', 'demand.csv', "
+        "'hydro.csv', 'solar.csv', and 'wind.csv'.",
     )
     parser.add_argument(
         "-o",
         "--output-dir",
-        nargs="?",
-        default=None,
         help="The directory to store the results. This is optional and defaults "
-        "to the execute directory.",
-    )
-    parser.add_argument(
-        "-m",
-        "--matlab-dir",
-        nargs="?",
-        default=None,
-        help="The directory to store the modified case.mat used by the engine. "
-        "This is optional and defaults to the execute directory.",
+        "to a folder in the input directory.",
     )
     parser.add_argument(
         "-f",
         "--frequency",
-        nargs="?",
         default="H",
         help="The frequency of data points in the original profile csvs as a "
         "Pandas frequency string. "
@@ -166,8 +133,6 @@ def parse_extract_args():
     # For backwards compatability with PowerSimData
     parser.add_argument(
         "scenario_id",
-        nargs="?",
-        default=None,
         help="Scenario ID only if using PowerSimData.",
     )
     return parser.parse_args()

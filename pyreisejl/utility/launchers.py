@@ -24,13 +24,10 @@ class Launcher:
         where HH, MM, and SS are optional.
     :param int interval: length of each interval in hours
     :param str input_dir: directory with input data
-    :param str execute_dir: directory for execute data. None defaults to an execute
-        folder that will be created in the input directory
     :param int threads: number of threads to use. None defaults to letting the solver
         decide.
     :param dict solver_kwargs: keyword arguments to pass to solver (if any).
     :param str julia_env: path to the julia environment to be used to run simulation.
-    :param int num_segments: number of segments used for cost curve linearization.
     :raises InvalidDateArgument: if start_date is posterior to end_date
     :raises InvalidInterval: if the interval doesn't evently divide the given date range
     """
@@ -41,11 +38,9 @@ class Launcher:
         end_date,
         interval,
         input_dir,
-        execute_dir=None,
         threads=None,
         solver_kwargs=None,
         julia_env=None,
-        num_segments=1,
     ):
         """Constructor."""
         # extract time limits from 'demand.csv'
@@ -82,22 +77,19 @@ class Launcher:
         self.input_dir = input_dir
         print("Validation complete!")
         # These parameters are not validated
-        self.execute_dir = execute_dir
         self.threads = threads
         self.solver_kwargs = solver_kwargs
         self.julia_env = julia_env
-        self.num_segments = num_segments
+        self.execute_dir = os.path.join(self.input_dir, "output")
 
     def _print_settings(self):
         print("Launching scenario with parameters:")
         print(
             {
-                "num_segments": self.num_segments,
                 "interval": self.interval,
                 "n_interval": self.n_interval,
                 "start_index": self.start_index,
                 "input_dir": self.input_dir,
-                "execute_dir": self.execute_dir,
                 "threads": self.threads,
                 "julia_env": self.julia_env,
                 "solver_kwargs": self.solver_kwargs,
@@ -150,7 +142,6 @@ class ClpLauncher(Launcher):
             outputfolder=self.execute_dir,
             optimizer_factory=Clp.Optimizer,
             solver_kwargs=self.solver_kwargs,
-            num_segments=self.num_segments,
         )
         end = time()
 
@@ -177,7 +168,6 @@ class GLPKLauncher(Launcher):
             outputfolder=self.execute_dir,
             optimizer_factory=GLPK.Optimizer,
             solver_kwargs=self.solver_kwargs,
-            num_segments=self.num_segments,
         )
         end = time()
 
@@ -204,7 +194,6 @@ class GurobiLauncher(Launcher):
             outputfolder=self.execute_dir,
             threads=self.threads,
             solver_kwargs=self.solver_kwargs,
-            num_segments=self.num_segments,
         )
         end = time()
 

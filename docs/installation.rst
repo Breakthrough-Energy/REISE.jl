@@ -192,6 +192,9 @@ license file and another containing the necessary input files for the engine.
 
 .. code-block:: bash
 
-   docker run -it -v /LOCAL/PATH/TO/GUROBI.LIC:/usr/share/gurobi_license -v /LOCAL/PATH/TO/INPUT/DATA:/usr/share/data reisejl bash
+   docker run -it `
+   -v /path/to/gurobi.lic:/usr/share/gurobi_license `
+   -v /path/to/input/data:/path/to/input/data `
+   reisejl bash
 
 You are ready to run simulation as demonstrated in the :doc:`usage` section.

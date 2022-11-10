@@ -12,7 +12,6 @@ import SparseArrays: sparse, SparseMatrixCSC, findnz, nnz
 include("types.jl")         # Defines Case, Results, Storage, DemandFlexibility,
 #     VariablesOfInterest
 include("read.jl")          # Defines read_case, read_storage, read_demand_flexibility
-include("prepare.jl")       # Defines reise_data_mods
 include("model.jl")         # Defines _build_model (used in interval_loop)
 include("loop.jl")          # Defines interval_loop
 include("query.jl")         # Defines get_results (used in interval_loop)
@@ -43,7 +42,6 @@ Run a scenario consisting of several intervals.
     used by default.
 """
 function run_scenario(;
-    num_segments::Int=1,
     interval::Int,
     n_interval::Int,
     start_index::Int,
@@ -68,14 +66,12 @@ function run_scenario(;
     storage = read_storage(inputfolder)
     demand_flexibility = read_demand_flexibility(inputfolder, interval)
     println("All scenario files loaded!")
-    case = reise_data_mods(case; num_segments=num_segments)
     sets = _make_sets(case)
     if demand_flexibility.enabled
         demand_flexibility = reformat_demand_flexibility_input(
             case, demand_flexibility, sets
         )
     end
-    save_input_mat(case, storage, inputfolder, outputfolder)
     # Create final model kwargs by merging defaults with user-specified
     default_model_kwargs = Dict(
         "case" => case,
