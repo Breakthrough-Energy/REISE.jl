@@ -56,6 +56,15 @@ function read_case(filepath)
         CSV.File(joinpath(filepath, "gencost_after.csv"))
     )
 
+    # Set the PMAX for all profile-based generators to Inf; the true PMAX for profile-
+    # based generators will be determined by the provided profile
+    for g in unique(case["genfuel"])
+        gen_idx = case["genfuel"] .== g
+        if g in case["profile_resources"]
+            case["gen_pmax"][gen_idx] .= Inf
+        end
+    end
+
     # Load all relevant profile data from CSV files
     println("...loading demand.csv")
     case["demand"] = DataFrames.DataFrame(CSV.File(joinpath(filepath, "demand.csv")))
