@@ -78,6 +78,8 @@ def parse_call_args():
     # For backwards compatability with PowerSimData
     parser.add_argument(
         "scenario_id",
+        nargs="?",
+        default=None,
         help="Scenario ID only if using PowerSimData. ",
     )
     return parser.parse_args()
@@ -133,6 +135,8 @@ def parse_extract_args():
     # For backwards compatability with PowerSimData
     parser.add_argument(
         "scenario_id",
+        nargs="?",
+        default=None,
         help="Scenario ID only if using PowerSimData.",
     )
     return parser.parse_args()
