@@ -29,7 +29,7 @@ function read_case(filepath)
     try
         case["bus_eiaid"] = convert(Array{Int,1}, bus.eia_id)
     catch e
-        case["bus_eiaid"] = zeros(size(case["busid"], 1), 1)
+        case["bus_eiaid"] = zeros(Int64, size(case["busid"], 1))
     end
 
     # Generators
@@ -126,6 +126,7 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
         "interval_balance" => true,
         "rolling_balance" => true,
         "enable_doe_flexibility" => false,
+        "doe_flex_amt" => nothing,
     )
 
     # Try loading the demand flexibility parameters
@@ -265,7 +266,6 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
     end
 
     # Try loading DOE flexibility profile if enabled
-    demand_flexibility["doe_flex_amt"] = nothing
     if demand_flexibility["enable_doe_flexibility"] == true && demand_flexibility["enabled"]
         try
             # check if DOE data is present, if not, download from BLOB server
