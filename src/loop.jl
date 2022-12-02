@@ -104,37 +104,27 @@ function interval_loop(
             # Reassign right-hand side of constraints that limit profile-based generators
             simulation_profile = Dict()
             for p in keys(case.group_profile_resources)
-                simulation_profile[p] = getfield(case, Symbol(p))[
-                    interval_start:interval_end, 2:end
-                ]
+                simulation_profile[p] = Matrix(
+                    getfield(case, Symbol(p))[interval_start:interval_end, 2:end]
+                )
             end
             for g in keys(sets.profile_resources_num_rep)
-                for i in
-                    1:length(sets.profile_resources_idx[sets.profile_resources_num_rep[g]])
-                    for h in hour_idx
+                for h in 1:interval
+                    for i in
+                        1:length(
+                        sets.profile_resources_idx[sets.profile_resources_num_rep[g]]
+                    )
                         JuMP.set_normalized_rhs(
-                            m[:profile_upper_bound][
-                                sets.profile_resources_idx[sets.profile_resources_num_rep[g]][i],
-                                h,
-                            ],
+                            m[:profile_upper_bound][g, i, h],
                             simulation_profile[sets.profile_to_group[sets.profile_resources_num_rep[g]]][
-                                h,
-                                str(
-                                    sets.profile_resources_idx[sets.profile_resources_num_rep[g]][i],
-                                ),
+                                h, i
                             ],
                         )
                         JuMP.set_normalized_rhs(
-                            m[:profile_lower_bound][
-                                sets.profile_resources_idx[sets.profile_resources_num_rep[g]][i],
-                                h,
-                            ],
+                            m[:profile_lower_bound][g, i, h],
                             case.pmin_as_share_of_pmax[sets.profile_resources_num_rep[g]] *
                             simulation_profile[sets.profile_to_group[sets.profile_resources_num_rep[g]]][
-                                h,
-                                str(
-                                    sets.profile_resources_idx[sets.profile_resources_num_rep[g]][i],
-                                ),
+                                h, i
                             ],
                         )
                     end

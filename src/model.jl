@@ -539,7 +539,9 @@ function _add_profile_generator_limits!(
     # Generation segments
     simulation_profile = Dict()
     for p in keys(case.group_profile_resources)
-        simulation_profile[p] = getfield(case, Symbol(p))[start_index:end_index, 2:end]
+        simulation_profile[p] = Matrix(
+            getfield(case, Symbol(p))[start_index:end_index, 2:end]
+        )
     end
 
     # Set the upper bounds
@@ -552,9 +554,7 @@ function _add_profile_generator_limits!(
             h in hour_idx,
         ],
         m[:pg][sets.profile_resources_idx[sets.profile_resources_num_rep[g]][i], h] <=
-            simulation_profile[sets.profile_to_group[sets.profile_resources_num_rep[g]]][
-            h, str(sets.profile_resources_idx[sets.profile_resources_num_rep[g]][i])
-        ],
+            simulation_profile[sets.profile_to_group[sets.profile_resources_num_rep[g]]][h, i],
     )
 
     # Set the lower bounds, establishing PMIN as a share of PMAX
@@ -569,7 +569,7 @@ function _add_profile_generator_limits!(
         m[:pg][sets.profile_resources_idx[sets.profile_resources_num_rep[g]][i], h] >= (
             case.pmin_as_share_of_pmax[sets.profile_resources_num_rep[g]] *
             simulation_profile[sets.profile_to_group[sets.profile_resources_num_rep[g]]][
-                h, str(sets.profile_resources_idx[sets.profile_resources_num_rep[g]][i])
+                h, i
             ]
         ),
     )
