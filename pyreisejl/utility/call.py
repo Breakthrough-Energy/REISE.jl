@@ -1,5 +1,5 @@
 from pyreisejl.utility import const, parser
-from pyreisejl.utility.converters import pkl_to_csv, pkl_to_json
+from pyreisejl.utility.converters import pkl_to_input_files
 from pyreisejl.utility.extract_data import extract_scenario
 from pyreisejl.utility.helpers import (
     WrongNumberOfArguments,
@@ -50,8 +50,7 @@ def main(args):
         args.output_dir = const.OUTPUT_DIR
 
     _ensure_required_args(args)
-    pkl_to_csv(args.input_dir)
-    pkl_to_json(args.input_dir)
+    pkl_to_input_files(args.input_dir)
 
     if args.scenario_id:
         # Update status in ExecuteList.csv on server
