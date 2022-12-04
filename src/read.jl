@@ -58,11 +58,8 @@ function read_case(filepath)
 
     # Set the PMAX for all profile-based generators to Inf; the true PMAX for profile-
     # based generators will be determined by the provided profile
-    for g in unique(case["genfuel"])
-        gen_idx = case["genfuel"] .== g
-        if g in case["profile_resources"]
-            case["gen_pmax"][gen_idx] .= Inf
-        end
+    for g in case["profile_resources"]
+        case["gen_pmax"][case["genfuel"] .== g] .= Inf
     end
 
     # Load all relevant profile data from CSV files

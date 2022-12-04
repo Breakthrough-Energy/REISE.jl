@@ -180,7 +180,7 @@ function _make_sets(
         profile_resources_idx[g] = gen_idx[findall(case.genfuel .== g)]
     end
 
-    # Create numerical representation of the different profile-based generators
+    # Create index for different profile-based resource types
     profile_resources_num_rep = Dict{Int64,String}()
     for i in 1:length(case.profile_resources)
         profile_resources_num_rep[i] = case.profile_resources[i]
