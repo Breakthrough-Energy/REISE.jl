@@ -30,6 +30,10 @@ Base.@kwdef struct Case
     gencost_before::DataFrames.DataFrame
     gencost_after::DataFrames.DataFrame
 
+    pmin_as_share_of_pmax::Dict{String,Union{Float64,Nothing}}
+    group_profile_resources::Dict{String,Vector{String}}
+    profile_resources::Vector{String}
+
     demand::DataFrames.DataFrame
     hydro::DataFrames.DataFrame
     wind::DataFrames.DataFrame
@@ -90,24 +94,22 @@ Base.@kwdef struct Sets
     load_bus_map::SparseMatrixCSC{Int64,Int64}
     # Gen & gen sub-sets
     num_gen::Int64
-    num_wind::Int64
-    num_solar::Int64
-    num_hydro::Int64
     gen_idx::UnitRange{Int64}
-    gen_wind_idx::Array{Int64,1}
-    gen_solar_idx::Array{Int64,1}
-    gen_hydro_idx::Array{Int64,1}
-    renewable_idx::Array{Int64,1}
     noninf_pmax::Array{Int64,1}
+    noninf_ramp_idx::Array{Int64,1}
     # Segments
     num_segments::Int64
     segment_idx::UnitRange{Int64}
-    ## Demand Flexibility
-    csv_flexible_bus_idx::Union{Array{Int64,1},Nothing}
-    doe_flexible_bus_idx::Union{Array{Int64,1},Nothing}
+    # Profile-based generator subsets
+    profile_resources_idx::Dict{String,Array{Int64,1}}
+    profile_resources_num_rep::Dict{Int64,String}
+    profile_to_group::Dict{String,String}
+    # Demand Flexibility
     flexible_bus_idx::Union{Array{Int64,1},Nothing}
     num_flexible_bus::Int64
     flexible_load_bus_map::Union{SparseMatrixCSC,Nothing}
+    csv_flexible_bus_idx::Union{Array{Int64,1},Nothing}
+    doe_flexible_bus_idx::Union{Array{Int64,1},Nothing}
     # Storage
     num_storage::Int64
     storage_idx::Union{UnitRange{Int64},Nothing}

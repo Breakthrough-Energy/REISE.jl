@@ -144,6 +144,7 @@ function _make_sets(
     load_bus_idx = findall(case.bus_demand .> 0)
     num_load_bus = length(load_bus_idx)
     load_bus_map = sparse(load_bus_idx, 1:num_load_bus, 1, num_bus, num_load_bus)
+
     # Sets - branches
     ac_branch_rating = replace(case.branch_rating, 0 => Inf)
     branch_rating = vcat(ac_branch_rating, case.dcline_pmax)
@@ -155,29 +156,42 @@ function _make_sets(
     all_branch_from = vcat(case.branch_from, case.dcline_from)
     branch_to_idx = Int64[bus_id2idx[b] for b in all_branch_to]
     branch_from_idx = Int64[bus_id2idx[b] for b in all_branch_from]
+
     # Sets - generators
     num_gen = length(case.genid)
     gen_idx = 1:num_gen
+
     # Subsets - generators
-    gen_wind_idx = gen_idx[findall(
-        (case.genfuel .== "wind") .| (case.genfuel .== "wind_offshore")
-    )]
-    gen_solar_idx = gen_idx[findall(case.genfuel .== "solar")]
-    gen_hydro_idx = gen_idx[findall(case.genfuel .== "hydro")]
-    renewable_idx = sort(vcat(gen_wind_idx, gen_solar_idx, gen_hydro_idx))
-    case.gen_pmax[renewable_idx] .= Inf
     noninf_pmax = findall(case.gen_pmax .!= Inf)
-    num_wind = length(gen_wind_idx)
-    num_solar = length(gen_solar_idx)
-    num_hydro = length(gen_hydro_idx)
+    noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
+
     # Generator cost curve segments
     piecewise_enabled = (sum(case.gencost_after.type .== 1) > 0)
     @assert(
         piecewise_enabled,
-        "No piecewise segments detected. " * "Did you forget to linearize_gencost?"
+        "No piecewise segments detected. Did you forget to linearize_gencost?"
     )
     num_segments = convert(Int, maximum(case.gencost_after.n)) - 1
     segment_idx = 1:num_segments
+
+    # Create index for different profile-based generators
+    profile_resources_idx = Dict{String,Array{Int64,1}}()
+    for g in case.profile_resources
+        profile_resources_idx[g] = gen_idx[findall(case.genfuel .== g)]
+    end
+
+    # Create index for different profile-based resource types
+    profile_resources_num_rep = Dict{Int64,String}()
+    for i in 1:length(case.profile_resources)
+        profile_resources_num_rep[i] = case.profile_resources[i]
+    end
+
+    # Create mapping between individual profile-based resources and their resource group
+    profile_to_group = Dict{String,String}(
+        v => k for k in keys(case.group_profile_resources) for
+        v in case.group_profile_resources[k]
+    )
+
     # Demand flexibility, additional info for bus <--> load <--> flexible load conversion
     demand_flexibility_enabled =
         isa(demand_flexibility, DemandFlexibility) && demand_flexibility.enabled
@@ -216,10 +230,12 @@ function _make_sets(
         num_flexible_bus = 0
         flexible_load_bus_map = nothing
     end
+
     # Storage
     storage_enabled = isa(storage, Storage) && storage.enabled
     num_storage = storage_enabled ? size(storage.gen, 1) : 0
     storage_idx = storage_enabled ? (1:num_storage) : nothing
+
     sets = Sets(;
         num_bus=num_bus,
         bus_idx=bus_idx,
@@ -236,15 +252,12 @@ function _make_sets(
         num_gen=num_gen,
         gen_idx=gen_idx,
         noninf_pmax=noninf_pmax,
-        gen_hydro_idx=gen_hydro_idx,
-        gen_solar_idx=gen_solar_idx,
-        gen_wind_idx=gen_wind_idx,
-        renewable_idx=renewable_idx,
-        num_wind=num_wind,
-        num_solar=num_solar,
-        num_hydro=num_hydro,
+        noninf_ramp_idx=noninf_ramp_idx,
         num_segments=num_segments,
         segment_idx=segment_idx,
+        profile_resources_idx=profile_resources_idx,
+        profile_resources_num_rep=profile_resources_num_rep,
+        profile_to_group=profile_to_group,
         num_storage=num_storage,
         storage_idx=storage_idx,
         csv_flexible_bus_idx=csv_flexible_bus_idx,
@@ -431,17 +444,16 @@ end
 function _add_constraints_initial_ramping!(
     m::JuMP.Model, case::Case, sets::Sets, initial_ramp_g0
 )
-    noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
     println("initial rampup: ", Dates.now())
     JuMP.@constraint(
         m,
-        initial_rampup[i in noninf_ramp_idx],
+        initial_rampup[i in sets.noninf_ramp_idx],
         m[:pg][i, 1] - initial_ramp_g0[i] <= case.gen_ramp30[i] * 2,
     )
     println("initial rampdown: ", Dates.now())
     JuMP.@constraint(
         m,
-        initial_rampdown[i in noninf_ramp_idx],
+        initial_rampdown[i in sets.noninf_ramp_idx],
         case.gen_ramp30[i] * -2 <= m[:pg][i, 1] - initial_ramp_g0[i],
     )
 end
@@ -449,17 +461,16 @@ end
 function _add_constraints_ramping!(
     m::JuMP.Model, case::Case, sets::Sets, interval_length::Int
 )
-    noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
     println("rampup: ", Dates.now())
     JuMP.@constraint(
         m,
-        rampup[i in noninf_ramp_idx, h in 1:(interval_length - 1)],
+        rampup[i in sets.noninf_ramp_idx, h in 1:(interval_length - 1)],
         m[:pg][i, h + 1] - m[:pg][i, h] <= case.gen_ramp30[i] * 2,
     )
     println("rampdown: ", Dates.now())
     JuMP.@constraint(
         m,
-        rampdown[i in noninf_ramp_idx, h in 1:(interval_length - 1)],
+        rampdown[i in sets.noninf_ramp_idx, h in 1:(interval_length - 1)],
         case.gen_ramp30[i] * -2 <= m[:pg][i, h + 1] - m[:pg][i, h],
     )
 end
@@ -524,27 +535,43 @@ function _add_profile_generator_limits!(
     m::JuMP.Model, case::Case, sets::Sets, hour_idx, start_index, interval_length
 )
     end_index = start_index + interval_length - 1
+
     # Generation segments
-    simulation_hydro = Matrix(case.hydro[start_index:end_index, 2:end])
-    simulation_solar = Matrix(case.solar[start_index:end_index, 2:end])
-    simulation_wind = Matrix(case.wind[start_index:end_index, 2:end])
-    println("hydro_fixed: ", Dates.now())
+    simulation_profile = Dict()
+    for p in keys(case.group_profile_resources)
+        simulation_profile[p] = Matrix(
+            getfield(case, Symbol(p))[start_index:end_index, 2:end]
+        )
+    end
+
+    # Set the upper bounds
+    println("profile_upper_bound: ", Dates.now())
     JuMP.@constraint(
         m,
-        hydro_fixed[i in 1:(sets.num_hydro), h in hour_idx],
-        m[:pg][sets.gen_hydro_idx[i], h] == simulation_hydro[h, i],
+        profile_upper_bound[
+            g in keys(sets.profile_resources_num_rep),
+            i in 1:length(sets.profile_resources_idx[sets.profile_resources_num_rep[g]]),
+            h in hour_idx,
+        ],
+        m[:pg][sets.profile_resources_idx[sets.profile_resources_num_rep[g]][i], h] <=
+            simulation_profile[sets.profile_to_group[sets.profile_resources_num_rep[g]]][h, i],
     )
-    println("solar_max: ", Dates.now())
+
+    # Set the lower bounds, establishing PMIN as a share of PMAX
+    println("profile_lower_bound: ", Dates.now())
     JuMP.@constraint(
         m,
-        solar_max[i in 1:(sets.num_solar), h in hour_idx],
-        m[:pg][sets.gen_solar_idx[i], h] <= simulation_solar[h, i],
-    )
-    println("wind_max: ", Dates.now())
-    JuMP.@constraint(
-        m,
-        wind_max[i in 1:(sets.num_wind), h in hour_idx],
-        m[:pg][sets.gen_wind_idx[i], h] <= simulation_wind[h, i],
+        profile_lower_bound[
+            g in keys(sets.profile_resources_num_rep),
+            i in 1:length(sets.profile_resources_idx[sets.profile_resources_num_rep[g]]),
+            h in hour_idx,
+        ],
+        m[:pg][sets.profile_resources_idx[sets.profile_resources_num_rep[g]][i], h] >= (
+            case.pmin_as_share_of_pmax[sets.profile_resources_num_rep[g]] *
+            simulation_profile[sets.profile_to_group[sets.profile_resources_num_rep[g]]][
+                h, i
+            ]
+        ),
     )
 end
 

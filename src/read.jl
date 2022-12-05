@@ -29,7 +29,7 @@ function read_case(filepath)
     try
         case["bus_eiaid"] = convert(Array{Int,1}, bus.eia_id)
     catch e
-        case["bus_eiaid"] = zeros(size(case["busid"], 1), 1)
+        case["bus_eiaid"] = zeros(Int64, size(case["busid"], 1))
     end
 
     # Generators
@@ -42,6 +42,12 @@ function read_case(filepath)
     case["gen_pmin"] = convert(Array{Float64,1}, plant.Pmin)
     case["gen_ramp30"] = convert(Array{Float64,1}, plant.ramp_30)
 
+    # Generator immutables
+    plant_immutables = JSON.parsefile(joinpath(filepath, "plant_immutables.json"))
+    case["pmin_as_share_of_pmax"] = plant_immutables["pmin_as_share_of_pmax"]
+    case["group_profile_resources"] = plant_immutables["group_profile_resources"]
+    case["profile_resources"] = plant_immutables["profile_resources"]
+
     # Generator costs
     case["gencost_before"] = DataFrames.DataFrame(
         CSV.File(joinpath(filepath, "gencost_before.csv"))
@@ -49,6 +55,12 @@ function read_case(filepath)
     case["gencost_after"] = DataFrames.DataFrame(
         CSV.File(joinpath(filepath, "gencost_after.csv"))
     )
+
+    # Set the PMAX for all profile-based generators to Inf; the true PMAX for profile-
+    # based generators will be determined by the provided profile
+    for g in case["profile_resources"]
+        case["gen_pmax"][case["genfuel"] .== g] .= Inf
+    end
 
     # Load all relevant profile data from CSV files
     println("...loading demand.csv")
@@ -111,6 +123,7 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
         "interval_balance" => true,
         "rolling_balance" => true,
         "enable_doe_flexibility" => false,
+        "doe_flex_amt" => nothing,
     )
 
     # Try loading the demand flexibility parameters
@@ -250,7 +263,6 @@ function read_demand_flexibility(filepath, interval)::DemandFlexibility
     end
 
     # Try loading DOE flexibility profile if enabled
-    demand_flexibility["doe_flex_amt"] = nothing
     if demand_flexibility["enable_doe_flexibility"] == true && demand_flexibility["enabled"]
         try
             # check if DOE data is present, if not, download from BLOB server

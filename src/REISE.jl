@@ -3,6 +3,7 @@ module REISE
 using CSV: CSV
 using DataFrames: DataFrames
 using Dates: Dates
+using JSON: JSON
 using JuMP: JuMP
 using MAT: MAT
 using Requires: Requires

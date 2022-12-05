@@ -86,16 +86,7 @@ function interval_loop(
             JuMP.set_optimizer_attributes(m, pairs(solver_kwargs)...)
             m = _build_model(m; symbolize(model_kwargs)...)
         else
-            # Reassign right-hand-side of constraints to match profiles
-            simulation_hydro = permutedims(
-                Matrix(case.hydro[interval_start:interval_end, 2:end])
-            )
-            simulation_solar = permutedims(
-                Matrix(case.solar[interval_start:interval_end, 2:end])
-            )
-            simulation_wind = permutedims(
-                Matrix(case.wind[interval_start:interval_end, 2:end])
-            )
+            # Reassign right-hand side of constraints that pertain to demand
             for t in 1:interval, b in sets.load_bus_idx
                 JuMP.set_normalized_rhs(m[:powerbalance][b, t], bus_demand[b, t])
             end
@@ -109,28 +100,54 @@ function interval_loop(
                     )
                 end
             end
-            for t in 1:interval, g in 1:(sets.num_hydro)
-                JuMP.set_normalized_rhs(m[:hydro_fixed][g, t], simulation_hydro[g, t])
+
+            # Reassign right-hand side of constraints that limit profile-based generators
+            simulation_profile = Dict()
+            for p in keys(case.group_profile_resources)
+                simulation_profile[p] = Matrix(
+                    getfield(case, Symbol(p))[interval_start:interval_end, 2:end]
+                )
             end
-            for t in 1:interval, g in 1:(sets.num_solar)
-                JuMP.set_normalized_rhs(m[:solar_max][g, t], simulation_solar[g, t])
+            for g in keys(sets.profile_resources_num_rep)
+                for h in 1:interval
+                    for i in
+                        1:length(
+                        sets.profile_resources_idx[sets.profile_resources_num_rep[g]]
+                    )
+                        JuMP.set_normalized_rhs(
+                            m[:profile_upper_bound][g, i, h],
+                            simulation_profile[sets.profile_to_group[sets.profile_resources_num_rep[g]]][
+                                h, i
+                            ],
+                        )
+                        JuMP.set_normalized_rhs(
+                            m[:profile_lower_bound][g, i, h],
+                            case.pmin_as_share_of_pmax[sets.profile_resources_num_rep[g]] *
+                            simulation_profile[sets.profile_to_group[sets.profile_resources_num_rep[g]]][
+                                h, i
+                            ],
+                        )
+                    end
+                end
             end
-            for t in 1:interval, g in 1:(sets.num_wind)
-                JuMP.set_normalized_rhs(m[:wind_max][g, t], simulation_wind[g, t])
-            end
-            # Re-assign right-hand-side for initial conditions
+
+            # Reassign right-hand-side for initial conditions
             noninf_ramp_idx = findall(case.gen_ramp30 .!= Inf)
             for g in noninf_ramp_idx
-                rhs = case.gen_ramp30[g] * 2 + pg0[g]
-                JuMP.set_normalized_rhs(m[:initial_rampup][g], rhs)
-                rhs = case.gen_ramp30[g] * 2 - pg0[g]
-                JuMP.set_normalized_rhs(m[:initial_rampdown][g], rhs)
+                JuMP.set_normalized_rhs(
+                    m[:initial_rampup][g], case.gen_ramp30[g] * 2 + pg0[g]
+                )
+                JuMP.set_normalized_rhs(
+                    m[:initial_rampdown][g], case.gen_ramp30[g] * 2 - pg0[g]
+                )
             end
             if storage.enabled
                 for s in 1:(sets.num_storage)
                     JuMP.set_normalized_rhs(m[:initial_soc][s], storage_e0[s])
                 end
             end
+
+            # Reassign right-hand side of constraints that pertain to demand flexibility
             if demand_flexibility.enabled
                 if !isnothing(demand_flexibility.cost_up)
                     bus_demand_flex_cost_up = permutedims(
