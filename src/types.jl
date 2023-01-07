@@ -3,25 +3,25 @@ Base.@kwdef struct Case
     # `Base.@kwdef` allows us to instantiate this via keywords
 
     branchid::Array{Int64,1}
-    branch_from::Array{Int64,1}
-    branch_to::Array{Int64,1}
+    branch_from::Array{String,1}
+    branch_to::Array{String,1}
     branch_reactance::Array{Float64,1}
     branch_rating::Array{Float64,1}
 
-    dclineid::Array{Int64,1}
-    dcline_from::Array{Int64,1}
-    dcline_to::Array{Int64,1}
+    dclineid::Array{String,1}
+    dcline_from::Array{String,1}
+    dcline_to::Array{String,1}
     dcline_pmin::Array{Float64,1}
     dcline_pmax::Array{Float64,1}
 
-    busid::Array{Int64,1}
+    busid::Array{String,1}
     bus_demand::Array{Float64,1}
     bus_zone::Array{Int64,1}
     bus_eiaid::Array{Int64,1}
 
-    genid::Array{Int64,1}
+    genid::Array{String,1}
     genfuel::Array{String,1}
-    gen_bus::Array{Int64,1}
+    gen_bus::Array{String,1}
     gen_status::BitArray{1}
     gen_pmax::Array{Float64,1}
     gen_pmin::Array{Float64,1}
@@ -90,7 +90,7 @@ Base.@kwdef struct Sets
     num_load_bus::Int64
     bus_idx::UnitRange{Int64}
     load_bus_idx::Array{Int64,1}
-    bus_id2idx::Dict{Int64,Int64}
+    bus_id2idx::Dict{String,Int64}
     load_bus_map::SparseMatrixCSC{Int64,Int64}
     # Gen & gen sub-sets
     num_gen::Int64

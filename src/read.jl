@@ -8,22 +8,22 @@ function read_case(filepath)
     # AC branches
     branch = CSV.File(joinpath(filepath, "branch.csv"))
     case["branchid"] = convert(Array{Int,1}, branch.branch_id)
-    case["branch_from"] = convert(Array{Int,1}, branch.from_bus_id)
-    case["branch_to"] = convert(Array{Int,1}, branch.to_bus_id)
+    case["branch_from"] = convert(Array{String,1}, branch.from_bus_id)
+    case["branch_to"] = convert(Array{String,1}, branch.to_bus_id)
     case["branch_reactance"] = convert(Array{Float64,1}, branch.x)
     case["branch_rating"] = convert(Array{Float64,1}, branch.rateA)
 
     # DC branches
     dcline = CSV.File(joinpath(filepath, "dcline.csv"))
-    case["dclineid"] = convert(Array{Int,1}, dcline.dcline_id)
-    case["dcline_from"] = convert(Array{Int,1}, dcline.from_bus_id)
-    case["dcline_to"] = convert(Array{Int,1}, dcline.to_bus_id)
+    case["dclineid"] = convert(Array{String,1}, dcline.dcline_id)
+    case["dcline_from"] = convert(Array{String,1}, dcline.from_bus_id)
+    case["dcline_to"] = convert(Array{String,1}, dcline.to_bus_id)
     case["dcline_pmin"] = convert(Array{Float64,1}, dcline.Pmin)
     case["dcline_pmax"] = convert(Array{Float64,1}, dcline.Pmax)
 
     # Buses
     bus = CSV.File(joinpath(filepath, "bus.csv"))
-    case["busid"] = convert(Array{Int,1}, bus.bus_id)
+    case["busid"] = convert(Array{String,1}, bus.bus_id)
     case["bus_demand"] = convert(Array{Float64,1}, bus.Pd)
     case["bus_zone"] = convert(Array{Int,1}, bus.zone_id)
     try
@@ -34,9 +34,9 @@ function read_case(filepath)
 
     # Generators
     plant = CSV.File(joinpath(filepath, "plant.csv"))
-    case["genid"] = convert(Array{Int,1}, plant.plant_id)
+    case["genid"] = convert(Array{String,1}, plant.plant_id)
     case["genfuel"] = convert(Array{String,1}, plant.type)
-    case["gen_bus"] = convert(Array{Int,1}, plant.bus_id)
+    case["gen_bus"] = convert(Array{String,1}, plant.bus_id)
     case["gen_status"] = convert(BitArray{1}, plant.status)
     case["gen_pmax"] = convert(Array{Float64,1}, plant.Pmax)
     case["gen_pmin"] = convert(Array{Float64,1}, plant.Pmin)
