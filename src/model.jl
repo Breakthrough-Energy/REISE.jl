@@ -37,7 +37,7 @@ function _make_branch_map(case::Case)::SparseMatrixCSC
 end
 
 """
-    _make_bus_demand(case)
+    _make_bus_demand(case, start_index, end_index)
 
 Given a Case object, build a matrix of demand by (bus, hour) for this interval.
 """
@@ -52,13 +52,12 @@ function _make_bus_demand(case::Case, start_index::Int, end_index::Int)::Matrix
 end
 
 """
-    _make_bus_demand_flexibility_amount(case, demand_flexibility)
+    _make_bus_demand_flexibility_amount(demand_flexibility, start_index, end_index, bus_demand, sets)
 
 Given a Case object and a DemandFlexibility object, build a matrix of demand flexibility
     by (bus, hour) for this interval.
 """
 function _make_bus_demand_flexibility_amount(
-    case::Case,
     demand_flexibility::DemandFlexibility,
     start_index::Int,
     end_index::Int,
@@ -317,11 +316,7 @@ function _add_constraint_power_balance!(
 end
 
 function _add_constraint_load_shed!(
-    m::JuMP.Model,
-    case::Case,
-    sets::Sets,
-    demand_flexibility::DemandFlexibility,
-    bus_demand::Matrix,
+    m::JuMP.Model, sets::Sets, demand_flexibility::DemandFlexibility, bus_demand::Matrix
 )
     interval_length = size(bus_demand)[2]
     demand_for_load_shed = JuMP.@expression(
@@ -353,7 +348,6 @@ end
 
 function _add_constraints_storage_operation!(
     m::JuMP.Model,
-    case::Case,
     sets::Sets,
     storage::Storage,
     interval_length::Int,
@@ -400,7 +394,6 @@ end
 
 function _add_constraints_demand_flexibility!(
     m::JuMP.Model,
-    case::Case,
     sets::Sets,
     demand_flexibility::DemandFlexibility,
     interval_length::Int,
@@ -690,7 +683,7 @@ function _build_model(
     # Demand flexibility parameters (if present)
     if demand_flexibility.enabled
         (bus_demand_flex_amt_up, bus_demand_flex_amt_dn) = _make_bus_demand_flexibility_amount(
-            case, demand_flexibility, start_index, end_index, bus_demand, sets
+            demand_flexibility, start_index, end_index, bus_demand, sets
         )
     end
 
@@ -773,18 +766,16 @@ function _build_model(
     )
 
     if load_shed_enabled
-        _add_constraint_load_shed!(m, case, sets, demand_flexibility, bus_demand)
+        _add_constraint_load_shed!(m, sets, demand_flexibility, bus_demand)
     end
 
     if storage.enabled
-        _add_constraints_storage_operation!(
-            m, case, sets, storage, interval_length, storage_e0
-        )
+        _add_constraints_storage_operation!(m, sets, storage, interval_length, storage_e0)
     end
 
     if demand_flexibility.enabled
         _add_constraints_demand_flexibility!(
-            m, case, sets, demand_flexibility, interval_length, init_shifted_demand
+            m, sets, demand_flexibility, interval_length, init_shifted_demand
         )
     end
 
