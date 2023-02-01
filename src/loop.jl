@@ -9,7 +9,7 @@ end
 
 """
     interval_loop(factory_like, model_kwargs, solver_kwargs, interval, n_interval,
-                  start_index, inputfolder, outputfolder)
+                  start_index, outputfolder)
 
 Given:
 - optimizer instantiation object `factory_like`:
@@ -19,7 +19,6 @@ Given:
 - an interval length `interval` (hours)
 - a number of intervals `n_interval`
 - a starting index position `start_index`
-- a folder path to load all input files from `inputfolder`
 - a folder path to write output files to `outputfolder`
 
 Build a model, and run through the intervals, re-building the model and/or
@@ -32,7 +31,6 @@ function interval_loop(
     interval::Int,
     n_interval::Int,
     start_index::Int,
-    inputfolder::String,
     outputfolder::String,
 )
     # Bad (but known) statuses to match against

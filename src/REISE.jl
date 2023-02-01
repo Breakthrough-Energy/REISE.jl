@@ -99,7 +99,6 @@ function run_scenario(;
             interval,
             n_interval,
             start_index,
-            inputfolder,
             outputfolder,
         )
     end
