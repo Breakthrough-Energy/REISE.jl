@@ -19,6 +19,7 @@ cols = {
         "GenIOC",
         "GenIOD",
     ],
+    "storage_gen": ["bus_id", "Pmin", "Pmax"],
 }
 
 drop_cols = {"gencost_before": ["plant_id", "interconnect"]}
@@ -32,10 +33,6 @@ def _save(path, name, df):
     df.to_csv(os.path.join(path, f"{name}.csv"), index=False)
 
 
-def _save_storage(path, name, df):
-    df.to_csv(os.path.join(path, f"{name}.csv"), index=False)
-
-
 def _pkl_to_csv(path, grid):
     _save(path, "branch", grid.branch)
     _save(path, "dcline", grid.dcline)
@@ -46,8 +43,8 @@ def _pkl_to_csv(path, grid):
 
     storage = grid.storage
     if not storage["gen"].empty:
-        _save_storage(path, "StorageData", storage["StorageData"])
-        _save_storage(path, "storage_gen", storage["gen"])
+        _save(path, "StorageData", storage["StorageData"])
+        _save(path, "storage_gen", storage["gen"])
 
 
 def _pkl_to_json(path, grid):

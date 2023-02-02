@@ -86,17 +86,15 @@ end
 function read_storage(filepath)::Storage
     # Fallback dataframe, in case there's no input files
     storage = Dict(
-        "enabled" => false, "gen" => zeros(0, 21), "sd_table" => DataFrames.DataFrame()
+        "enabled" => false,
+        "gen" => DataFrames.DataFrame(),
+        "sd_table" => DataFrames.DataFrame(),
     )
     try
         println("...loading storage")
         gen = DataFrames.DataFrame(CSV.File(joinpath(filepath, "storage_gen.csv")))
-
-        # Convert N x 1 array of strings into 1D array of Symbols (length N)
         data = DataFrames.DataFrame(CSV.File(joinpath(filepath, "StorageData.csv")))
-        storage = Dict(
-            "enabled" => true, "gen" => convert(Array{Float64,2}, gen), "sd_table" => data
-        )
+        storage = Dict("enabled" => true, "gen" => gen, "sd_table" => data)
     catch
         println("Storage information not found in " * filepath)
     end

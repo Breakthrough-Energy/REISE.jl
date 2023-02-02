@@ -42,7 +42,7 @@ end
 
 Base.@kwdef struct Storage
     enabled::Bool
-    gen::Array{Float64,2}
+    gen::DataFrames.DataFrame
     sd_table::DataFrames.DataFrame
 end
 
