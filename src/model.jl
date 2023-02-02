@@ -290,7 +290,7 @@ function _add_constraint_power_balance!(
     end
     withdrawals = JuMP.@expression(m, bus_demand)
     if storage.enabled
-        storage_bus_idx = [sets.bus_id2idx[b] for b in storage.gen[:, 1]]
+        storage_bus_idx = [sets.bus_id2idx[b] for b in storage.gen.bus_id]
         storage_map = sparse(
             storage_bus_idx, sets.storage_idx, 1, sets.num_bus, sets.num_storage
         )::SparseMatrixCSC
@@ -668,9 +668,6 @@ function _build_model(
     storage_e0::Array{Float64,1}=Float64[],
     init_shifted_demand::Array{Float64,1}=Float64[],
 )::JuMP.Model
-    # Positional indices from mpc.gen
-    PMAX = 9
-    PMIN = 10
     println("building sets: ", Dates.now())
     # Sets - time periods
     hour_idx = 1:interval_length
@@ -712,8 +709,8 @@ function _build_model(
         )
     end
     if storage.enabled
-        storage_max_dis = storage.gen[:, PMAX]
-        storage_max_chg = -1 * storage.gen[:, PMIN]
+        storage_max_dis = storage.gen.Pmax
+        storage_max_chg = -1 * storage.gen.Pmin
         storage_min_energy = storage.sd_table.MinStorageLevel
         storage_max_energy = storage.sd_table.MaxStorageLevel
         JuMP.@variables(

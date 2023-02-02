@@ -3,25 +3,14 @@ import os
 import pickle
 
 cols = {
-    "branch": ["branch_id", "from_bus_id", "to_bus_id", "x", "rateA"],
-    "dcline": ["dcline_id", "from_bus_id", "to_bus_id", "Pmin", "Pmax"],
-    "bus": ["bus_id", "Pd", "zone_id"],
-    "plant": [
-        "plant_id",
-        "bus_id",
-        "status",
-        "Pmin",
-        "Pmax",
-        "type",
-        "ramp_30",
-        "GenFuelCost",
-        "GenIOB",
-        "GenIOC",
-        "GenIOD",
-    ],
+    "branch": "branch_id from_bus_id to_bus_id x rateA".split(),
+    "dcline": "dcline_id from_bus_id to_bus_id Pmin Pmax".split(),
+    "bus": "bus_id Pd zone_id".split(),
+    "plant": "plant_id bus_id status Pmin Pmax type ramp_30 GenFuelCost GenIOB GenIOC GenIOD".split(),
+    "storage_gen": "bus_id Pmin Pmax".split(),
 }
 
-drop_cols = {"gencost_before": ["plant_id", "interconnect"]}
+drop_cols = {"gencost_before": "plant_id interconnect".split()}
 drop_cols["gencost_after"] = drop_cols["gencost_before"]
 
 
@@ -29,10 +18,6 @@ def _save(path, name, df):
     df = df.reset_index()
     df = df.loc[:, cols.get(name, df.columns)]
     df = df.drop(drop_cols.get(name, []), axis=1)
-    df.to_csv(os.path.join(path, f"{name}.csv"), index=False)
-
-
-def _save_storage(path, name, df):
     df.to_csv(os.path.join(path, f"{name}.csv"), index=False)
 
 
@@ -46,8 +31,8 @@ def _pkl_to_csv(path, grid):
 
     storage = grid.storage
     if not storage["gen"].empty:
-        _save_storage(path, "StorageData", storage["StorageData"])
-        _save_storage(path, "storage_gen", storage["gen"])
+        _save(path, "StorageData", storage["StorageData"])
+        _save(path, "storage_gen", storage["gen"])
 
 
 def _pkl_to_json(path, grid):
