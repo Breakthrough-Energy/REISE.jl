@@ -106,24 +106,17 @@ function interval_loop(
                     getfield(case, Symbol(p))[interval_start:interval_end, 2:end]
                 )
             end
-            for g in keys(sets.profile_resources_num_rep)
+            for g in values(sets.profile_resources_num_rep)
                 for h in 1:interval
-                    for i in
-                        1:length(
-                        sets.profile_resources_idx[sets.profile_resources_num_rep[g]]
-                    )
+                    for i in 1:length(sets.profile_resources_idx[g])
                         JuMP.set_normalized_rhs(
                             m[:profile_upper_bound][g, i, h],
-                            simulation_profile[sets.profile_to_group[sets.profile_resources_num_rep[g]]][
-                                h, i
-                            ],
+                            simulation_profile[sets.profile_to_group[g]][h, i],
                         )
                         JuMP.set_normalized_rhs(
                             m[:profile_lower_bound][g, i, h],
-                            case.pmin_as_share_of_pmax[sets.profile_resources_num_rep[g]] *
-                            simulation_profile[sets.profile_to_group[sets.profile_resources_num_rep[g]]][
-                                h, i
-                            ],
+                            case.pmin_as_share_of_pmax[g] *
+                            simulation_profile[sets.profile_to_group[g]][h, i],
                         )
                     end
                 end

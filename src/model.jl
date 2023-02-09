@@ -542,12 +542,12 @@ function _add_profile_generator_limits!(
     JuMP.@constraint(
         m,
         profile_upper_bound[
-            g in keys(sets.profile_resources_num_rep),
-            i in 1:length(sets.profile_resources_idx[sets.profile_resources_num_rep[g]]),
+            g in values(sets.profile_resources_num_rep),
+            i in 1:length(sets.profile_resources_idx[g]),
             h in hour_idx,
         ],
-        m[:pg][sets.profile_resources_idx[sets.profile_resources_num_rep[g]][i], h] <=
-            simulation_profile[sets.profile_to_group[sets.profile_resources_num_rep[g]]][h, i],
+        m[:pg][sets.profile_resources_idx[g][i], h] <=
+            simulation_profile[sets.profile_to_group[g]][h, i],
     )
 
     # Set the lower bounds, establishing PMIN as a share of PMAX
@@ -555,15 +555,13 @@ function _add_profile_generator_limits!(
     JuMP.@constraint(
         m,
         profile_lower_bound[
-            g in keys(sets.profile_resources_num_rep),
-            i in 1:length(sets.profile_resources_idx[sets.profile_resources_num_rep[g]]),
+            g in values(sets.profile_resources_num_rep),
+            i in 1:length(sets.profile_resources_idx[g]),
             h in hour_idx,
         ],
-        m[:pg][sets.profile_resources_idx[sets.profile_resources_num_rep[g]][i], h] >= (
-            case.pmin_as_share_of_pmax[sets.profile_resources_num_rep[g]] *
-            simulation_profile[sets.profile_to_group[sets.profile_resources_num_rep[g]]][
-                h, i
-            ]
+        m[:pg][sets.profile_resources_idx[g][i], h] >= (
+            case.pmin_as_share_of_pmax[g] *
+            simulation_profile[sets.profile_to_group[g]][h, i]
         ),
     )
 end
