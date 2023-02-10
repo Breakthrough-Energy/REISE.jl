@@ -179,12 +179,6 @@ function _make_sets(
         profile_resources_idx[g] = gen_idx[findall(case.genfuel .== g)]
     end
 
-    # Create index for different profile-based resource types
-    profile_resources_num_rep = Dict{Int64,String}()
-    for i in 1:length(case.profile_resources)
-        profile_resources_num_rep[i] = case.profile_resources[i]
-    end
-
     # Create mapping between individual profile-based resources and their resource group
     profile_to_group = Dict{String,String}(
         v => k for k in keys(case.group_profile_resources) for
@@ -255,7 +249,6 @@ function _make_sets(
         num_segments=num_segments,
         segment_idx=segment_idx,
         profile_resources_idx=profile_resources_idx,
-        profile_resources_num_rep=profile_resources_num_rep,
         profile_to_group=profile_to_group,
         num_storage=num_storage,
         storage_idx=storage_idx,
@@ -542,7 +535,7 @@ function _add_profile_generator_limits!(
     JuMP.@constraint(
         m,
         profile_upper_bound[
-            g in values(sets.profile_resources_num_rep),
+            g in case.profile_resources,
             i in 1:length(sets.profile_resources_idx[g]),
             h in hour_idx,
         ],
@@ -555,7 +548,7 @@ function _add_profile_generator_limits!(
     JuMP.@constraint(
         m,
         profile_lower_bound[
-            g in values(sets.profile_resources_num_rep),
+            g in case.profile_resources,
             i in 1:length(sets.profile_resources_idx[g]),
             h in hour_idx,
         ],

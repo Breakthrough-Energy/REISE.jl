@@ -106,7 +106,7 @@ function interval_loop(
                     getfield(case, Symbol(p))[interval_start:interval_end, 2:end]
                 )
             end
-            for g in values(sets.profile_resources_num_rep)
+            for g in case.profile_resources
                 for h in 1:interval
                     for i in 1:length(sets.profile_resources_idx[g])
                         JuMP.set_normalized_rhs(
