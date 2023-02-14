@@ -179,12 +179,6 @@ function _make_sets(
         profile_resources_idx[g] = gen_idx[findall(case.genfuel .== g)]
     end
 
-    # Create index for different profile-based resource types
-    profile_resources_num_rep = Dict{Int64,String}()
-    for i in 1:length(case.profile_resources)
-        profile_resources_num_rep[i] = case.profile_resources[i]
-    end
-
     # Create mapping between individual profile-based resources and their resource group
     profile_to_group = Dict{String,String}(
         v => k for k in keys(case.group_profile_resources) for
@@ -255,7 +249,6 @@ function _make_sets(
         num_segments=num_segments,
         segment_idx=segment_idx,
         profile_resources_idx=profile_resources_idx,
-        profile_resources_num_rep=profile_resources_num_rep,
         profile_to_group=profile_to_group,
         num_storage=num_storage,
         storage_idx=storage_idx,
@@ -542,12 +535,12 @@ function _add_profile_generator_limits!(
     JuMP.@constraint(
         m,
         profile_upper_bound[
-            g in keys(sets.profile_resources_num_rep),
-            i in 1:length(sets.profile_resources_idx[sets.profile_resources_num_rep[g]]),
+            g in case.profile_resources,
+            i in 1:length(sets.profile_resources_idx[g]),
             h in hour_idx,
         ],
-        m[:pg][sets.profile_resources_idx[sets.profile_resources_num_rep[g]][i], h] <=
-            simulation_profile[sets.profile_to_group[sets.profile_resources_num_rep[g]]][h, i],
+        m[:pg][sets.profile_resources_idx[g][i], h] <=
+            simulation_profile[sets.profile_to_group[g]][h, i],
     )
 
     # Set the lower bounds, establishing PMIN as a share of PMAX
@@ -555,15 +548,13 @@ function _add_profile_generator_limits!(
     JuMP.@constraint(
         m,
         profile_lower_bound[
-            g in keys(sets.profile_resources_num_rep),
-            i in 1:length(sets.profile_resources_idx[sets.profile_resources_num_rep[g]]),
+            g in case.profile_resources,
+            i in 1:length(sets.profile_resources_idx[g]),
             h in hour_idx,
         ],
-        m[:pg][sets.profile_resources_idx[sets.profile_resources_num_rep[g]][i], h] >= (
-            case.pmin_as_share_of_pmax[sets.profile_resources_num_rep[g]] *
-            simulation_profile[sets.profile_to_group[sets.profile_resources_num_rep[g]]][
-                h, i
-            ]
+        m[:pg][sets.profile_resources_idx[g][i], h] >= (
+            case.pmin_as_share_of_pmax[g] *
+            simulation_profile[sets.profile_to_group[g]][h, i]
         ),
     )
 end

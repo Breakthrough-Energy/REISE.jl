@@ -102,7 +102,6 @@ Base.@kwdef struct Sets
     segment_idx::UnitRange{Int64}
     # Profile-based generator subsets
     profile_resources_idx::Dict{String,Array{Int64,1}}
-    profile_resources_num_rep::Dict{Int64,String}
     profile_to_group::Dict{String,String}
     # Demand Flexibility
     flexible_bus_idx::Union{Array{Int64,1},Nothing}
