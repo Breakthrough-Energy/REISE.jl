@@ -1,4 +1,6 @@
 """Read REISE input files, return parsed relevant data in a Case object."""
+IntOrString = Union{Int,AbstractString}
+
 function read_case(filepath)
     println("Reading from folder: " * filepath)
 
@@ -7,23 +9,23 @@ function read_case(filepath)
 
     # AC branches
     branch = CSV.File(joinpath(filepath, "branch.csv"))
-    case["branchid"] = convert(Array{Int,1}, branch.branch_id)
-    case["branch_from"] = convert(Array{Int,1}, branch.from_bus_id)
-    case["branch_to"] = convert(Array{Int,1}, branch.to_bus_id)
+    case["branchid"] = convert(Array{IntOrString,1}, branch.branch_id)
+    case["branch_from"] = convert(Array{IntOrString,1}, branch.from_bus_id)
+    case["branch_to"] = convert(Array{IntOrString,1}, branch.to_bus_id)
     case["branch_reactance"] = convert(Array{Float64,1}, branch.x)
     case["branch_rating"] = convert(Array{Float64,1}, branch.rateA)
 
     # DC branches
     dcline = CSV.File(joinpath(filepath, "dcline.csv"))
-    case["dclineid"] = convert(Array{Int,1}, dcline.dcline_id)
-    case["dcline_from"] = convert(Array{Int,1}, dcline.from_bus_id)
-    case["dcline_to"] = convert(Array{Int,1}, dcline.to_bus_id)
+    case["dclineid"] = convert(Array{IntOrString,1}, dcline.dcline_id)
+    case["dcline_from"] = convert(Array{IntOrString,1}, dcline.from_bus_id)
+    case["dcline_to"] = convert(Array{IntOrString,1}, dcline.to_bus_id)
     case["dcline_pmin"] = convert(Array{Float64,1}, dcline.Pmin)
     case["dcline_pmax"] = convert(Array{Float64,1}, dcline.Pmax)
 
     # Buses
     bus = CSV.File(joinpath(filepath, "bus.csv"))
-    case["busid"] = convert(Array{Int,1}, bus.bus_id)
+    case["busid"] = convert(Array{IntOrString,1}, bus.bus_id)
     case["bus_demand"] = convert(Array{Float64,1}, bus.Pd)
     case["bus_zone"] = convert(Array{Int,1}, bus.zone_id)
     try
@@ -34,9 +36,9 @@ function read_case(filepath)
 
     # Generators
     plant = CSV.File(joinpath(filepath, "plant.csv"))
-    case["genid"] = convert(Array{Int,1}, plant.plant_id)
+    case["genid"] = convert(Array{IntOrString,1}, plant.plant_id)
     case["genfuel"] = convert(Array{String,1}, plant.type)
-    case["gen_bus"] = convert(Array{Int,1}, plant.bus_id)
+    case["gen_bus"] = convert(Array{IntOrString,1}, plant.bus_id)
     case["gen_status"] = convert(BitArray{1}, plant.status)
     case["gen_pmax"] = convert(Array{Float64,1}, plant.Pmax)
     case["gen_pmin"] = convert(Array{Float64,1}, plant.Pmin)
@@ -406,7 +408,7 @@ function reformat_demand_flexibility_input(
 
             # numeric ID corresponding to bus columns
             flexible_bus_id = [parse(Int64, flexible_str[i]) for i in bus_columns_idx]
-            flexible_bus_idx = [sets.bus_id2idx[x] for x in flexible_bus_id]
+            flexible_bus_idx = [sets.bus_id2idx[string(x)] for x in flexible_bus_id]
             flexible_bus_num = length(flexible_bus_id)
 
             # remove bus columns from zone to bus mapping
@@ -531,9 +533,10 @@ function reformat_demand_flexibility_input(
                 # assume each flexible bus can go up/dn, so only use the Dataframe for up
                 csv_flexible_bus_str = names(demand_flexibility_updated["flex_amt_up"])[2:end]
                 csv_flexible_bus_id = [parse(Int64, bus) for bus in csv_flexible_bus_str]
-                csv_flexible_bus_idx = [sets.bus_id2idx[bus] for bus in csv_flexible_bus_id]
+                csv_flexible_bus_idx = [
+                    sets.bus_id2idx[string(bus)] for bus in csv_flexible_bus_id
+                ]
 
-                # all flexible buse
                 if !isnothing(doe_flexible_bus_idx)
                     flex_bus_idx = sort([
                         i for i in union(doe_flexible_bus_idx, csv_flexible_bus_idx)
