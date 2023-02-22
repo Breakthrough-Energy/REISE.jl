@@ -408,7 +408,7 @@ function reformat_demand_flexibility_input(
 
             # numeric ID corresponding to bus columns
             flexible_bus_id = [parse(Int64, flexible_str[i]) for i in bus_columns_idx]
-            flexible_bus_idx = [sets.bus_id2idx[x] for x in flexible_bus_id]
+            flexible_bus_idx = [sets.bus_id2idx[string(x)] for x in flexible_bus_id]
             flexible_bus_num = length(flexible_bus_id)
 
             # remove bus columns from zone to bus mapping
@@ -533,9 +533,10 @@ function reformat_demand_flexibility_input(
                 # assume each flexible bus can go up/dn, so only use the Dataframe for up
                 csv_flexible_bus_str = names(demand_flexibility_updated["flex_amt_up"])[2:end]
                 csv_flexible_bus_id = [parse(Int64, bus) for bus in csv_flexible_bus_str]
-                csv_flexible_bus_idx = [sets.bus_id2idx[bus] for bus in csv_flexible_bus_id]
+                csv_flexible_bus_idx = [
+                    sets.bus_id2idx[string(bus)] for bus in csv_flexible_bus_id
+                ]
 
-                # all flexible buse
                 if !isnothing(doe_flexible_bus_idx)
                     flex_bus_idx = sort([
                         i for i in union(doe_flexible_bus_idx, csv_flexible_bus_idx)

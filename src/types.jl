@@ -91,7 +91,7 @@ Base.@kwdef struct Sets
     num_load_bus::Int64
     bus_idx::UnitRange{Int64}
     load_bus_idx::Array{Int64,1}
-    bus_id2idx::Dict{IntOrString,Int64}
+    bus_id2idx::Dict{String,Int64}
     load_bus_map::SparseMatrixCSC{Int64,Int64}
     # Gen & gen sub-sets
     num_gen::Int64

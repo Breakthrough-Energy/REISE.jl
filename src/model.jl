@@ -6,10 +6,10 @@ Given a Case object, build a sparse matrix representing generator topology.
 function _make_gen_map(case::Case)::SparseMatrixCSC
     num_bus = length(case.busid)
     bus_idx = 1:num_bus
-    bus_id2idx = Dict(case.busid .=> bus_idx)
+    bus_id2idx = Dict(string.(case.busid) .=> bus_idx)
     num_gen = length(case.genid)
     gen_idx = 1:num_gen
-    gen_bus_idx = [bus_id2idx[b] for b in case.gen_bus]
+    gen_bus_idx = [bus_id2idx[string(b)] for b in case.gen_bus]
     gen_map = sparse(gen_bus_idx, gen_idx, 1, num_bus, num_gen)
     return gen_map
 end
@@ -25,11 +25,11 @@ function _make_branch_map(case::Case)::SparseMatrixCSC
     num_bus = length(case.busid)
     branch_idx = 1:num_branch
     bus_idx = 1:num_bus
-    bus_id2idx = Dict(case.busid .=> bus_idx)
+    bus_id2idx = Dict(string.(case.busid) .=> bus_idx)
     all_branch_to = vcat(case.branch_to, case.dcline_to)
     all_branch_from = vcat(case.branch_from, case.dcline_from)
-    branch_to_idx = [bus_id2idx[b] for b in all_branch_to]
-    branch_from_idx = [bus_id2idx[b] for b in all_branch_from]
+    branch_to_idx = [bus_id2idx[string(b)] for b in all_branch_to]
+    branch_from_idx = [bus_id2idx[string(b)] for b in all_branch_from]
     branches_to = sparse(branch_to_idx, branch_idx, 1, num_bus, num_branch)
     branches_from = sparse(branch_from_idx, branch_idx, -1, num_bus, num_branch)
     branch_map = branches_to + branches_from
@@ -139,7 +139,7 @@ function _make_sets(
     # Sets - Buses
     num_bus = length(case.busid)
     bus_idx = 1:num_bus
-    bus_id2idx = Dict(case.busid .=> bus_idx)
+    bus_id2idx = Dict(string.(case.busid) .=> bus_idx)
     load_bus_idx = findall(case.bus_demand .> 0)
     num_load_bus = length(load_bus_idx)
     load_bus_map = sparse(load_bus_idx, 1:num_load_bus, 1, num_bus, num_load_bus)
@@ -153,8 +153,8 @@ function _make_sets(
     noninf_branch_idx = findall(branch_rating .!= Inf)
     all_branch_to = vcat(case.branch_to, case.dcline_to)
     all_branch_from = vcat(case.branch_from, case.dcline_from)
-    branch_to_idx = Int64[bus_id2idx[b] for b in all_branch_to]
-    branch_from_idx = Int64[bus_id2idx[b] for b in all_branch_from]
+    branch_to_idx = Int64[bus_id2idx[string(b)] for b in all_branch_to]
+    branch_from_idx = Int64[bus_id2idx[string(b)] for b in all_branch_from]
 
     # Sets - generators
     num_gen = length(case.genid)
@@ -202,7 +202,7 @@ function _make_sets(
         # assume each flexible bus can go up/dn, so only use the Dataframe for up
         csv_flexible_bus_str = names(demand_flexibility.flex_amt_up)[2:end]
         csv_flexible_bus_id = [parse(Int64, bus) for bus in csv_flexible_bus_str]
-        csv_flexible_bus_idx = [bus_id2idx[bus] for bus in csv_flexible_bus_id]
+        csv_flexible_bus_idx = [bus_id2idx[string(bus)] for bus in csv_flexible_bus_id]
 
         # all flexible buses
         if !isnothing(doe_flexible_bus_idx)
@@ -283,7 +283,7 @@ function _add_constraint_power_balance!(
     end
     withdrawals = JuMP.@expression(m, bus_demand)
     if storage.enabled
-        storage_bus_idx = [sets.bus_id2idx[b] for b in storage.gen.bus_id]
+        storage_bus_idx = [sets.bus_id2idx[string(b)] for b in storage.gen.bus_id]
         storage_map = sparse(
             storage_bus_idx, sets.storage_idx, 1, sets.num_bus, sets.num_storage
         )::SparseMatrixCSC
