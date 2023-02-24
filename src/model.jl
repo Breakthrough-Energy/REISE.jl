@@ -173,17 +173,25 @@ function _make_sets(
     num_segments = convert(Int, maximum(case.gencost_after.n)) - 1
     segment_idx = 1:num_segments
 
-    # Create index for different profile-based generators
-    profile_resources_idx = Dict{String,Array{Int64,1}}()
-    for g in case.profile_resources
-        profile_resources_idx[g] = gen_idx[findall(case.genfuel .== g)]
-    end
-
     # Create mapping between individual profile-based resources and their resource group
     profile_to_group = Dict{String,String}(
-        v => k for k in keys(case.group_profile_resources) for
-        v in case.group_profile_resources[k]
+        v => k for (k, grp) in case.group_profile_resources for v in grp
     )
+
+    # Create mapping from resource -> profile indices based on the ordering from the
+    # grid. We rely on grid.plant having the same order as profile columns
+    profile_resources_idx = Dict{String,Array{Int64,1}}()
+    count = Dict(keys(case.group_profile_resources) .=> 0)
+    for r in case.genfuel
+        if !in(r, case.profile_resources)
+            continue
+        end
+        if !in(r, keys(profile_resources_idx))
+            profile_resources_idx[r] = []
+        end
+        next_idx = count[profile_to_group[r]] += 1
+        profile_resources_idx[r] = cat(profile_resources_idx[r], next_idx; dims=1)
+    end
 
     # Demand flexibility, additional info for bus <--> load <--> flexible load conversion
     demand_flexibility_enabled =
@@ -198,7 +206,7 @@ function _make_sets(
             doe_flexible_bus_idx = nothing
         end
 
-        # flexible buses from input files    
+        # flexible buses from input files
         # assume each flexible bus can go up/dn, so only use the Dataframe for up
         csv_flexible_bus_str = names(demand_flexibility.flex_amt_up)[2:end]
         csv_flexible_bus_id = [parse(Int64, bus) for bus in csv_flexible_bus_str]
@@ -530,17 +538,15 @@ function _add_profile_generator_limits!(
         )
     end
 
+    profile_resources = keys(sets.profile_resources_idx)
     # Set the upper bounds
     println("profile_upper_bound: ", Dates.now())
     JuMP.@constraint(
         m,
         profile_upper_bound[
-            g in case.profile_resources,
-            i in 1:length(sets.profile_resources_idx[g]),
-            h in hour_idx,
+            g in profile_resources, i in sets.profile_resources_idx[g], h in hour_idx
         ],
-        m[:pg][sets.profile_resources_idx[g][i], h] <=
-            simulation_profile[sets.profile_to_group[g]][h, i],
+        m[:pg][i, h] <= simulation_profile[sets.profile_to_group[g]][h, i],
     )
 
     # Set the lower bounds, establishing PMIN as a share of PMAX
@@ -548,11 +554,9 @@ function _add_profile_generator_limits!(
     JuMP.@constraint(
         m,
         profile_lower_bound[
-            g in case.profile_resources,
-            i in 1:length(sets.profile_resources_idx[g]),
-            h in hour_idx,
+            g in profile_resources, i in sets.profile_resources_idx[g], h in hour_idx
         ],
-        m[:pg][sets.profile_resources_idx[g][i], h] >= (
+        m[:pg][i, h] >= (
             case.pmin_as_share_of_pmax[g] *
             simulation_profile[sets.profile_to_group[g]][h, i]
         ),
